@@ -1,0 +1,163 @@
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: #0c1016;
+  color: #d7dbe0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+}
+
+#wrap {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  grid-template-rows: 1fr auto;
+}
+
+canvas {
+  width: 100vw;
+  height: 100vh;
+  display: block;
+  cursor: grab;
+  outline: none;
+}
+
+canvas:active {
+  cursor: grabbing;
+}
+
+/* Controls panel */
+.panel {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  background: rgba(20, 24, 30, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 10px;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  user-select: none;
+  display: grid;
+  gap: 10px;
+  max-width: 680px;
+}
+
+.panel h4 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #b7c0cd;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.btn {
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid #2b3340;
+  background: #141820;
+  color: #e5ecf5;
+  cursor: pointer;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.kbd {
+  background: #1a2230;
+  border: 1px solid #2b3340;
+  padding: 0 4px;
+  border-radius: 4px;
+  color: #cbd3df;
+}
+
+.note {
+  font-size: 11px;
+  color: #90a0b8;
+}
+
+input[type="file"] {
+  display: none;
+}
+
+label.chk {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #b7c0cd;
+}
+
+/* Palette */
+.swatches {
+  display: grid;
+  grid-template-columns: repeat(8, 26px);
+  gap: 8px;
+  align-items: center;
+}
+
+.swatch-wrap {
+  position: relative;
+  width: 26px;
+  height: 26px;
+}
+
+.swatch {
+  width: 100%;
+  height: 100%;
+  border-radius: 4px;
+  border: 1px solid #2b3340;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+}
+
+.swatch.selected {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+.picker {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  pointer-events: none;
+  border: none;
+  background: transparent;
+}
+
+.panel.editing .picker {
+  opacity: 0.0001;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.panel.editing .swatch {
+  cursor: crosshair;
+}
+
+footer {
+  padding: 8px 12px;
+  font-size: 12px;
+  color: #aab4c2;
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(4px);
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.stats {
+  font-variant-numeric: tabular-nums;
+}
