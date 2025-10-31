@@ -1,896 +1,974 @@
 import './style.css'
+import { Mat4, Vec3 } from './math.js';
+import { OrbitCamera } from './3d.js';
+import { createProgram } from './webgl.js';
 
-(function(){
-  'use strict';
+/*** ======= Minimal Math & Camera ======= ***/
 
-  const canvas = document.getElementById('glcanvas');
-  const gl = canvas.getContext('webgl', { antialias: true, alpha: false });
-  if (!gl) { alert('WebGL not supported'); return; }
+/*** ======= WebGL Helpers ======= ***/
 
-  // ===== Shaders =====
-  const vsSrc = `
-    attribute vec3 a_pos;
-    attribute vec3 a_col;
-    uniform mat4 u_mvp;
-    varying vec3 v_col;
-    void main() {
-      gl_Position = u_mvp * vec4(a_pos, 1.0);
-      v_col = a_col;
+/*** ======= Shaders ======= ***/
+// Render (Lambert) using palette (material IDs)
+const RENDER_VS = `#version 300 es
+precision mediump float;
+in vec3 aPosition;
+in vec3 aNormal;
+in uint aMatId;
+uniform mat4 uModel, uView, uProj;
+uniform mat3 uNormalMat;
+out vec3 vNormalWS;
+flat out uint vMatId;
+void main(){
+  vec4 worldPos = uModel * vec4(aPosition, 1.0);
+  vNormalWS = normalize(uNormalMat * aNormal);
+  vMatId = aMatId;
+  gl_Position = uProj * uView * worldPos;
+}`;
+const RENDER_FS = `#version 300 es
+precision mediump float;
+in vec3 vNormalWS;
+flat in uint vMatId;
+uniform vec3 uPalette[16];
+uniform vec3 uLightDirWS;
+uniform float uAmbient;
+out vec4 fragColor;
+void main(){
+  vec3 base = uPalette[int(vMatId)];
+  float NdotL = max(dot(normalize(vNormalWS), normalize(-uLightDirWS)), 0.0);
+  float lambert = uAmbient + (1.0 - uAmbient) * NdotL;
+  vec3 rgb = pow(base * lambert, vec3(1.0/1.8));
+  fragColor = vec4(rgb, 1.0);
+}`;
+// Picking (voxel + face packed into RGB)
+const PICK_VS = `#version 300 es
+precision mediump float;
+in vec3 aPosition;
+in uint aPacked; // ((voxelIdx+1)<<3) | faceId
+uniform mat4 uModel, uView, uProj;
+flat out uint vPacked;
+void main(){
+  vPacked = aPacked;
+  gl_Position = uProj * uView * uModel * vec4(aPosition, 1.0);
+}`;
+const PICK_FS = `#version 300 es
+precision mediump float;
+flat in uint vPacked;
+out vec4 fragColor;
+void main(){
+  uint r=(vPacked)&255u, g=(vPacked>>8)&255u, b=(vPacked>>16)&255u;
+  fragColor=vec4(vec3(float(r),float(g),float(b))/255.0,1.0);
+}`;
+// Wireframe (non-uniform scale for AABB outlines)
+const WIREFRAME_VS = `#version 300 es
+precision mediump float;
+in vec3 aPosition;
+uniform mat4 uModel, uView, uProj;
+uniform vec3 uOffset;     // world center of box
+uniform vec3 uScaleVec;   // world size (sx, sy, sz)
+uniform float uInflate;
+void main(){
+  vec3 p = (aPosition * uInflate) * uScaleVec + uOffset;
+  gl_Position = uProj * uView * uModel * vec4(p, 1.0);
+}`;
+const WIREFRAME_FS = `#version 300 es
+precision mediump float;
+uniform vec3 uColor;
+out vec4 fragColor;
+void main(){ fragColor = vec4(uColor, 1.0); }`;
+
+/*** ======= Wireframe Edge Mesh ======= ***/
+function makeCubeEdges() {
+  const P = new Float32Array([
+    -0.5, -0.5, -0.5, 0.5, -0.5, -0.5, 0.5, 0.5, -0.5, -0.5, 0.5, -0.5,
+    -0.5, -0.5, 0.5, 0.5, -0.5, 0.5, 0.5, 0.5, 0.5, -0.5, 0.5, 0.5
+  ]);
+  const I = new Uint16Array([0, 1, 1, 2, 2, 3, 3, 0, 4, 5, 5, 6, 6, 7, 7, 4, 0, 4, 1, 5, 2, 6, 3, 7]);
+  return { positions: P, indices: I, count: I.length };
+}
+
+/*** ======= Utilities ======= ***/
+const hexToRgbF = (hex) => {
+  const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return m ? [parseInt(m[1], 16) / 255, parseInt(m[2], 16) / 255, parseInt(m[3], 16) / 255] : [1, 1, 1];
+};
+const decToHex = (x) => ('0' + Math.round(x * 255).toString(16)).slice(-2);
+const rgbToHexF = (r, g, b) => {
+  return '#' + decToHex(r) + decToHex(g) + decToHex(b);
+};
+
+/*** ======= App ======= ***/
+(function main() {
+  const canvas = document.getElementById('gl');
+  /** @type {WebGL2RenderingContext} */
+  const gl = canvas.getContext('webgl2', { antialias: true, alpha: false });
+  if (!gl) { alert('WebGL2 not supported'); return; }
+  gl.enable(gl.DEPTH_TEST); gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK);
+
+  // Programs
+  const renderProg = createProgram(gl, RENDER_VS, RENDER_FS);
+  const pickProg = createProgram(gl, PICK_VS, PICK_FS);
+  const wireProg = createProgram(gl, WIREFRAME_VS, WIREFRAME_FS);
+
+  // Locations
+  const rLoc = {
+    aPosition: gl.getAttribLocation(renderProg, 'aPosition'), aNormal: gl.getAttribLocation(renderProg, 'aNormal'), aMatId: gl.getAttribLocation(renderProg, 'aMatId'),
+    uModel: gl.getUniformLocation(renderProg, 'uModel'), uView: gl.getUniformLocation(renderProg, 'uView'), uProj: gl.getUniformLocation(renderProg, 'uProj'),
+    uNormalMat: gl.getUniformLocation(renderProg, 'uNormalMat'), uLightDirWS: gl.getUniformLocation(renderProg, 'uLightDirWS'), uAmbient: gl.getUniformLocation(renderProg, 'uAmbient'),
+    uPalette: gl.getUniformLocation(renderProg, 'uPalette[0]')
+  };
+  const pLoc = {
+    aPosition: gl.getAttribLocation(pickProg, 'aPosition'), aPacked: gl.getAttribLocation(pickProg, 'aPacked'),
+    uModel: gl.getUniformLocation(pickProg, 'uModel'), uView: gl.getUniformLocation(pickProg, 'uView'), uProj: gl.getUniformLocation(pickProg, 'uProj')
+  };
+  const wLoc = {
+    aPosition: gl.getAttribLocation(wireProg, 'aPosition'),
+    uModel: gl.getUniformLocation(wireProg, 'uModel'), uView: gl.getUniformLocation(wireProg, 'uView'), uProj: gl.getUniformLocation(wireProg, 'uProj'),
+    uOffset: gl.getUniformLocation(wireProg, 'uOffset'), uScaleVec: gl.getUniformLocation(wireProg, 'uScaleVec'), uInflate: gl.getUniformLocation(wireProg, 'uInflate'),
+    uColor: gl.getUniformLocation(wireProg, 'uColor')
+  };
+
+  // Buffers (render)
+  let renderVAO = gl.createVertexArray();
+  let renderPosBuf = gl.createBuffer();
+  let renderNrmBuf = gl.createBuffer();
+  let renderMatBuf = gl.createBuffer();
+  let renderIdxBuf = gl.createBuffer();
+  let renderIndexCount = 0;
+
+  // Buffers (pick)
+  let pickVAO = gl.createVertexArray();
+  let pickPosBuf = gl.createBuffer();
+  let pickPackedBuf = gl.createBuffer();
+  let pickIdxBuf = gl.createBuffer();
+  let pickIndexCount = 0;
+
+  // Wireframe mesh
+  const edges = makeCubeEdges();
+  const edgeVAO = gl.createVertexArray();
+  const edgePosBuf = gl.createBuffer();
+  const edgeIdxBuf = gl.createBuffer();
+  gl.bindVertexArray(edgeVAO);
+  gl.bindBuffer(gl.ARRAY_BUFFER, edgePosBuf);
+  gl.bufferData(gl.ARRAY_BUFFER, edges.positions, gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(wLoc.aPosition);
+  gl.vertexAttribPointer(wLoc.aPosition, 3, gl.FLOAT, false, 0, 0);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, edgeIdxBuf);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, edges.indices, gl.STATIC_DRAW);
+  gl.bindVertexArray(null);
+
+  /*** ---- World State ---- ***/
+  let N = 16, cell = 1 / N, half = 0.5;
+  let isSolid = new Array(N * N * N).fill(true);
+  let voxelMat = new Uint8Array(N * N * N);    // 0..15
+  let palette = new Float32Array(16 * 3);
+
+  const defaultHex = ['#e76f51', '#f4a261', '#e9c46a', '#2a9d8f', '#264653', '#a8dadc', '#457b9d', '#1d3557', '#ff6b6b', '#ffd93d', '#6bcb77', '#4d96ff', '#b983ff', '#ff4d6d', '#9ef01a', '#00f5d4'];
+  function setPaletteColor(i, rgb) { palette[i * 3 + 0] = rgb[0]; palette[i * 3 + 1] = rgb[1]; palette[i * 3 + 2] = rgb[2]; }
+  for (let i = 0; i < 16; i++) { const [r, g, b] = hexToRgbF(defaultHex[i]); setPaletteColor(i, [r, g, b]); }
+
+  const FACE_DIRS = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];
+  const FACE_INFO = [{ axis: 0, u: 2, v: 1 }, { axis: 0, u: 2, v: 1 }, { axis: 1, u: 0, v: 2 }, { axis: 1, u: 0, v: 2 }, { axis: 2, u: 0, v: 1 }, { axis: 2, u: 0, v: 1 }];
+  const FACE_LABEL = ["+X", "-X", "+Y", "-Y", "+Z", "-Z"];
+  const idx3 = (x, y, z) => x + N * (y + N * z);
+  const within = (x, y, z) => x >= 0 && y >= 0 && z >= 0 && x < N && y < N && z < N;
+  function coordsOf(id) { const z = Math.floor(id / (N * N)); const y = Math.floor((id - z * N * N) / N); const x = id - z * N * N - y * N; return [x, y, z]; }
+  function centerOf(id) { const [x, y, z] = coordsOf(id); return new Float32Array([-half + cell * (x + 0.5), -half + cell * (y + 0.5), -half + cell * (z + 0.5)]); }
+  function faceExposed(x, y, z, f) { const d = FACE_DIRS[f], here = isSolid[idx3(x, y, z)]; const nx = x + d[0], ny = y + d[1], nz = z + d[2]; const nb = within(nx, ny, nz) ? isSolid[idx3(nx, ny, nz)] : false; return here && !nb; }
+
+  function seedMaterials(mode = "bands") {
+    for (let z = 0; z < N; z++) for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      voxelMat[idx3(x, y, z)] = mode === "random" ? ((Math.random() * 16) | 0) : (((x >> 2) + (y >> 2) + (z >> 2)) % 16);
     }
-  `;
-  const fsSrc = `
-    precision mediump float;
-    varying vec3 v_col;
-    void main() {
-      gl_FragColor = vec4(v_col, 1.0);
-    }
-  `;
-  function compileShader(type, src){
-    const s = gl.createShader(type);
-    gl.shaderSource(s, src); gl.compileShader(s);
-    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
-      console.error(gl.getShaderInfoLog(s)); throw new Error('Shader compile failed');
-    }
-    return s;
   }
-  function createProgram(vs, fs){
-    const p = gl.createProgram();
-    gl.attachShader(p, compileShader(gl.VERTEX_SHADER, vs));
-    gl.attachShader(p, compileShader(gl.FRAGMENT_SHADER, fs));
-    gl.linkProgram(p);
-    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) {
-      console.error(gl.getProgramInfoLog(p)); throw new Error('Program link failed');
-    }
-    return p;
+  seedMaterials("bands");
+
+  function resizeWorld(newN) {
+    N = Math.max(1, Math.floor(newN)); cell = 1 / N; half = 0.5;
+    isSolid = new Array(N * N * N).fill(false);
+    voxelMat = new Uint8Array(N * N * N);
+    clearHistory(); // world layout changed → clear undo/redo
   }
-  const prog = createProgram(vsSrc, fsSrc);
-  gl.useProgram(prog);
-  const a_pos = gl.getAttribLocation(prog, 'a_pos');
-  const a_col = gl.getAttribLocation(prog, 'a_col');
-  const u_mvp = gl.getUniformLocation(prog, 'u_mvp');
 
-  const posBuf = gl.createBuffer();
-  const colBuf = gl.createBuffer();
-  gl.enableVertexAttribArray(a_pos);
-  gl.enableVertexAttribArray(a_col);
+  /*** ---- Greedy meshing (merge by material) ---- ***/
+  function buildGreedyRenderMesh() {
+    const positions = [], normals = [], matIds = [], indices = [];
+    let indexBase = 0;
 
-  gl.enable(gl.DEPTH_TEST);
-  gl.frontFace(gl.CCW);
-  gl.cullFace(gl.BACK);
-  gl.enable(gl.CULL_FACE);
-  gl.clearColor(0.10, 0.12, 0.16, 1);
+    const visCount = () => { let vis = 0; for (let z = 0; z < N; z++)for (let y = 0; y < N; y++)for (let x = 0; x < N; x++) { if (!isSolid[idx3(x, y, z)]) continue; if (faceExposed(x, y, z, 0) || faceExposed(x, y, z, 1) || faceExposed(x, y, z, 2) || faceExposed(x, y, z, 3) || faceExposed(x, y, z, 4) || faceExposed(x, y, z, 5)) vis++; } return vis; };
 
-  // ===== Math =====
-  function mat4Multiply(a,b){
-    const out = new Float32Array(16);
-    for(let r=0;r<4;r++) for(let c=0;c<4;c++){
-      out[c*4+r] =
-        a[0*4+r]*b[c*4+0] +
-        a[1*4+r]*b[c*4+1] +
-        a[2*4+r]*b[c*4+2] +
-        a[3*4+r]*b[c*4+3];
+    for (let axis = 0; axis < 3; axis++) {
+      const u = (axis + 1) % 3, v = (axis + 2) % 3, dims = [N, N, N];
+      for (let side = 0; side < 2; side++) {
+        const n = [0, 0, 0]; n[axis] = (side === 0 ? 1 : -1);
+        for (let k = 0; k <= dims[axis]; k++) {
+          const mask = new Array(dims[u] * dims[v]).fill(null);
+          for (let j = 0; j < dims[v]; j++) for (let i = 0; i < dims[u]; i++) {
+            const c = [0, 0, 0]; c[u] = i; c[v] = j; c[axis] = (side === 0 ? k - 1 : k);
+            if (!within(c[0], c[1], c[2])) continue;
+            if (!isSolid[idx3(c[0], c[1], c[2])]) continue;
+            const neigh = [c[0] + n[0], c[1] + n[1], c[2] + n[2]];
+            if (within(neigh[0], neigh[1], neigh[2]) && isSolid[idx3(neigh[0], neigh[1], neigh[2])]) continue;
+            mask[i + dims[u] * j] = voxelMat[idx3(c[0], c[1], c[2])];
+          }
+          let jRow = 0;
+          while (jRow < dims[v]) {
+            let iCol = 0;
+            while (iCol < dims[u]) {
+              const m = mask[iCol + dims[u] * jRow];
+              if (m == null) { iCol++; continue; }
+              let w = 1; while (iCol + w < dims[u] && mask[(iCol + w) + dims[u] * jRow] === m) w++;
+              let h = 1; heightLoop: while (jRow + h < dims[v]) { for (let xw = 0; xw < w; xw++) { if (mask[(iCol + xw) + dims[u] * (jRow + h)] !== m) break heightLoop; } h++; }
+              const du = [0, 0, 0]; du[u] = w * cell;
+              const dv = [0, 0, 0]; dv[v] = h * cell;
+              const base = [0, 0, 0]; base[u] = -half + cell * iCol; base[v] = -half + cell * jRow; base[axis] = -half + cell * k;
+              const eps = 1e-6;
+              let v0 = base.slice(), v1 = [base[0] + du[0], base[1] + du[1], base[2] + du[2]];
+              let v2 = [v1[0] + dv[0], v1[1] + dv[1], v1[2] + dv[2]], v3 = [base[0] + dv[0], base[1] + dv[1], base[2] + dv[2]];
+              const nrm = [0, 0, 0]; nrm[axis] = n[axis];
+              v0[axis] += n[axis] * eps; v1[axis] += n[axis] * eps; v2[axis] += n[axis] * eps; v3[axis] += n[axis] * eps;
+              positions.push(v0[0], v0[1], v0[2], v1[0], v1[1], v1[2], v2[0], v2[1], v2[2], v3[0], v3[1], v3[2]);
+              normals.push(nrm[0], nrm[1], nrm[2], nrm[0], nrm[1], nrm[2], nrm[0], nrm[1], nrm[2], nrm[0], nrm[1], nrm[2]);
+              matIds.push(m, m, m, m);
+              if (n[axis] > 0) { indices.push(indexBase, indexBase + 1, indexBase + 2, indexBase, indexBase + 2, indexBase + 3); }
+              else { indices.push(indexBase, indexBase + 3, indexBase + 2, indexBase, indexBase + 2, indexBase + 1); }
+              indexBase += 4;
+              for (let y2 = 0; y2 < h; y2++) for (let x2 = 0; x2 < w; x2++) mask[(iCol + x2) + dims[u] * (jRow + y2)] = null;
+              iCol += w;
+            }
+            jRow++;
+          }
+        }
+      }
+    }
+
+    // Upload render mesh
+    gl.bindVertexArray(renderVAO);
+    gl.bindBuffer(gl.ARRAY_BUFFER, renderPosBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.DYNAMIC_DRAW);
+    gl.enableVertexAttribArray(rLoc.aPosition);
+    gl.vertexAttribPointer(rLoc.aPosition, 3, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, renderNrmBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(normals), gl.DYNAMIC_DRAW);
+    gl.enableVertexAttribArray(rLoc.aNormal);
+    gl.vertexAttribPointer(rLoc.aNormal, 3, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, renderMatBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Uint8Array(matIds), gl.DYNAMIC_DRAW);
+    gl.enableVertexAttribArray(rLoc.aMatId);
+    gl.vertexAttribIPointer(rLoc.aMatId, 1, gl.UNSIGNED_BYTE, 0, 0);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, renderIdxBuf);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint32Array(indices), gl.DYNAMIC_DRAW);
+    gl.bindVertexArray(null);
+
+    renderIndexCount = indices.length;
+    document.getElementById('quads').textContent = (renderIndexCount / 6).toString();
+    document.getElementById('tris').textContent = renderIndexCount.toString();
+    document.getElementById('vis').textContent = visCount().toString();
+  }
+
+  /*** ---- Pick faces (unmerged) ---- ***/
+  function buildPickFaces() {
+    const positions = [], packed = [], indices = []; let base = 0;
+    const faces = [{ axis: 0, sign: +1, u: 2, v: 1, id: 0 }, { axis: 0, sign: -1, u: 2, v: 1, id: 1 }, { axis: 1, sign: +1, u: 0, v: 2, id: 2 }, { axis: 1, sign: -1, u: 0, v: 2, id: 3 }, { axis: 2, sign: +1, u: 0, v: 1, id: 4 }, { axis: 2, sign: -1, u: 0, v: 1, id: 5 }];
+    for (let z = 0; z < N; z++)for (let y = 0; y < N; y++)for (let x = 0; x < N; x++) {
+      const vIdx = idx3(x, y, z); if (!isSolid[vIdx]) continue; const min = [-half + x * cell, -half + y * cell, -half + z * cell];
+      for (const f of faces) {
+        if (!faceExposed(x, y, z, f.id)) continue;
+        const plane = min.slice(); plane[f.axis] += (f.sign > 0 ? cell : 0);
+        const u = f.u, v = f.v;
+        const p0 = plane.slice(), p1 = plane.slice(); p1[u] += cell;
+        const p2 = p1.slice(); p2[v] += cell; const p3 = plane.slice(); p3[v] += cell;
+        positions.push(p0[0], p0[1], p0[2], p1[0], p1[1], p1[2], p2[0], p2[1], p2[2], p3[0], p3[1], p3[2]);
+        const pack = ((vIdx + 1) << 3) | (f.id & 7); packed.push(pack, pack, pack, pack);
+        indices.push(base, base + 1, base + 2, base, base + 2, base + 3); base += 4;
+      }
+    }
+    gl.bindVertexArray(pickVAO);
+    gl.bindBuffer(gl.ARRAY_BUFFER, pickPosBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.DYNAMIC_DRAW);
+    gl.enableVertexAttribArray(pLoc.aPosition); gl.vertexAttribPointer(pLoc.aPosition, 3, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, pickPackedBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Uint32Array(packed), gl.DYNAMIC_DRAW);
+    gl.enableVertexAttribArray(pLoc.aPacked); gl.vertexAttribIPointer(pLoc.aPacked, 1, gl.UNSIGNED_INT, 0, 0);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, pickIdxBuf);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint32Array(indices), gl.DYNAMIC_DRAW);
+    gl.bindVertexArray(null);
+    pickIndexCount = indices.length;
+  }
+
+  function rebuildAll() { buildGreedyRenderMesh(); buildPickFaces(); }
+  rebuildAll();
+
+  /*** ---- Camera / lighting ---- ***/
+  const camera = new OrbitCamera({ radius: 2.3, theta: 0.9, phi: 0.9 });
+  const model = Mat4.identity();
+  let proj = Mat4.perspective(60 * Math.PI / 180, 1, 0.01, 100);
+  const ambient = 0.22;
+
+  /*** ---- Resize & Pick Targets ---- ***/
+  let dpr = 1, pickFBO = null, pickTex = null, pickDepth = null, pickW = 0, pickH = 0;
+  function resizePickTargets() {
+    const w = canvas.width, h = canvas.height;
+    if (w === pickW && h === pickH && pickFBO) return;
+    if (pickTex) gl.deleteTexture(pickTex); if (pickDepth) gl.deleteRenderbuffer(pickDepth); if (pickFBO) gl.deleteFramebuffer(pickFBO);
+    pickTex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, pickTex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    pickDepth = gl.createRenderbuffer(); gl.bindRenderbuffer(gl.RENDERBUFFER, pickDepth); gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, w, h);
+    pickFBO = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, pickFBO);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, pickTex, 0);
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, pickDepth);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null); pickW = w; pickH = h;
+  }
+  function resize() {
+    dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+    const w = canvas.clientWidth || canvas.parentElement.clientWidth, h = canvas.clientHeight || canvas.parentElement.clientHeight;
+    canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    proj = Mat4.perspective(60 * Math.PI / 180, canvas.width / canvas.height, 0.01, 100);
+    resizePickTargets();
+  }
+  window.addEventListener('resize', resize, { passive: true }); requestAnimationFrame(resize);
+
+  function renderPick() {
+    gl.bindFramebuffer(gl.FRAMEBUFFER, pickFBO);
+    gl.viewport(0, 0, pickW, pickH); gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    const cullWas = gl.isEnabled(gl.CULL_FACE); if (cullWas) gl.disable(gl.CULL_FACE);
+    gl.useProgram(pickProg);
+    gl.uniformMatrix4fv(pLoc.uModel, false, model); gl.uniformMatrix4fv(pLoc.uView, false, camera.view()); gl.uniformMatrix4fv(pLoc.uProj, false, proj);
+    gl.bindVertexArray(pickVAO); gl.drawElements(gl.TRIANGLES, pickIndexCount, gl.UNSIGNED_INT, 0); gl.bindVertexArray(null);
+    if (cullWas) gl.enable(gl.CULL_FACE);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  }
+  function clientToFB(xc, yc) {
+    const r = canvas.getBoundingClientRect();
+    const x = Math.floor((xc - r.left) * (canvas.width / r.width));
+    const y = Math.floor((r.height - (yc - r.top)) * (canvas.height / r.height));
+    return { x, y };
+  }
+  function decodePickAt(xc, yc) {
+    if (pickIndexCount === 0) return { voxel: -1, face: -1 };
+    renderPick();
+    const { x, y } = clientToFB(xc, yc); const px = new Uint8Array(4);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, pickFBO); gl.readPixels(x, y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px); gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    const packed = (px[0]) | (px[1] << 8) | (px[2] << 16);
+    if (packed === 0) return { voxel: -1, face: -1 };
+    const face = packed & 7; const vId = (packed >> 3) - 1; if (vId < 0 || vId >= isSolid.length) return { voxel: -1, face: -1 };
+    return { voxel: vId, face };
+  }
+
+  /*** ---- Wireframe drawing ---- ***/
+  function drawWireAABB(minX, minY, minZ, maxX, maxY, maxZ, color, inflate = 1.006) {
+    const sx = (maxX - minX + 1) * cell, sy = (maxY - minY + 1) * cell, sz = (maxZ - minZ + 1) * cell;
+    const cx = (-half + minX * cell) + sx * 0.5;
+    const cy = (-half + minY * cell) + sy * 0.5;
+    const cz = (-half + minZ * cell) + sz * 0.5;
+    gl.useProgram(wireProg);
+    gl.uniformMatrix4fv(wLoc.uModel, false, model); gl.uniformMatrix4fv(wLoc.uView, false, camera.view()); gl.uniformMatrix4fv(wLoc.uProj, false, proj);
+    gl.uniform3fv(wLoc.uOffset, new Float32Array([cx, cy, cz]));
+    gl.uniform3fv(wLoc.uScaleVec, new Float32Array([sx, sy, sz]));
+    gl.uniform1f(wLoc.uInflate, inflate);
+    gl.uniform3fv(wLoc.uColor, new Float32Array(color));
+    gl.bindVertexArray(edgeVAO); gl.drawElements(gl.LINES, edges.count, gl.UNSIGNED_SHORT, 0); gl.bindVertexArray(null);
+  }
+
+  function drawVoxelWire(id, color, inflate = 1.006) {
+    const [x, y, z] = coordsOf(id);
+    drawWireAABB(x, y, z, x, y, z, color, inflate);
+  }
+
+  /*** ---- UI: Palette & brush ---- ***/
+  const paletteEl = document.getElementById('palette'); let brushMat = 0;
+  function buildPaletteUI() {
+    paletteEl.innerHTML = '';
+    for (let i = 0; i < 16; i++) {
+      const hex = rgbToHexF(palette[i * 3 + 0], palette[i * 3 + 1], palette[i * 3 + 2]);
+      const row = document.createElement('div'); row.className = 'swatch';
+      const idx = document.createElement('div'); idx.className = 'idx'; idx.textContent = i.toString(16).toUpperCase();
+      const chip = document.createElement('div'); chip.className = 'chip'; chip.style.background = hex; if (i === brushMat) chip.classList.add('active');
+      chip.title = `Select material ${i}`; chip.addEventListener('click', () => selectBrush(i));
+      const picker = document.createElement('input'); picker.type = 'color'; picker.value = hex; picker.title = `Edit palette[${i}]`;
+      // Palette live update on input; record undo on change (single action)
+      let lastHex = hex;
+      picker.addEventListener('focus', () => { lastHex = picker.value; });
+      picker.addEventListener('pointerdown', () => { lastHex = picker.value; });
+      picker.addEventListener('input', () => { const [r, g, b] = hexToRgbF(picker.value); setPaletteColor(i, [r, g, b]); chip.style.background = picker.value; });
+      picker.addEventListener('change', () => {
+        if (picker.value !== lastHex) {
+          const act = beginPaletteAction(`Palette ${i}`);
+          recordPaletteChange(act, i, lastHex, picker.value);
+          commitAction(act, /*rebuild*/false);
+          lastHex = picker.value;
+        }
+      });
+      row.appendChild(idx); row.appendChild(chip); row.appendChild(picker); paletteEl.appendChild(row);
+    }
+    document.getElementById('brushMat').textContent = brushMat;
+  }
+  buildPaletteUI();
+  function selectBrush(id) { brushMat = id & 15; document.getElementById('brushMat').textContent = brushMat; document.querySelectorAll('.chip').forEach(c => c.classList.remove('active')); const chips = document.querySelectorAll('.chip'); if (chips[brushMat]) chips[brushMat].classList.add('active'); }
+
+  // Buttons for palette/materials/world
+  document.getElementById('randPalette').addEventListener('click', () => {
+    for (let i = 0; i < 16; i++) setPaletteColor(i, [Math.random() * 0.9 + 0.1, Math.random() * 0.9 + 0.1, Math.random() * 0.9 + 0.1]);
+    buildPaletteUI();
+    clearHistory(); // treat as scene change
+  });
+  document.getElementById('randMaterials').addEventListener('click', () => {
+    seedMaterials('random'); rebuildAll(); clearHistory();
+  });
+  document.getElementById('resetSolid').addEventListener('click', () => {
+    isSolid.fill(true); seedMaterials('bands'); rebuildAll(); clearHistory();
+  });
+
+  let mode = document.querySelector('input[name="modeSelect"]:checked').value;
+  document.querySelectorAll('input[name="modeSelect"]').forEach(radio => {
+    radio.addEventListener('change', (e) => {
+      if (e.target.checked) {
+        mode = e.target.value;
+        console.log('Mode changed to', mode);
+      }
+    });
+  });
+
+  let option = document.querySelector('input[name="optionSelect"]:checked').value;
+  document.querySelectorAll('input[name="optionSelect"]').forEach(radio => {
+    radio.addEventListener('change', (e) => {
+      if (e.target.checked) {
+        option = e.target.value;
+        console.log('Option changed to', option);
+      }
+    });
+  });
+
+
+  /*** ---- Import/Export JSON ---- ***/
+  const fileInput = document.getElementById('fileInput');
+  document.getElementById('btnImport').addEventListener('click', () => fileInput.click());
+  document.getElementById('btnExport').addEventListener('click', () => {
+    const data = exportToJSON(); const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }); const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'voxels.json'; a.click(); URL.revokeObjectURL(url);
+  });
+  fileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => { try { const obj = JSON.parse(reader.result); importFromJSON(obj); } catch (err) { alert('Invalid JSON: ' + err.message); } finally { fileInput.value = ''; } };
+    reader.readAsText(file);
+  });
+  function exportToJSON() {
+    const palHex = [];
+    
+    for (let i = 0; i < 16; i++) palHex.push(rgbToHexF(palette[i * 3 + 0], palette[i * 3 + 1], palette[i * 3 + 2]));
+
+    const voxels = [];
+    for (let z = 0; z < N; z++) {
+      for (let y = 0; y < N; y++) {
+        for (let x = 0; x < N; x++) {
+          const id = idx3(x, y, z);
+          if (isSolid[id]) voxels.push( `${decToHex(x).slice(-1)}${decToHex(y).slice(-1)}${decToHex(z).slice(-1)}${voxelMat[id] | 0}`);
+        }
+      }
+    }
+
+    return { version: 1, size: N, palette: palHex, voxels };
+  }
+
+  function hexCharToInt(hex) {
+  // Convert a single hex character (0-9, a-f, A-F) to integer (0-15)
+  const c = hex.toLowerCase();
+  if (c >= '0' && c <= '9') {
+    return c.charCodeAt(0) - '0'.charCodeAt(0);
+  }
+  if (c >= 'a' && c <= 'f') {
+    return 10 + (c.charCodeAt(0) - 'a'.charCodeAt(0));
+  }
+  return 0; // Invalid hex character
+}
+
+  function importFromJSON(obj) {
+    if (!obj || typeof obj !== 'object') throw new Error('Root must be object');
+    if (!Array.isArray(obj.voxels)) throw new Error('Missing "voxels"');
+    if (obj.size != 16) throw new Error('Invalid "size"');
+    
+    if (Array.isArray(obj.palette)) {
+      for (let i = 0; i < Math.min(16, obj.palette.length); i++) {
+        const e = obj.palette[i]; 
+        let rgb;
+
+        if (typeof e === 'string') rgb = hexToRgbF(e); 
+        else if (Array.isArray(e) && e.length >= 3) rgb = [+e[0], +e[1], +e[2]];
+
+        if (rgb) { 
+          setPaletteColor(i, [Math.max(0, Math.min(1, rgb[0])), Math.max(0, Math.min(1, rgb[1])), Math.max(0, Math.min(1, rgb[2]))]); 
+        }
+      }
+      buildPaletteUI();
+    }
+
+    isSolid.fill(false);
+    voxelMat.fill(0);
+  
+    for (const v of obj.voxels) {
+      if (!v) continue;
+      console.log(v);
+      const x = hexCharToInt(v[0]);
+      const y = hexCharToInt(v[1]);
+      const z = hexCharToInt(v[2]);
+      const m = (hexCharToInt(v[3]) | 0) & 15;
+      if (within(x, y, z)) {
+        const id = idx3(x, y, z);
+        isSolid[id] = true;
+        voxelMat[id] = m;
+      }
+    }
+    rebuildAll();
+    clearHistory(); // imported scene becomes baseline
+  }
+
+  /*** ---- Row Tool ---- ***/
+  // let rowToolOn = false, rowAxis = 'U';
+  // const rowStateEl = document.getElementById('rowState'), rowAxisLbl = document.getElementById('rowAxisLbl');
+  // function refreshRowUI() { rowStateEl.textContent = rowToolOn ? 'On' : 'Off'; rowAxisLbl.textContent = rowAxis; document.getElementById('toggleRow').classList.toggle('toggled', rowToolOn); document.getElementById('toggleAxis').classList.toggle('toggled', true); }
+  // document.getElementById('toggleRow').addEventListener('click', () => { rowToolOn = !rowToolOn; if (rowToolOn) { planeToolOn = false; refreshPlaneUI(); boxToolOn = false; refreshBoxUI(); } refreshRowUI(); });
+  // document.getElementById('toggleAxis').addEventListener('click', () => { rowAxis = (rowAxis === 'U' ? 'V' : 'U'); refreshRowUI(); });
+  // refreshRowUI();
+
+  function getRowSurfaceVoxels(vIdx, faceId, axisMode) {
+    if (vIdx < 0 || faceId < 0) return [];
+    const info = FACE_INFO[faceId], [x0, y0, z0] = coordsOf(vIdx); 
+    const U = info.u, V = info.v, AX = info.axis; 
+    const fixedV = [x0, y0, z0][V], fixedAX = [x0, y0, z0][AX];
+    const out = [];
+    for (let t = 0; t < N; t++) {
+      const c = [0, 0, 0];
+      if (axisMode === 'U') {
+        c[U] = t;
+        c[V] = fixedV;
+        c[AX] = fixedAX;
+      } else {
+        c[U] = [x0, y0, z0][U];
+        c[V] = t;
+        c[AX] = fixedAX;
+      }
+      if (!within(c[0], c[1], c[2])) continue;
+      if (!isSolid[idx3(c[0], c[1], c[2])]) continue;
+      if (!faceExposed(c[0], c[1], c[2], faceId)) continue;
+      out.push(idx3(c[0], c[1], c[2]));
     }
     return out;
   }
-  function mat4Perspective(fovy, aspect, near, far){
-    const f = 1/Math.tan(fovy/2), nf = 1/(near-far);
-    const m = new Float32Array(16);
-    m[0]=f/aspect; m[5]=f; m[10]=(far+near)*nf; m[11]=-1; m[14]=(2*far*near)*nf; m[15]=0;
-    return m;
-  }
-  function vSub(a,b){ return [a[0]-b[0], a[1]-b[1], a[2]-b[2]]; }
-  function vNorm(a){ const L=Math.hypot(a[0],a[1],a[2])||1; return [a[0]/L,a[1]/L,a[2]/L]; }
-  function vCross(a,b){ return [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]]; }
-  function vDot(a,b){ return a[0]*b[0]+a[1]*b[1]+a[2]*b[2]; }
-  function lookAt(eye, target, up){
-    const z = vNorm(vSub(eye, target));   // forward
-    const x = vNorm(vCross(up, z));       // right
-    const y = vCross(z, x);               // up
-    const m = new Float32Array(16);
-    m[0]=x[0]; m[4]=x[1]; m[8]=x[2];  m[12]=-vDot(x,eye);
-    m[1]=y[0]; m[5]=y[1]; m[9]=y[2];  m[13]=-vDot(y,eye);
-    m[2]=z[0]; m[6]=z[1]; m[10]=z[2]; m[14]=-vDot(z,eye);
-    m[3]=0;    m[7]=0;    m[11]=0;    m[15]=1;
-    return m;
-  }
-  function eyeFromSpherical(r, az, el){
-    const ce = Math.cos(el);
-    return [r*Math.sin(az)*ce, r*Math.sin(el), r*Math.cos(az)*ce];
-  }
-
-  // ===== Orbit & Input =====
-  let radius = 3.2, theta = 0.6, phi = 0.35;
-  const minPhi = (-Math.PI/2)+0.05, maxPhi=(Math.PI/2)-0.05, minR=2.3, maxR=30.0;
-  let dragging=false, lastX=0, lastY=0, downX=0, downY=0;
-  let lastMouseX=null, lastMouseY=null;
-  let shiftDown=false, ctrlDown=false, altDown=false;
-
-  function onDown(x,y){ dragging=true; lastX=x; lastY=y; downX=x; downY=y; }
-  function onMove(e){
-    const x = e.clientX, y = e.clientY; lastMouseX=x; lastMouseY=y;
-    if(dragging){
-      const dx=x-lastX, dy=y-lastY; lastX=x; lastY=y;
-      theta -= dx*0.005; 
-      phi += dy*0.005;
-      if(phi<minPhi) phi=minPhi; if(phi>maxPhi) phi=maxPhi;
-    } else {
-      updateHover(x, y, e.shiftKey, e.ctrlKey || e.metaKey, e.altKey);
+  function getRowAddTargets(vIdx, faceId, axisMode) {
+    const d = FACE_DIRS[faceId], surf = getRowSurfaceVoxels(vIdx, faceId, axisMode), tSet = new Set();
+    for (const s of surf) {
+      const [x, y, z] = coordsOf(s);
+      const nx = x + d[0], ny = y + d[1], nz = z + d[2];
+      if (within(nx, ny, nz) && !isSolid[idx3(nx, ny, nz)]) tSet.add(idx3(nx, ny, nz));
     }
-  }
-  function onUp(e){
-    const x = e.clientX, y = e.clientY;
-    const dist = Math.abs(x-downX)+Math.abs(y-downY);
-    if(dist < 6){
-      if (e.ctrlKey || e.metaKey) paintFaceAt(x, y);
-      else if (e.shiftKey) addVoxelAt(x, y);
-      else if (e.altKey) carveRowAt(x, y);
-      else removeVoxelAt(x, y);
-    }
-    dragging=false;
-  }
-  canvas.addEventListener('mousedown', (e)=>onDown(e.clientX,e.clientY));
-  window.addEventListener('mousemove', onMove);
-  window.addEventListener('mouseup', onUp);
-  canvas.addEventListener('wheel', (e)=>{
-    e.preventDefault();
-    const d = Math.sign(e.deltaY);
-    radius *= (1 + 0.12*d);
-    radius = Math.min(Math.max(radius, minR), maxR);
-  }, {passive:false});
-
-  window.addEventListener('keydown', (e)=>{
-    if(e.key === 'Shift'){ shiftDown = true; if(lastMouseX!=null) updateHover(lastMouseX,lastMouseY, true, ctrlDown, altDown); }
-    if(e.key === 'Control' || e.key === 'Meta'){ ctrlDown = true; if(lastMouseX!=null) updateHover(lastMouseX,lastMouseY, shiftDown, true, altDown); }
-    if(e.key === 'Alt'){ altDown = true; if(lastMouseX!=null) updateHover(lastMouseX,lastMouseY, shiftDown, ctrlDown, true); }
-
-    const k = e.key.toLowerCase(); const cmd = e.ctrlKey || e.metaKey;
-    if (cmd && k === 'z' && !e.repeat && !dragging) { e.preventDefault(); if (e.shiftKey) redoAction(); else undoAction(); }
-    else if (cmd && k === 'y' && !e.repeat && !dragging) { e.preventDefault(); redoAction(); }
-  });
-  window.addEventListener('keyup', (e)=>{
-    if(e.key === 'Shift'){ shiftDown = false; if(lastMouseX!=null) updateHover(lastMouseX,lastMouseY, false, ctrlDown, altDown); }
-    if(e.key === 'Control' || e.key === 'Meta'){ ctrlDown = false; if(lastMouseX!=null) updateHover(lastMouseX,lastMouseY, shiftDown, false, altDown); }
-    if(e.key === 'Alt'){ altDown = false; if(lastMouseX!=null) updateHover(lastMouseX,lastMouseY, shiftDown, ctrlDown, false); }
-  });
-
-  // ===== Resize / DPR =====
-  function resize(){
-    const dpr = Math.max(1, Math.min(3, window.devicePixelRatio||1));
-    const w = Math.floor(canvas.clientWidth*dpr);
-    const h = Math.floor(canvas.clientHeight*dpr);
-    if(canvas.width!==w || canvas.height!==h){ canvas.width=w; canvas.height=h; }
-    gl.viewport(0,0,canvas.width,canvas.height);
-  }
-  window.addEventListener('resize', resize);
-  resize();
-
-  // ===== Voxel grid =====
-  const N = 16;
-  const SIZE = 2 / N;
-  const BMIN = -1.0, BMAX =  1.0;
-  const vox = new Uint8Array(N*N*N); vox.fill(1);
-  function I(x,y,z){ return x + y*N + z*N*N; }
-  function inB(x,y,z){ return x>=0 && x<N && y>=0 && y<N && z>=0 && z<N; }
-
-  const FACE = { PX:0, NX:1, PY:2, NY:3, PZ:4, NZ:5 };
-  const BASE = {
-    [FACE.PZ]: [1.00, 0.30, 0.30],
-    [FACE.NZ]: [0.30, 1.00, 0.30],
-    [FACE.PX]: [0.30, 0.45, 1.00],
-    [FACE.NX]: [1.00, 1.00, 0.30],
-    [FACE.PY]: [1.00, 0.35, 1.00],
-    [FACE.NY]: [0.30, 1.00, 1.00],
-  };
-
-  // Per-face overrides -> palette index (null or 0..15)
-  const faceOverrideIdx = new Array(N);
-  for(let x=0;x<N;x++){
-    faceOverrideIdx[x] = new Array(N);
-    for(let y=0;y<N;y++){
-      faceOverrideIdx[x][y] = new Array(N);
-      for(let z=0;z<N;z++){
-        faceOverrideIdx[x][y][z] = [null,null,null,null,null,null];
-      }
-    }
-  }
-  function setFaceOverrideIdx(x,y,z,f, idx){ faceOverrideIdx[x][y][z][f] = (idx==null ? null : (idx|0)); }
-  function getFaceOverrideIdx(x,y,z,f){ return faceOverrideIdx[x][y][z][f]; }
-  function snapshotOverridesIdx(x,y,z){
-    const arr = new Array(6);
-    for(let f=0; f<6; f++){ const ov = getFaceOverrideIdx(x,y,z,f); arr[f] = (ov==null ? null : ov|0); }
-    return arr;
-  }
-  function applyOverridesIdx(x,y,z, arr){
-    for(let f=0; f<6; f++){ setFaceOverrideIdx(x,y,z,f, arr ? arr[f] : null); }
+    return [...tSet];
   }
 
-  function checkerColor(face, x,y,z){
-    const base = BASE[face];
-    let u=0, v=0;
-    switch(face){
-      case FACE.PZ: u = x;         v = y;          break;
-      case FACE.NZ: u = (N-1-x);   v = y;          break;
-      case FACE.PX: u = z;         v = y;          break;
-      case FACE.NX: u = (N-1-z);   v = y;          break;
-      case FACE.PY: u = x;         v = (N-1-z);    break;
-      case FACE.NY: u = x;         v = z;          break;
-    }
-    const light = ((u + v) & 1) === 0 ? 0.90 : 0.55;
-    return [base[0]*light, base[1]*light, base[2]*light];
+  /*** ---- Plane Tool ---- ***/
+  // let planeToolOn = false;
+  // const planeStateEl = document.getElementById('planeState');
+  // function refreshPlaneUI() { planeStateEl.textContent = planeToolOn ? 'On' : 'Off'; document.getElementById('togglePlane').classList.toggle('toggled', planeToolOn); }
+  // document.getElementById('togglePlane').addEventListener('click', () => { planeToolOn = !planeToolOn; if (planeToolOn) { rowToolOn = false; refreshRowUI(); boxToolOn = false; refreshBoxUI(); } refreshPlaneUI(); });
+  // refreshPlaneUI();
+
+  function getPlaneSurfaceVoxels(vIdx, faceId) {
+    if (vIdx < 0 || faceId < 0) return [];
+    const info = FACE_INFO[faceId], [x0, y0, z0] = coordsOf(vIdx); const AX = info.axis, U = info.u, V = info.v; const fixedAX = [x0, y0, z0][AX];
+    const out = []; for (let u = 0; u < N; u++)for (let v = 0; v < N; v++) { const c = [0, 0, 0]; c[AX] = fixedAX; c[U] = u; c[V] = v; if (!within(c[0], c[1], c[2])) continue; if (!isSolid[idx3(c[0], c[1], c[2])]) continue; if (!faceExposed(c[0], c[1], c[2], faceId)) continue; out.push(idx3(c[0], c[1], c[2])); }
+    return out;
+  }
+  function getPlaneAddTargets(vIdx, faceId) {
+    const d = FACE_DIRS[faceId], surf = getPlaneSurfaceVoxels(vIdx, faceId), tSet = new Set();
+    for (const s of surf) { const [x, y, z] = coordsOf(s); const nx = x + d[0], ny = y + d[1], nz = z + d[2]; if (within(nx, ny, nz) && !isSolid[idx3(nx, ny, nz)]) tSet.add(idx3(nx, ny, nz)); }
+    return [...tSet];
   }
 
-  // ===== Palette (editable, persisted) =====
-  const PALETTE_KEY = 'voxelPalette16';
-  const defaultPaletteHex = [
-    '#ffffff','#000000','#ff0000','#00ff00','#0000ff','#ffff00','#ff00ff','#00ffff',
-    '#ff8800','#8844ff','#00cc66','#cc0066','#775533','#aaaaaa','#444444','#66ccff'
-  ];
-  let paletteHex = loadPalette() || defaultPaletteHex.slice();
-  let selectedIndex = 0;
+  /*** ---- Box Tool ---- ***/
+  // let boxToolOn = false; let boxSize = 3; let boxFaceOffset = true;
+  // const boxStateEl = document.getElementById('boxState'); const boxSizeEl = document.getElementById('boxSize'); const boxSizeLbl = document.getElementById('boxSizeLbl'); const boxFaceOffsetEl = document.getElementById('boxFaceOffset');
+  // function refreshBoxUI() { boxStateEl.textContent = boxToolOn ? 'On' : 'Off'; document.getElementById('toggleBox').classList.toggle('toggled', boxToolOn); boxSizeLbl.textContent = boxSize; }
+  // document.getElementById('toggleBox').addEventListener('click', () => { boxToolOn = !boxToolOn; if (boxToolOn) { rowToolOn = false; refreshRowUI(); planeToolOn = false; refreshPlaneUI(); } refreshBoxUI(); });
+  // boxSizeEl.addEventListener('input', () => { boxSize = Math.max(2, Math.min(8, boxSizeEl.value | 0)); refreshBoxUI(); });
+  // boxFaceOffsetEl.addEventListener('change', () => { boxFaceOffset = boxFaceOffsetEl.checked; });
+  // refreshBoxUI();
 
-  const panelEl = document.getElementById('panel');
-  const editPaletteChk = document.getElementById('editPaletteChk');
-  const resetPaletteBtn = document.getElementById('resetPaletteBtn');
-  editPaletteChk.addEventListener('change', ()=> panelEl.classList.toggle('editing', editPaletteChk.checked));
-  resetPaletteBtn.addEventListener('click', ()=>{
-    paletteHex = defaultPaletteHex.slice();
-    savePalette(paletteHex);
-    rebuildSwatches();
-    rebuildMesh(); // propagate new colors immediately
-  });
-  function hexToRgb01(hex){
-    const h = hex.startsWith('#') ? hex.slice(1) : hex;
-    return [ parseInt(h.slice(0,2),16)/255, parseInt(h.slice(2,4),16)/255, parseInt(h.slice(4,6),16)/255 ];
-  }
-  function loadPalette(){
-    try{
-      const raw = localStorage.getItem(PALETTE_KEY);
-      if(!raw) return null;
-      const arr = JSON.parse(raw);
-      if(Array.isArray(arr) && arr.length===16 && arr.every(x=>typeof x==='string' && /^#[0-9a-fA-F]{6}$/.test(x))) return arr;
-      return null;
-    }catch(e){ return null; }
-  }
-  function savePalette(arr){ try { localStorage.setItem(PALETTE_KEY, JSON.stringify(arr)); } catch(e){} }
+  // function getCenteredBoxBounds(cx, cy, cz, size) {
+  //   const h = Math.floor((size - 1) / 2);
+  //   const minX = cx - h, maxX = cx + (size - 1 - h);
+  //   const minY = cy - h, maxY = cy + (size - 1 - h);
+  //   const minZ = cz - h, maxZ = cz + (size - 1 - h);
+  //   return [minX, minY, minZ, maxX, maxY, maxZ];
+  // }
+  // function clampBounds(minX, minY, minZ, maxX, maxY, maxZ) {
+  //   return [
+  //     Math.max(0, Math.min(N - 1, minX)),
+  //     Math.max(0, Math.min(N - 1, minY)),
+  //     Math.max(0, Math.min(N - 1, minZ)),
+  //     Math.max(0, Math.min(N - 1, maxX)),
+  //     Math.max(0, Math.min(N - 1, maxY)),
+  //     Math.max(0, Math.min(N - 1, maxZ)),
+  //   ];
+  // }
+  // function offsetBoundsByFace(minX, minY, minZ, maxX, maxY, maxZ, faceId) {
+  //   if (faceId < 0) return [minX, minY, minZ, maxX, maxY, maxZ];
+  //   const d = FACE_DIRS[faceId];
+  //   return [minX + d[0], minY + d[1], minZ + d[2], maxX + d[0], maxY + d[1], maxZ + d[2]];
+  // }
+  // function forEachInBounds(minX, minY, minZ, maxX, maxY, maxZ, fn) {
+  //   for (let z = minZ; z <= maxZ; z++) for (let y = minY; y <= maxY; y++) for (let x = minX; x <= maxX; x++) fn(x, y, z);
+  // }
 
-  const swatchesEl = document.getElementById('swatches');
-  function rebuildSwatches(){
-    swatchesEl.innerHTML = '';
-    for(let i=0; i<paletteHex.length; i++){
-      const wrap = document.createElement('div'); wrap.className = 'swatch-wrap';
-      const sw = document.createElement('div');
-      sw.className = 'swatch' + (i===selectedIndex ? ' selected' : '');
-      sw.style.background = paletteHex[i];
-      sw.title = `#${paletteHex[i].slice(1).toUpperCase()} (${i})`;
-      const picker = document.createElement('input');
-      picker.className = 'picker'; picker.type = 'color'; picker.value = paletteHex[i];
+  /*** ---- UNDO/REDO system ---- ***/
+  const undoBtn = document.getElementById('btnUndo');
+  const redoBtn = document.getElementById('btnRedo');
+  const undoInfo = document.getElementById('undoInfo');
 
-      sw.addEventListener('click', ()=>{
-        if (!editPaletteChk.checked) { selectedIndex = i; rebuildSelectionHighlights(); }
-      });
-      picker.addEventListener('input', ()=>{
-        const hx = picker.value;
-        paletteHex[i] = hx;
-        savePalette(paletteHex);
-        sw.style.background = hx;
-        sw.title = `#${hx.slice(1).toUpperCase()} (${i})`;
-        rebuildMesh(); // repaint all faces using this index
-      });
-
-      wrap.appendChild(sw); wrap.appendChild(picker);
-      swatchesEl.appendChild(wrap);
-    }
-  }
-  function rebuildSelectionHighlights(){
-    const nodes = swatchesEl.querySelectorAll('.swatch');
-    nodes.forEach((node, idx)=> node.classList.toggle('selected', idx===selectedIndex));
-  }
-  rebuildSwatches();
-
-  // ===== Mesh build & export buffers =====
-  let vertexCount = 0, faceCount = 0;
-  let meshPositions = new Float32Array(0);
-  let meshColors    = new Float32Array(0);
-
-  function faceCornersCCW(x0,y0,z0, x1,y1,z1, f) {
-    switch (f) {
-      case FACE.PX: return [[x1,y0,z0],[x1,y1,z0],[x1,y1,z1],[x1,y0,z1]];
-      case FACE.NX: return [[x0,y0,z1],[x0,y1,z1],[x0,y1,z0],[x0,y0,z0]];
-      case FACE.PY: return [[x0, y1, z0],[x0, y1, z1],[x1, y1, z1],[x1, y1, z0]];
-      case FACE.NY: return [[x1, y0, z0],[x1, y0, z1],[x0, y0, z1],[x0, y0, z0]];
-      case FACE.PZ: return [[x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1]];
-      case FACE.NZ: return [[x1,y0,z0],[x0,y0,z0],[x0,y1,z0],[x1,y1,z0]];
-    }
-  }
-  function addFaceCCW(x0,y0,z0, x1,y1,z1, f, col, P, C){
-    const c = faceCornersCCW(x0,y0,z0, x1,y1,z1, f);
-    P.push(...c[0], ...c[1], ...c[2], ...c[0], ...c[2], ...c[3]);
-    for (let i=0;i<6;i++) C.push(col[0], col[1], col[2]);
-  }
-  function colorFromOverrideOrChecker(x,y,z,f){
-    const idx = getFaceOverrideIdx(x,y,z,f);
-    if (idx==null) return checkerColor(f,x,y,z);
-    return hexToRgb01(paletteHex[idx]);
-  }
-  function rebuildMesh(){
-    const P = [], C = []; faceCount = 0;
-    for(let z=0; z<N; z++) for(let y=0; y<N; y++) for(let x=0; x<N; x++){
-      if (vox[I(x,y,z)] === 0) continue;
-      const x0 = BMIN + x*SIZE, x1 = x0 + SIZE;
-      const y0 = BMIN + y*SIZE, y1 = y0 + SIZE;
-      const z0 = BMIN + z*SIZE, z1 = z0 + SIZE;
-      const nPX = (x+1<N) ? vox[I(x+1,y,z)] : 0;
-      const nNX = (x-1>=0) ? vox[I(x-1,y,z)] : 0;
-      const nPY = (y+1<N) ? vox[I(x,y+1,z)] : 0;
-      const nNY = (y-1>=0) ? vox[I(x,y-1,z)] : 0;
-      const nPZ = (z+1<N) ? vox[I(x,y,z+1)] : 0;
-      const nNZ = (z-1>=0) ? vox[I(x,y,z-1)] : 0;
-      if (!nPX){ addFaceCCW(x0,y0,z0, x1,y1,z1, FACE.PX, colorFromOverrideOrChecker(x,y,z,FACE.PX), P, C); faceCount++; }
-      if (!nNX){ addFaceCCW(x0,y0,z0, x1,y1,z1, FACE.NX, colorFromOverrideOrChecker(x,y,z,FACE.NX), P, C); faceCount++; }
-      if (!nPY){ addFaceCCW(x0,y0,z0, x1,y1,z1, FACE.PY, colorFromOverrideOrChecker(x,y,z,FACE.PY), P, C); faceCount++; }
-      if (!nNY){ addFaceCCW(x0,y0,z0, x1,y1,z1, FACE.NY, colorFromOverrideOrChecker(x,y,z,FACE.NY), P, C); faceCount++; }
-      if (!nPZ){ addFaceCCW(x0,y0,z0, x1,y1,z1, FACE.PZ, colorFromOverrideOrChecker(x,y,z,FACE.PZ), P, C); faceCount++; }
-      if (!nNZ){ addFaceCCW(x0,y0,z0, x1,y1,z1, FACE.NZ, colorFromOverrideOrChecker(x,y,z,FACE.NZ), P, C); faceCount++; }
-    }
-    const posArr = new Float32Array(P);
-    const colArr = new Float32Array(C);
-    gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
-    gl.bufferData(gl.ARRAY_BUFFER, posArr, gl.STATIC_DRAW);
-    gl.vertexAttribPointer(a_pos, 3, gl.FLOAT, false, 0, 0);
-    gl.bindBuffer(gl.ARRAY_BUFFER, colBuf);
-    gl.bufferData(gl.ARRAY_BUFFER, colArr, gl.STATIC_DRAW);
-    gl.vertexAttribPointer(a_col, 3, gl.FLOAT, false, 0, 0);
-    vertexCount = posArr.length / 3;
-    meshPositions = posArr; meshColors = colArr;
-    document.getElementById('verts').textContent = vertexCount.toLocaleString();
-    document.getElementById('faces').textContent = faceCount.toLocaleString();
-    document.getElementById('tris').textContent = (faceCount*2).toLocaleString();
-  }
-  rebuildMesh();
-
-  // ===== Undo/Redo & UI =====
   const undoStack = [];
   const redoStack = [];
-  const undoBtn = document.getElementById('undoBtn');
-  const redoBtn = document.getElementById('redoBtn');
-  const stackInfo = document.getElementById('stackInfo');
-  undoBtn.addEventListener('click', undoAction);
-  redoBtn.addEventListener('click', redoAction);
-  function pushAction(act){ undoStack.push(act); redoStack.length = 0; updateStacksUI(); }
-  function updateStacksUI(){
+
+  function updateUndoUI() {
     undoBtn.disabled = undoStack.length === 0;
     redoBtn.disabled = redoStack.length === 0;
-    stackInfo.textContent = `${undoStack.length} / ${redoStack.length}`;
+    const last = undoStack[undoStack.length - 1];
+    const next = redoStack[redoStack.length - 1];
+    undoInfo.textContent = `Undo: ${last ? last.label : '—'} • Redo: ${next ? next.label : '—'}`;
   }
-  function applyAction(act, forward){
-    switch(act.type){
-      case 'paint': {
-        const idx = forward ? act.nextIdx : act.prevIdx;
-        setFaceOverrideIdx(act.x, act.y, act.z, act.f, idx);
-        break;
+  function clearHistory() { undoStack.length = 0; redoStack.length = 0; updateUndoUI(); }
+
+  function beginVoxelAction(label) { return { type: 'voxels', label, vox: [] }; }
+  function recordVoxelChange(act, idx, toSolid, toMat = voxelMat[idx]) {
+    const fromS = isSolid[idx], fromM = voxelMat[idx];
+    if (fromS === toSolid && fromM === toMat) return;
+    act.vox.push({ idx, fromS, fromM, toS: toSolid, toM: toMat });
+    // apply immediately (compose effect)
+    isSolid[idx] = toSolid;
+    voxelMat[idx] = toMat;
+  }
+  function beginPaletteAction(label) { return { type: 'palette', label, pal: [] }; }
+  function recordPaletteChange(act, i, fromHex, toHex) {
+    const from = hexToRgbF(fromHex);
+    const to = hexToRgbF(toHex);
+    if (fromHex === toHex) return;
+    act.pal.push({ i, from, to });
+    // already applied via input handler; nothing to do here
+  }
+
+  function applyAction(action, mode /* 'do' | 'undo' */) {
+    if (action.type === 'voxels') {
+      const arr = action.vox;
+      if (mode === 'undo') {
+        for (const c of arr) { isSolid[c.idx] = c.fromS; voxelMat[c.idx] = c.fromM; }
+      } else {
+        for (const c of arr) { isSolid[c.idx] = c.toS; voxelMat[c.idx] = c.toM; }
       }
-      case 'add':
-      case 'remove': {
-        const occ = forward ? act.nextOcc : act.prevOcc;
-        vox[I(act.x, act.y, act.z)] = occ;
-        const overrides = forward ? act.nextOverridesIdx : act.prevOverridesIdx;
-        applyOverridesIdx(act.x, act.y, act.z, overrides);
-        break;
+    } else if (action.type === 'palette') {
+      const arr = action.pal;
+      if (mode === 'undo') {
+        for (const p of arr) { setPaletteColor(p.i, p.from); }
+      } else {
+        for (const p of arr) { setPaletteColor(p.i, p.to); }
       }
-      case 'carveRow': {
-        const cells = act.cells;
-        for (const c of cells){
-          const occ = forward ? c.nextOcc : c.prevOcc;
-          vox[I(c.x, c.y, c.z)] = occ;
-          const overrides = forward ? c.nextOverridesIdx : c.prevOverridesIdx;
-          applyOverridesIdx(c.x, c.y, c.z, overrides);
-        }
-        break;
-      }
+      buildPaletteUI(); // refresh swatches to reflect the current palette colors
     }
   }
-  function undoAction(){
+  function commitAction(action, rebuild = true) {
+    if (action.type === 'voxels' && action.vox.length === 0) return;
+    if (action.type === 'palette' && (!action.pal || action.pal.length === 0)) return;
+    undoStack.push(action);
+    redoStack.length = 0;
+    updateUndoUI();
+    if (action.type === 'voxels' && rebuild) rebuildAll();
+  }
+  function undo() {
     if (undoStack.length === 0) return;
     const act = undoStack.pop();
-    applyAction(act, false);
+    applyAction(act, 'undo');
     redoStack.push(act);
-    rebuildMesh(); refreshHover(); updateStacksUI();
+    updateUndoUI();
+    if (act.type === 'voxels') rebuildAll();
   }
-  function redoAction(){
+  function redo() {
     if (redoStack.length === 0) return;
     const act = redoStack.pop();
-    applyAction(act, true);
+    applyAction(act, 'do');
     undoStack.push(act);
-    rebuildMesh(); refreshHover(); updateStacksUI();
+    updateUndoUI();
+    if (act.type === 'voxels') rebuildAll();
   }
-  updateStacksUI();
+  undoBtn.addEventListener('click', undo);
+  redoBtn.addEventListener('click', redo);
 
-  // ===== Picking & Hover =====
-  function buildRay(clientX, clientY){
-    const rect = canvas.getBoundingClientRect();
-    const dpr = Math.max(1, window.devicePixelRatio||1);
-    const px = (clientX - rect.left) * dpr;
-    const py = (clientY - rect.top)  * dpr;
-    const ndcX = (2 * px / canvas.width) - 1;
-    const ndcY = 1 - (2 * py / canvas.height);
-    const eye = eyeFromSpherical(radius, theta, phi);
-    const center = [0,0,0], upWorld = [0,1,0];
-    const forward = vNorm(vSub(center, eye));
-    const right   = vNorm(vCross(forward, upWorld));
-    const upCam   = vCross(right, forward);
-    const fov = 45 * Math.PI/180, aspect = canvas.width / canvas.height;
-    const tanHalf = Math.tan(fov/2);
-    const rx = ndcX * tanHalf * aspect, ry = ndcY * tanHalf;
-    const dir = vNorm([
-      forward[0] + rx*right[0] + ry*upCam[0],
-      forward[1] + rx*right[1] + ry*upCam[1],
-      forward[2] + rx*right[2] + ry*upCam[2],
-    ]);
-    return { eye, dir };
-  }
-  function rayAABB(origin, dir, minB, maxB){
-    let tmin = -Infinity, tmax = +Infinity;
-    let entryAxis = -1, entrySign = 0;
-    function axisInter(o, d, min, max, axis){
-      if (d === 0) { if (o < min || o > max) return false; return true; }
-      const t1 = (min - o) / d, t2 = (max - o) / d;
-      const enter = Math.min(t1, t2), exit = Math.max(t1, t2);
-      if (enter > tmin) { tmin = enter; entryAxis = axis; entrySign = (t1 < t2) ? -1 : +1; }
-      tmax = Math.min(tmax, exit);
-      return true;
+  /*** ---- Input, hover, keyboard ---- ***/
+  const hoverInfoEl = document.getElementById('hoverInfo');
+  let dragging = false, rotating = false, lastX = 0, lastY = 0; let mouseX = 0, mouseY = 0, needsPick = true, ctrlDown = false, buttons = 0;
+  let hoverVoxel = -1, hoverFace = -1;
+
+  // Hover sets
+  let rowHoverSurf = [], rowHoverAdd = [], planeHoverSurf = [], planeHoverAdd = [];
+  // Box hover bounds
+  // let boxHoverBounds = null; // [minX,minY,minZ,maxX,maxY,maxZ]
+  // let boxHoverAddBounds = null;
+
+  function updateHoverUI() {
+    if (hoverVoxel < 0 || hoverFace < 0) {
+      hoverInfoEl.textContent = 'Hover: –';
+      return; 
     }
-    if (!axisInter(origin[0], dir[0], BMIN, BMAX, 0)) return null;
-    if (!axisInter(origin[1], dir[1], BMIN, BMAX, 1)) return null;
-    if (!axisInter(origin[2], dir[2], BMIN, BMAX, 2)) return null;
-    if (tmax < tmin || tmax < 0) return null;
-    return { tEnter: Math.max(tmin, 0), tExit: tmax, entryAxis, entrySign };
+    const [x, y, z] = coordsOf(hoverVoxel);
+    hoverInfoEl.textContent = `Hover: (${x}, ${y}, ${z}) face ${FACE_LABEL[hoverFace] || '?'}`;
   }
-  function entryAxisSignToFace(axis, sign){
-    if(axis===0) return (sign<0 ? FACE.NX : FACE.PX);
-    if(axis===1) return (sign<0 ? FACE.NY : FACE.PY);
-    if(axis===2) return (sign<0 ? FACE.NZ : FACE.PZ);
-    return FACE.PZ;
-  }
-  function traverseGrid(eye, dir, tEnter, tExit, entryAxis, entrySign){
-    const p = [ eye[0] + tEnter*dir[0], eye[1] + tEnter*dir[1], eye[2] + tEnter*dir[2] ];
-    const toGrid = w => ((w - BMIN) / (BMAX - BMIN)) * N;
-    let gx = Math.min(Math.max(toGrid(p[0]), 1e-6), N-1e-6);
-    let gy = Math.min(Math.max(toGrid(p[1]), 1e-6), N-1e-6);
-    let gz = Math.min(Math.max(toGrid(p[2]), 1e-6), N-1e-6);
-    let i = Math.floor(gx), j = Math.floor(gy), k = Math.floor(gz);
-    const stepX = dir[0] > 0 ? +1 : -1;
-    const stepY = dir[1] > 0 ? +1 : -1;
-    const stepZ = dir[2] > 0 ? +1 : -1;
-    const boundaryX = (stepX>0 ? (i+1) : i) * SIZE + BMIN;
-    const boundaryY = (stepY>0 ? (j+1) : j) * SIZE + BMIN;
-    const boundaryZ = (stepZ>0 ? (k+1) : k) * SIZE + BMIN;
-    let tMaxX = (dir[0] !== 0) ? (boundaryX - p[0]) / dir[0] : Infinity;
-    let tMaxY = (dir[1] !== 0) ? (boundaryY - p[1]) / dir[1] : Infinity;
-    let tMaxZ = (dir[2] !== 0) ? (boundaryZ - p[2]) / dir[2] : Infinity;
-    const tDeltaX = (dir[0] !== 0) ? SIZE / Math.abs(dir[0]) : Infinity;
-    const tDeltaY = (dir[1] !== 0) ? SIZE / Math.abs(dir[1]) : Infinity;
-    const tDeltaZ = (dir[2] !== 0) ? SIZE / Math.abs(dir[2]) : Infinity;
-    let lastAxis = entryAxis, lastSign = entrySign, t = tEnter;
-    while (t <= tExit + 1e-7) {
-      if (i>=0 && i<N && j>=0 && j<N && k>=0 && k<N && vox[I(i,j,k)]) {
-        const faceIndex = entryAxisSignToFace(lastAxis, lastSign);
-        return { i, j, k, faceIndex };
+
+  window.addEventListener('keydown', (e) => {
+    const k = e.key;
+    // Undo/Redo
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && (k === 'z' || k === 'Z')) {
+      e.preventDefault();
+      undo();
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && (k === 'y' || (e.shiftKey && (k === 'z' || k === 'Z')))) {
+      e.preventDefault();
+      redo();
+      return;
+    }
+    // Quick material: 0-9, A-F
+    if (/^[0-9]$/.test(k)) selectBrush(parseInt(k, 10));
+    else if (/^[a-f]$/i.test(k)) selectBrush(10 + parseInt(k, 16) - 10);
+    // Tools
+    if (k === 'r' || k === 'R') {
+      rowToolOn = !rowToolOn;
+      if (rowToolOn) {
+        planeToolOn = false;
+        refreshPlaneUI();
+        boxToolOn = false;
+        refreshBoxUI();
       }
-      if (tMaxX < tMaxY && tMaxX < tMaxZ) { t = tMaxX; tMaxX += tDeltaX; lastAxis = 0; lastSign = (stepX>0 ? -1 : +1); i += stepX; }
-      else if (tMaxY < tMaxZ) { t = tMaxY; tMaxY += tDeltaY; lastAxis = 1; lastSign = (stepY>0 ? -1 : +1); j += stepY; }
-      else { t = tMaxZ; tMaxZ += tDeltaZ; lastAxis = 2; lastSign = (stepZ>0 ? -1 : +1); k += stepZ; }
-      if (i<0 || i>=N || j<0 || j>=N || k<0 || k>=N) return null;
+      refreshRowUI();
     }
-    return null;
-  }
-
-  // Hover previews (voxel wire, face outline, row wire)
-  const wfPosBuf = gl.createBuffer();
-  const wfColBuf = gl.createBuffer();
-  let wfVerts = 0;
-
-  const foPosBuf = gl.createBuffer();
-  const foColBuf = gl.createBuffer();
-  let foVerts = 0;
-
-  const rwfPosBuf = gl.createBuffer();
-  const rwfColBuf = gl.createBuffer();
-  let rwfVerts = 0;
-
-  function buildWireframeForVoxel(i,j,k, colorRGB=[1,1,1]){
-    const x0 = BMIN + i*SIZE, x1 = x0 + SIZE;
-    const y0 = BMIN + j*SIZE, y1 = y0 + SIZE;
-    const z0 = BMIN + k*SIZE, z1 = z0 + SIZE;
-    const P = new Float32Array([
-      x0,y0,z0,  x1,y0,z0,  x1,y0,z0,  x1,y0,z1,
-      x1,y0,z1,  x0,y0,z1,  x0,y0,z1,  x0,y0,z0,
-      x0,y1,z0,  x1,y1,z0,  x1,y1,z0,  x1,y1,z1,
-      x1,y1,z1,  x0,y1,z1,  x0,y1,z1,  x0,y1,z0,
-      x0,y0,z0,  x0,y1,z0,  x1,y0,z0,  x1,y1,z0,
-      x1,y0,z1,  x1,y1,z1,  x0,y0,z1,  x0,y1,z1,
-    ]);
-    const C = new Float32Array(P.length);
-    for (let v=0; v<C.length; v+=3){ C[v]=colorRGB[0]; C[v+1]=colorRGB[1]; C[v+2]=colorRGB[2]; }
-    gl.bindBuffer(gl.ARRAY_BUFFER, wfPosBuf); gl.bufferData(gl.ARRAY_BUFFER, P, gl.STATIC_DRAW);
-    gl.bindBuffer(gl.ARRAY_BUFFER, wfColBuf); gl.bufferData(gl.ARRAY_BUFFER, C, gl.STATIC_DRAW);
-    wfVerts = P.length / 3;
-  }
-
-  function buildFaceOutline(i,j,k, faceIndex, colorRGB=[1,1,0]){
-    const x0 = BMIN + i*SIZE, x1 = x0 + SIZE;
-    const y0 = BMIN + j*SIZE, y1 = y0 + SIZE;
-    const z0 = BMIN + k*SIZE, z1 = z0 + SIZE;
-    const corners = faceCornersCCW(x0,y0,z0, x1,y1,z1, faceIndex);
-    const P = new Float32Array([
-      ...corners[0], ...corners[1],
-      ...corners[1], ...corners[2],
-      ...corners[2], ...corners[3],
-      ...corners[3], ...corners[0],
-    ]);
-    const C = new Float32Array(P.length);
-    for (let v=0; v<C.length; v+=3){ C[v]=colorRGB[0]; C[v+1]=colorRGB[1]; C[v+2]=colorRGB[2]; }
-    gl.bindBuffer(gl.ARRAY_BUFFER, foPosBuf); gl.bufferData(gl.ARRAY_BUFFER, P, gl.STATIC_DRAW);
-    gl.bindBuffer(gl.ARRAY_BUFFER, foColBuf); gl.bufferData(gl.ARRAY_BUFFER, C, gl.STATIC_DRAW);
-    foVerts = P.length / 3;
-  }
-
-  function buildRowWireframe(axis, baseI, baseJ, baseK, colorRGB=[1.0, 0.5, 0.25]){
-    const segments = []; // accumulate line segments for all occupied voxels
-    for (let t=0; t<N; t++){
-      let x=baseI, y=baseJ, z=baseK;
-      if (axis==='X') x = t;
-      else if (axis==='Y') y = t;
-      else if (axis==='Z') z = t;
-      if (!inB(x,y,z)) continue;
-      if (vox[I(x,y,z)] !== 1) continue;
-      const x0 = BMIN + x*SIZE, x1 = x0 + SIZE;
-      const y0 = BMIN + y*SIZE, y1 = y0 + SIZE;
-      const z0 = BMIN + z*SIZE, z1 = z0 + SIZE;
-      // 12 edges -> 24 positions
-      segments.push(
-        x0,y0,z0,  x1,y0,z0,
-        x1,y0,z0,  x1,y0,z1,
-        x1,y0,z1,  x0,y0,z1,
-        x0,y0,z1,  x0,y0,z0,
-
-        x0,y1,z0,  x1,y1,z0,
-        x1,y1,z0,  x1,y1,z1,
-        x1,y1,z1,  x0,y1,z1,
-        x0,y1,z1,  x0,y1,z0,
-
-        x0,y0,z0,  x0,y1,z0,
-        x1,y0,z0,  x1,y1,z0,
-        x1,y0,z1,  x1,y1,z1,
-        x0,y0,z1,  x0,y1,z1
-      );
+    if (k === 'x' || k === 'X') {
+      rowAxis = (rowAxis === 'U' ? 'V' : 'U');
+      refreshRowUI();
     }
-    if (segments.length === 0){
-      rwfVerts = 0;
-      return;
+    if (k === 'p' || k === 'P') {
+      planeToolOn = !planeToolOn;
+      if (planeToolOn) {
+        rowToolOn = false;
+        refreshRowUI();
+        boxToolOn = false;
+        refreshBoxUI();
+      }
+      refreshPlaneUI();
     }
-    const P = new Float32Array(segments);
-    const C = new Float32Array(P.length);
-    for (let v=0; v<C.length; v+=3){ C[v]=colorRGB[0]; C[v+1]=colorRGB[1]; C[v+2]=colorRGB[2]; }
-    gl.bindBuffer(gl.ARRAY_BUFFER, rwfPosBuf); gl.bufferData(gl.ARRAY_BUFFER, P, gl.STATIC_DRAW);
-    gl.bindBuffer(gl.ARRAY_BUFFER, rwfColBuf); gl.bufferData(gl.ARRAY_BUFFER, C, gl.STATIC_DRAW);
-    rwfVerts = P.length / 3;
-  }
-
-  function updateHover(clientX, clientY, wantAdd=false, wantPaint=false, wantCarveRow=false){
-    const { eye, dir } = buildRay(clientX, clientY);
-    const hit = rayAABB(eye, dir, BMIN, BMAX);
-    wfVerts = 0; foVerts = 0; rwfVerts = 0;
-    if (!hit) return;
-    const { tEnter, tExit, entryAxis, entrySign } = hit;
-    const res = traverseGrid(eye, dir, tEnter, tExit, entryAxis, entrySign);
-    if (!res) return;
-
-    if (wantCarveRow) {
-      const axis = getSelectedCarveAxis(); // 'X'|'Y'|'Z'
-      buildRowWireframe(axis, res.i, res.j, res.k, [1.0, 0.55, 0.25]); // orange row preview
-      return;
+    if (k === 'b' || k === 'B') {
+      boxToolOn = !boxToolOn;
+      if (boxToolOn) {
+        rowToolOn = false;
+        refreshRowUI();
+        planeToolOn = false;
+        refreshPlaneUI();
+      }
+      refreshBoxUI();
     }
-    if (wantPaint) { buildFaceOutline(res.i, res.j, res.k, res.faceIndex, [1.0,0.95,0.2]); return; }
-    if (wantAdd) {
-      const d = faceDelta(res.faceIndex);
-      const nx = res.i + d[0], ny = res.j + d[1], nz = res.k + d[2];
-      if (inB(nx,ny,nz) && vox[I(nx,ny,nz)] === 0) { buildWireframeForVoxel(nx,ny,nz,[0.3,1.0,0.3]); return; }
-    }
-    buildWireframeForVoxel(res.i,res.j,res.k,[1,1,1]);
-  }
-  function refreshHover(){ if (lastMouseX!=null) updateHover(lastMouseX,lastMouseY, shiftDown, ctrlDown, altDown); }
-
-  // ===== Actions handlers =====
-  function removeVoxelAt(clientX, clientY){
-    const res = pickCell(clientX, clientY); if (!res) return;
-    const { i,j,k } = res; if (!vox[I(i,j,k)]) return;
-    const prevOverridesIdx = snapshotOverridesIdx(i,j,k);
-    const nextOverridesIdx = [null,null,null,null,null,null];
-    vox[I(i,j,k)] = 0; applyOverridesIdx(i,j,k,nextOverridesIdx);
-    pushAction({ type:'remove', x:i,y:j,z:k, prevOcc:1, nextOcc:0, prevOverridesIdx, nextOverridesIdx });
-    rebuildMesh(); refreshHover();
-  }
-  function addVoxelAt(clientX, clientY){
-    const res = pickCell(clientX, clientY); if (!res) return;
-    const d = faceDelta(res.faceIndex);
-    const nx = res.i + d[0], ny = res.j + d[1], nz = res.k + d[2];
-    if (!inB(nx,ny,nz) || vox[I(nx,ny,nz)]!==0) return;
-    const prevOverridesIdx = snapshotOverridesIdx(nx,ny,nz);
-    const nextOverridesIdx = [null,null,null,null,null,null];
-    vox[I(nx,ny,nz)] = 1; applyOverridesIdx(nx,ny,nz,nextOverridesIdx);
-    pushAction({ type:'add', x:nx,y:ny,z:nz, prevOcc:0, nextOcc:1, prevOverridesIdx, nextOverridesIdx });
-    rebuildMesh(); refreshHover();
-  }
-  function paintFaceAt(clientX, clientY){
-    const res = pickCell(clientX, clientY); if (!res) return;
-    const { i,j,k, faceIndex } = res;
-    const prevIdx = getFaceOverrideIdx(i,j,k,faceIndex);
-    const nextIdx = selectedIndex;
-    if (prevIdx === nextIdx) return; // no change
-    setFaceOverrideIdx(i,j,k,faceIndex, nextIdx);
-    pushAction({ type:'paint', x:i,y:j,z:k, f:faceIndex, prevIdx, nextIdx });
-    rebuildMesh(); refreshHover();
-  }
-  function carveRowAt(clientX, clientY){
-    const res = pickCell(clientX, clientY); if (!res) return;
-    const axis = getSelectedCarveAxis(); // 'X'|'Y'|'Z'
-    const cells = [];
-    for (let t=0; t<N; t++){
-      let x=res.i, y=res.j, z=res.k;
-      if (axis==='X') x = t;
-      else if (axis==='Y') y = t;
-      else if (axis==='Z') z = t;
-      if (!inB(x,y,z)) continue;
-      if (vox[I(x,y,z)] !== 1) continue; // only record occupied voxels
-      const prevOverridesIdx = snapshotOverridesIdx(x,y,z);
-      const nextOverridesIdx = [null,null,null,null,null,null];
-      // Apply carve removal
-      vox[I(x,y,z)] = 0;
-      applyOverridesIdx(x,y,z, nextOverridesIdx);
-      cells.push({
-        x, y, z,
-        prevOcc: 1, nextOcc: 0,
-        prevOverridesIdx, nextOverridesIdx
-      });
-    }
-    if (cells.length === 0) return;
-    pushAction({ type:'carveRow', axis, cells });
-    rebuildMesh(); refreshHover();
-  }
-  function pickCell(clientX, clientY){
-    const { eye, dir } = buildRay(clientX, clientY);
-    const hit = rayAABB(eye, dir, BMIN, BMAX);
-    if (!hit) return null;
-    const { tEnter, tExit, entryAxis, entrySign } = hit;
-    return traverseGrid(eye, dir, tEnter, tExit, entryAxis, entrySign);
-  }
-  function faceDelta(faceIndex){
-    switch(faceIndex){
-      case FACE.PX: return [ +1,  0,  0];
-      case FACE.NX: return [ -1,  0,  0];
-      case FACE.PY: return [  0, +1,  0];
-      case FACE.NY: return [  0, -1,  0];
-      case FACE.PZ: return [  0,  0, +1];
-      case FACE.NZ: return [  0,  0, -1];
-      default: return [0,0,0];
-    }
-  }
-
-  // Selected carve axis (from radio buttons)
-  function getSelectedCarveAxis(){
-    const radios = document.querySelectorAll('input[name="carveAxis"]');
-    for (const r of radios){ if (r.checked) return r.value; }
-    return 'X';
-  }
-
-  // ===== Save/Load JSON (version 2) =====
-  const saveBtn = document.getElementById('saveBtn');
-  const loadBtn = document.getElementById('loadBtn');
-  const fileInput = document.getElementById('fileInput');
-  saveBtn.addEventListener('click', saveSceneJSON);
-  loadBtn.addEventListener('click', () => fileInput.click());
-  fileInput.addEventListener('change', (e) => {
-    const file = e.target.files && e.target.files[0];
-    if (file) readSceneFile(file);
-    fileInput.value = '';
+    ctrlDown = e.ctrlKey || e.metaKey;
+    needsPick = true;
   });
-  canvas.addEventListener('dragover', (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; });
-  canvas.addEventListener('drop', (e) => {
+  window.addEventListener('keyup', (e) => {
+    ctrlDown = e.ctrlKey || e.metaKey;
+    needsPick = true;
+  });
+
+  canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+  // Edit handlers now produce actions (undoable)
+  canvas.addEventListener('mousedown', (e) => {
+    canvas.focus();
+    buttons = e.buttons;
+
+    if (e.button === 0 && mode === 'move') {
+      dragging = true;
+      rotating = true;
+      lastX = e.clientX;
+      lastY = e.clientY;
+      return;
+    }
+
+
+    const pick = decodePickAt(e.clientX, e.clientY);
+
+    if (e.button === 0 && mode === 'paint') {
+      // Paint
+      if (option == 'plane') {
+        const arr = getPlaneSurfaceVoxels(pick.voxel, pick.face);
+        const act = beginVoxelAction('Paint plane');
+        for (const id of arr) recordVoxelChange(act, id, true, brushMat);
+        commitAction(act);
+      } else if (option == 'row') {
+        const arr = getRowSurfaceVoxels(pick.voxel, pick.face, rowAxis);
+        const act = beginVoxelAction(`Paint row ${rowAxis}`);
+        for (const id of arr) recordVoxelChange(act, id, true, brushMat);
+        commitAction(act);
+      } else if (pick.voxel >= 0) {
+          const act = beginVoxelAction('Paint voxel');
+          recordVoxelChange(act, pick.voxel, true, brushMat);
+          commitAction(act);
+      }
+    } else if (e.button === 0 && mode === 'add') {
+
+        // Add
+        if (option == 'plane') {
+          const targets = getPlaneAddTargets(pick.voxel, pick.face);
+          const act = beginVoxelAction('Add plane');
+          for (const t of targets) recordVoxelChange(act, t, true, brushMat);
+          commitAction(act);
+        } else if (option == 'row') {
+          const targets = getRowAddTargets(pick.voxel, pick.face, rowAxis);
+          const act = beginVoxelAction(`Add row ${rowAxis}`);
+          for (const t of targets) recordVoxelChange(act, t, true, brushMat);
+          commitAction(act);
+        } else if (pick.voxel >= 0 && pick.face >= 0) {
+            const [x, y, z] = coordsOf(pick.voxel); const d = FACE_DIRS[pick.face]; const nx = x + d[0], ny = y + d[1], nz = z + d[2];
+            if (within(nx, ny, nz)) {
+              const id = idx3(nx, ny, nz);
+              const act = beginVoxelAction('Add voxel');
+              if (!isSolid[id]) recordVoxelChange(act, id, true, brushMat);
+              commitAction(act);
+            }
+        }
+      } else if (e.button === 0 && mode === 'carve') {
+        // Remove (or toggle for single)
+        if (option == 'plane') {
+          const arr = getPlaneSurfaceVoxels(pick.voxel, pick.face);
+          const act = beginVoxelAction('Remove plane');
+          for (const id of arr) recordVoxelChange(act, id, false, voxelMat[id]);
+          commitAction(act);
+        } else if (option == 'row') {
+          const arr = getRowSurfaceVoxels(pick.voxel, pick.face, rowAxis);
+          const act = beginVoxelAction(`Remove row ${rowAxis}`);
+          for (const id of arr) recordVoxelChange(act, id, false, voxelMat[id]);
+          commitAction(act);
+        } else if (pick.voxel >= 0) {
+            const act = beginVoxelAction('Remove voxel');
+            const cur = isSolid[pick.voxel];
+            recordVoxelChange(act, pick.voxel, !cur, voxelMat[pick.voxel]); // keep existing mat on toggle
+            commitAction(act);
+        }
+
+    }
+  });
+
+  window.addEventListener('mouseup', () => { 
+    dragging = false; 
+    rotating = false; 
+    buttons = 0; 
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (!dragging || !rotating) { 
+      mouseX = e.clientX;
+      mouseY = e.clientY;
+      needsPick = true; 
+    }
+    if (dragging && rotating) { 
+      const dx = e.clientX - lastX, dy = e.clientY - lastY; 
+      lastX = e.clientX;
+      lastY = e.clientY; 
+      const s = 0.005;
+      camera.theta += dx * s;
+      camera.phi -= dy * s;
+      camera.clamp();
+    }
+  }, { passive: true });
+
+  canvas.addEventListener('wheel', (e) => {
     e.preventDefault();
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      readSceneFile(e.dataTransfer.files[0]);
-    }
-  });
+    const z = Math.pow(1.1, e.deltaY * 0.01);
+    camera.radius *= z;
+    camera.clamp();
+  }, { passive: false });
 
-  function sceneToObject(){
-    const overridesList = [];
-    for(let x=0;x<N;x++) for(let y=0;y<N;y++) for(let z=0;z<N;z++){
-      const faces = faceOverrideIdx[x][y][z];
-      let any = false; for(let f=0; f<6; f++){ if (faces[f] != null) { any = true; break; } }
-      if (any) overridesList.push({ x, y, z, faces: faces.map(v => (v==null ? null : v|0)) });
-    }
-    return {
-      version: 2,
-      gridSize: N,
-      createdAt: new Date().toISOString(),
-      voxels: Array.from(vox),
-      palette: paletteHex.slice(),
-      overridesIdx: overridesList
-    };
-  }
-  function saveSceneJSON(){
-    const obj = sceneToObject();
-    const json = JSON.stringify(obj);
-    downloadBlob(json, makeSceneFilename('.json'), 'application/json');
-  }
-  function readSceneFile(file){
-    const reader = new FileReader();
-    reader.onload = () => {
-      try { const obj = JSON.parse(reader.result); loadSceneObject(obj); }
-      catch (err) { console.error(err); alert('Invalid JSON file.'); }
-    };
-    reader.onerror = () => { alert('Failed to read file.'); };
-    reader.readAsText(file);
-  }
-  function loadSceneObject(obj){
-    if (!obj || typeof obj !== 'object') { alert('Invalid scene file.'); return; }
-    if (obj.gridSize !== N) { alert(`Grid size mismatch. File: ${obj.gridSize}, Editor: ${N}.`); return; }
-    if (!Array.isArray(obj.voxels) || obj.voxels.length !== N*N*N) { alert('Invalid voxels array length.'); return; }
-    if (obj.version !== 2) {
-      alert(`Unsupported scene version (${obj.version}). This build expects version 2 with palette-index overrides.`);
-      return;
-    }
-    if (!Array.isArray(obj.overridesIdx)) { alert('Invalid overridesIdx list.'); return; }
-    if (!Array.isArray(obj.palette) || obj.palette.length !== 16) { alert('Missing or invalid palette in file.'); return; }
+  function updateHover() {
+    if (!needsPick) return;
+    needsPick = false;
+    const p = decodePickAt(mouseX, mouseY);
+    hoverVoxel = p.voxel;
+    hoverFace = p.face;
+    updateHoverUI();
 
-    for(let i=0;i<obj.voxels.length;i++){ vox[i] = (obj.voxels[i] === 1) ? 1 : 0; }
-    paletteHex = obj.palette.slice(); savePalette(paletteHex); rebuildSwatches();
+    // Compute previews
+    if (mode !== 'move' && hoverVoxel >= 0 && hoverFace >= 0) {
+      if (option === 'row') {
+        rowHoverSurf = getRowSurfaceVoxels(hoverVoxel, hoverFace);
+        rowHoverAdd = getRowAddTargets(hoverVoxel, hoverFace);
+      } else {
+        rowHoverSurf = [];
+        rowHoverAdd = [];
+      }
 
-    for(let x=0;x<N;x++) for(let y=0;y<N;y++) for(let z=0;z<N;z++){
-      faceOverrideIdx[x][y][z] = [null,null,null,null,null,null];
+      if (option === 'plane') {
+        planeHoverSurf = getPlaneSurfaceVoxels(hoverVoxel, hoverFace);
+        planeHoverAdd = getPlaneAddTargets(hoverVoxel, hoverFace);
+      } else {
+        planeHoverSurf = [];
+        planeHoverAdd = [];
+      }
+    } else {
+      rowHoverSurf = [];
+      rowHoverAdd = [];
+      planeHoverSurf = [];
+      planeHoverAdd = [];
     }
-    for(const entry of obj.overridesIdx){
-      const { x, y, z, faces } = entry || {};
-      if (!inB(x,y,z) || !Array.isArray(faces) || faces.length !== 6) continue;
-      for(let f=0; f<6; f++){
-        const v = faces[f];
-        setFaceOverrideIdx(x,y,z,f, (v==null ? null : (v|0)));
+  }
+
+  /*** ---- Render loop ---- ***/
+  function render() {
+    gl.clearColor(0.07, 0.08, 0.1, 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    gl.useProgram(renderProg);
+    gl.uniform3fv(rLoc.uPalette, palette);
+    gl.uniformMatrix4fv(rLoc.uModel, false, model); gl.uniformMatrix4fv(rLoc.uView, false, camera.view()); gl.uniformMatrix4fv(rLoc.uProj, false, proj);
+    gl.uniformMatrix3fv(rLoc.uNormalMat, false, new Float32Array([1, 0, 0, 0, 1, 0, 0, 0, 1]));
+    gl.uniform3fv(rLoc.uLightDirWS, new Float32Array([0.7 / 1.7, 1.2 / 1.7, 0.9 / 1.7])); gl.uniform1f(rLoc.uAmbient, ambient);
+    gl.bindVertexArray(renderVAO); gl.drawElements(gl.TRIANGLES, renderIndexCount, gl.UNSIGNED_INT, 0); gl.bindVertexArray(null);
+
+    updateHover();
+
+    if (mode !== 'move' && hoverVoxel >= 0 && hoverFace >= 0) {
+      if (option === 'plane') {
+        if (planeHoverAdd.length) {
+          for (const t of planeHoverAdd) drawVoxelWire(t, [0.27, 0.95, 0.42], 1.006);
+        } else if (planeHoverSurf.length) {
+          for (const id of planeHoverSurf) drawVoxelWire(id, [1.0, 0.32, 0.32], 1.006);
+        } else if (planeHoverSurf.length) {
+          for (const id of planeHoverSurf) drawVoxelWire(id, [1.0, 0.60, 0.20], 1.006);
+        }
+      } else if (option === 'row') {
+        if (rowHoverAdd.length) {
+          for (const t of rowHoverAdd) drawVoxelWire(t, [0.27, 0.95, 0.42], 1.006);
+        } else if (rowHoverSurf.length) {
+          for (const id of rowHoverSurf) drawVoxelWire(id, [1.0, 0.32, 0.32], 1.006);
+        } else if (rowHoverSurf.length) {
+          for (const id of rowHoverSurf) drawVoxelWire(id, [1.0, 0.60, 0.20], 1.006);
+        }
+      } else if (option === 'voxel') {
+        if (mode === 'add') {
+          console.log('draw add voxel preview');
+          const [x, y, z] = coordsOf(hoverVoxel);
+          const d = FACE_DIRS[hoverFace];
+          const nx = x + d[0], ny = y + d[1], nz = z + d[2];
+          if (within(nx, ny, nz) && !isSolid[idx3(nx, ny, nz)]) drawVoxelWire(idx3(nx, ny, nz), [0.27, 0.95, 0.42], 1.006);
+        } else if (mode === 'carve') {
+          console.log('draw carve voxel preview');
+          drawVoxelWire(hoverVoxel, [1.0, 0.32, 0.32], 1.006);
+        } else if (mode === 'paint') {
+          console.log('draw paint voxel preview');
+          drawVoxelWire(hoverVoxel, [1.0, 0.60, 0.20], 1.006);
+        }
       }
     }
-    undoStack.length = 0; redoStack.length = 0; updateStacksUI();
-    rebuildMesh(); refreshHover();
-  }
-
-  // ===== OBJ Export =====
-  const saveObjBtn    = document.getElementById('saveObjBtn');
-  const saveObjMtlBtn = document.getElementById('saveObjMtlBtn');
-  saveObjBtn.addEventListener('click', exportOBJGeometryOnly);
-  saveObjMtlBtn.addEventListener('click', exportOBJWithMTL);
-
-  function exportOBJGeometryOnly(){
-    if (!meshPositions || meshPositions.length === 0) { alert('No geometry to export.'); return; }
-    const lines = [];
-    lines.push(`# Voxel editor export`);
-    lines.push(`# vertices: ${meshPositions.length/3}`);
-    lines.push(`# triangles: ${meshPositions.length/9}`);
-    lines.push(`o voxel_mesh`);
-    lines.push(`s off`);
-    for (let i=0; i<meshPositions.length; i+=3){
-      lines.push(`v ${fmt(meshPositions[i])} ${fmt(meshPositions[i+1])} ${fmt(meshPositions[i+2])}`);
-    }
-    const numTriangles = meshPositions.length / 9;
-    for (let t=0; t<numTriangles; t++){
-      const a = t*3 + 1, b = t*3 + 2, c = t*3 + 3;
-      lines.push(`f ${a} ${b} ${c}`);
-    }
-    downloadBlob(lines.join('\n') + '\n', makeSceneFilename('.obj'), 'text/plain');
-  }
-  function exportOBJWithMTL(){
-    if (!meshPositions || meshPositions.length === 0) { alert('No geometry to export.'); return; }
-    const baseName = makeSceneBaseName();
-    const objName  = `${baseName}.obj`;
-    const mtlName  = `${baseName}.mtl`;
-    const colorToMtl = new Map();
-    const mtlLines = [];
-    function colorKey(r,g,b){ const rr=Math.round(r*1000)/1000, gg=Math.round(g*1000)/1000, bb=Math.round(b*1000)/1000; return `${rr},${gg},${bb}`; }
-    function ensureMaterial(r,g,b){
-      const key = colorKey(r,g,b);
-      if (colorToMtl.has(key)) return colorToMtl.get(key);
-      const name = `mat_${Math.round(r*255)}_${Math.round(g*255)}_${Math.round(b*255)}`;
-      colorToMtl.set(key, name);
-      mtlLines.push(`newmtl ${name}`, `Ka 0 0 0`, `Kd ${fmt(r)} ${fmt(g)} ${fmt(b)}`, `Ks 0 0 0`, `d 1`, `illum 1`, '');
-      return name;
-    }
-    const objLines = [];
-    objLines.push(`# Voxel editor export with MTL`);
-    objLines.push(`# vertices: ${meshPositions.length/3}`);
-    objLines.push(`# triangles: ${meshPositions.length/9}`);
-    objLines.push(`mtllib ${mtlName}`);
-    objLines.push(`o voxel_mesh`);
-    objLines.push(`s off`);
-    for (let i=0; i<meshPositions.length; i+=3){
-      objLines.push(`v ${fmt(meshPositions[i])} ${fmt(meshPositions[i+1])} ${fmt(meshPositions[i+2])}`);
-    }
-    const numTriangles = meshPositions.length / 9;
-    let currentMtl = null;
-    for (let t=0; t<numTriangles; t++){
-      const ci = t*9;
-      const r = meshColors[ci+0], g = meshColors[ci+1], b = meshColors[ci+2];
-      const mtl = ensureMaterial(r,g,b);
-      if (mtl !== currentMtl){ objLines.push(`usemtl ${mtl}`); currentMtl = mtl; }
-      const a = t*3 + 1, bIdx = t*3 + 2, c = t*3 + 3;
-      objLines.push(`f ${a} ${bIdx} ${c}`);
-    }
-    downloadBlob(objLines.join('\n') + '\n', objName, 'text/plain');
-    setTimeout(()=> downloadBlob(mtlLines.join('\n') + '\n', mtlName, 'text/plain'), 50);
-  }
-
-  // ===== Helpers =====
-  function fmt(n){ return (Math.abs(n) < 1e-9) ? '0' : Number(n).toFixed(6).replace(/\.?0+$/,''); }
-  function makeSceneBaseName(){
-    const pad2 = (n) => String(n).padStart(2, '0');
-    const d = new Date();
-    return `voxel_scene_${d.getFullYear()}${pad2(d.getMonth()+1)}${pad2(d.getDate())}_${pad2(d.getHours())}${pad2(d.getMinutes())}${pad2(d.getSeconds())}`;
-  }
-  function makeSceneFilename(ext='.json'){ return `${makeSceneBaseName()}${ext}`; }
-  function downloadBlob(text, filename, mime){
-    const blob = new Blob([text], { type: mime || 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = filename;
-    document.body.appendChild(a); a.click();
-    setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 0);
-  }
-
-  // ===== Render =====
-  function render(){
-    resize();
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-    const aspect = canvas.width / canvas.height;
-    const proj = mat4Perspective(45*Math.PI/180, aspect, 0.1, 100.0);
-    const eye = eyeFromSpherical(radius, theta, phi);
-    const view = lookAt(eye, [0,0,0], [0,1,0]);
-    const mvp = mat4Multiply(proj, view);
-    gl.uniformMatrix4fv(u_mvp, false, mvp);
-
-    // Solid mesh
-    if (vertexCount > 0) {
-      gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
-      gl.vertexAttribPointer(a_pos, 3, gl.FLOAT, false, 0, 0);
-      gl.bindBuffer(gl.ARRAY_BUFFER, colBuf);
-      gl.vertexAttribPointer(a_col, 3, gl.FLOAT, false, 0, 0);
-      gl.drawArrays(gl.TRIANGLES, 0, vertexCount);
-    }
-    // Face outline (paint preview)
-    if (foVerts > 0) {
-      gl.bindBuffer(gl.ARRAY_BUFFER, foPosBuf);
-      gl.vertexAttribPointer(a_pos, 3, gl.FLOAT, false, 0, 0);
-      gl.bindBuffer(gl.ARRAY_BUFFER, foColBuf);
-      gl.vertexAttribPointer(a_col, 3, gl.FLOAT, false, 0, 0);
-      gl.lineWidth(1);
-      gl.drawArrays(gl.LINES, 0, foVerts);
-    }
-    // Row wireframe (carve preview)
-    if (rwfVerts > 0) {
-      gl.bindBuffer(gl.ARRAY_BUFFER, rwfPosBuf);
-      gl.vertexAttribPointer(a_pos, 3, gl.FLOAT, false, 0, 0);
-      gl.bindBuffer(gl.ARRAY_BUFFER, rwfColBuf);
-      gl.vertexAttribPointer(a_col, 3, gl.FLOAT, false, 0, 0);
-      gl.lineWidth(1);
-      gl.drawArrays(gl.LINES, 0, rwfVerts);
-    }
-    // Voxel wireframe (remove/add preview)
-    if (wfVerts > 0) {
-      gl.bindBuffer(gl.ARRAY_BUFFER, wfPosBuf);
-      gl.vertexAttribPointer(a_pos, 3, gl.FLOAT, false, 0, 0);
-      gl.bindBuffer(gl.ARRAY_BUFFER, wfColBuf);
-      gl.vertexAttribPointer(a_col, 3, gl.FLOAT, false, 0, 0);
-      gl.lineWidth(1);
-      gl.drawArrays(gl.LINES, 0, wfVerts);
-    }
-
     requestAnimationFrame(render);
   }
   requestAnimationFrame(render);
-
+  setTimeout(resize, 0);
 })();

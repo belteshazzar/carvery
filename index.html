@@ -1,71 +1,96 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <title>Carvery</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>WebGL2 • Voxel Greedy Meshing • Palette • JSON I/O • Row/Plane/Box • Undo/Redo</title>
+<style>
+
+</style>
 </head>
 <body>
-  <div id="wrap">
-    <canvas id="glcanvas" tabindex="0" aria-label="WebGL voxel editor"></canvas>
+<div id="app">
+  <header>
+    Voxel Greedy Meshing • Orbit (<kbd>Shift</kbd>) • Palette • JSON I/O • Row/Plane/Box • Undo/Redo
+    <span class="sep"></span>
+    <div>Greedy quads: <span id="quads">–</span></div>
+    <div>Triangles: <span id="tris">–</span></div>
+    <div>Visible voxels: <span id="vis">–</span></div>
+    <span class="sep"></span>
+    <div>Brush material: <b id="brushMat">0</b></div>
+    <span class="right mono" id="hoverInfo">Hover: –</span>
+  </header>
 
-    <!-- Controls panel -->
-    <div class="panel" id="panel">
-      <h4>Palette — click a swatch to select; toggle <span class="kbd">Edit Palette</span> to change colors</h4>
+  <!-- Undo/Redo toolbar -->
+  <div class="toolbar">
 
-      <!-- Palette control row -->
-      <div class="row">
-        <label class="chk"><input type="checkbox" id="editPaletteChk" /> Edit Palette</label>
-        <button class="btn" id="resetPaletteBtn" title="Reset the 16 colors to defaults">Reset Palette</button>
-        <span class="note">Palette auto‑saves to <code>localStorage</code>. Painting stores <em>palette indices</em>.</span>
-      </div>
+    <div class="radio-toolbar">
+    <input type="radio" id="modeMove" name="modeSelect" value="move" checked>
+    <label for="modeMove">Move</label>
 
-      <!-- 16 swatches -->
-      <div class="swatches" id="swatches"></div>
+    <input type="radio" id="modePaint" name="modeSelect" value="paint">
+    <label for="modePaint">Paint</label>
 
-      <!-- Row Carve -->
-      <div class="row">
-        <strong>Row Carve axis:</strong>
-        <label class="chk"><input type="radio" name="carveAxis" value="X" checked /> X</label>
-        <label class="chk"><input type="radio" name="carveAxis" value="Y" /> Y</label>
-        <label class="chk"><input type="radio" name="carveAxis" value="Z" /> Z</label>
-        <span class="note">Hold <span class="kbd">Alt</span> to preview; <span class="kbd">Alt + Click</span> to carve entire row.</span>
-      </div>
+    <input type="radio" id="modeCarve" name="modeSelect" value="carve">
+    <label for="modeCarve">Carve</label>
 
-      <!-- Undo/Redo -->
-      <div class="row">
-        <button class="btn" id="undoBtn" title="Undo (Ctrl/Cmd+Z)">Undo</button>
-        <button class="btn" id="redoBtn" title="Redo (Ctrl/Cmd+Y or Ctrl/Cmd+Shift+Z)">Redo</button>
-        <span style="font-size:12px;color:#9fb0c7">Stack: <span id="stackInfo">0 / 0</span></span>
-      </div>
+    <input type="radio" id="modeAdd" name="modeSelect" value="add">
+    <label for="modeAdd">Add</label>
 
-      <!-- Save/Load JSON -->
-      <div class="row">
-        <button class="btn" id="saveBtn" title="Save scene to JSON (version 2)">Save JSON</button>
-        <button class="btn" id="loadBtn" title="Load scene from JSON (version 2)">Load JSON</button>
-        <input type="file" id="fileInput" accept="application/json,.json" />
-      </div>
-      <div class="note">Tip: you can also drag a <code>.json</code> file onto the canvas to load.</div>
-
-      <!-- OBJ Export -->
-      <div class="row">
-        <button class="btn" id="saveObjBtn" title="Export OBJ (geometry only)">Save OBJ</button>
-        <button class="btn" id="saveObjMtlBtn" title="Export OBJ + MTL (with colors)">Save OBJ + MTL</button>
-      </div>
-      <div class="note">OBJ+MTL exports per‑triangle materials with <code>Kd</code> set to face colors.</div>
-    </div>
-
-    <footer>
-      <div>
-        Hover = preview. Click = remove. <strong>Shift + Click = add</strong>.
-        <strong>Ctrl/Cmd + Click = paint face</strong>. <strong>Alt + Click = carve row</strong>.
-        Drag to orbit. Wheel to zoom. Undo (Ctrl/Cmd+Z), Redo (Ctrl/Cmd+Y or Ctrl/Cmd+Shift+Z).
-      </div>
-      <div class="stats">
-        Verts: <span id="verts">–</span> | Tris: <span id="tris">–</span> | Faces: <span id="faces">–</span>
-      </div>
-    </footer>
   </div>
+    <div class="toolbar">
+
+      <input type="radio" id="optionVoxel" name="optionSelect" value="voxel" checked>
+    <label for="optionVoxel">Voxel</label>
+
+    <input type="radio" id="optionRow" name="optionSelect" value="row">
+    <label for="optionRow">Row</label>
+
+    <input type="radio" id="optionPlane" name="optionSelect" value="plane">
+    <label for="optionPlane">Plane</label>
+
+  </div>
+    <div class="toolbar">
+
+    <button id="btnUndo" title="Undo (Ctrl+Z / ⌘Z)" disabled>Undo</button>
+    <button id="btnRedo" title="Redo (Ctrl+Y / Ctrl+Shift+Z / ⌘Shift+Z)" disabled>Redo</button>
+    <span class="help" id="undoInfo">—</span>
+  </div>
+
+  <!-- Palette editor -->
+  <div id="palette"></div>
+
+  <!-- Editing toolbar -->
+  <div class="toolbar">
+    <button id="randPalette">Randomize palette</button>
+    <button id="randMaterials">Randomize materials</button>
+    <button id="resetSolid">Reset (solid)</button>
+    <span class="help">Material shortcuts: <b>0–9</b>, <b>A–F</b></span>
+  </div>
+
+  <!-- Import/Export toolbar -->
+  <div class="toolbar">
+    <input id="fileInput" type="file" accept="application/json" />
+    <button id="btnImport">Import JSON…</button>
+    <button id="btnExport">Export JSON</button>
+    <span class="help">JSON: {version, size:[Nx,Ny,Nz], palette[≤16], voxels:[{x,y,z,m}]}</span>
+  </div>
+
+  <div id="glwrap">
+    <canvas id="gl" tabindex="0"></canvas>
+    <div class="hud">
+      <div><b>Controls</b></div>
+      <div>• Rotate: <b>hold Shift</b> + left drag</div>
+      <div>• Zoom: mouse wheel</div>
+      <div>• Paint: left click</div>
+      <div>• Remove: right click</div>
+      <div>• Add: <b>Ctrl + right click</b> a face</div>
+      <div>• Tools: Row <b>R</b> (axis <b>X</b>), Plane <b>P</b>, Box <b>B</b></div>
+      <div>• Material: keys <b>0–9</b> or <b>A–F</b></div>
+      <div>• Undo: <b>Ctrl+Z</b> • Redo: <b>Ctrl+Y</b> / <b>Ctrl+Shift+Z</b></div>
+    </div>
+  </div>
+</div>
 
   <script type="module" src="/src/main.js"></script>
 </body>
