@@ -6,7 +6,7 @@ import { Mat4, Vec3 } from './math.js';
 export class OrbitCamera {
   /**
    * Creates a new orbit camera.
-   * 
+   *
    * @param {Object} options Camera initialization options
    * @param {number[]} [options.target=[0,0,0]] Target point to orbit around
    * @param {number} [options.radius=2.3] Initial distance from target
@@ -27,10 +27,10 @@ export class OrbitCamera {
 
   /**
    * Clamps camera parameters to valid ranges.
-   * 
+   *
    * Ensures:
    * - Phi (vertical angle) between 0 and PI
-   * - Radius between minRadius and maxRadius 
+   * - Radius between minRadius and maxRadius
    * - Theta (horizontal angle) wrapped to [-PI, PI]
    */
   clamp() {
@@ -46,7 +46,7 @@ export class OrbitCamera {
 
   /**
    * Calculates the camera position in world space.
-   * 
+   *
    * @returns {Float32Array} Camera position [x,y,z]
    */
   getEye() {
@@ -58,10 +58,10 @@ export class OrbitCamera {
 
     return new Float32Array([this.target[0] + x, this.target[1] + y, this.target[2] + z]);
   }
-  
+
   /**
    * Creates a view matrix for the current camera position.
-   * 
+   *
    * @returns {Mat4} View transformation matrix
    */
   view() {
@@ -77,5 +77,24 @@ export function makeCubeEdges() {
   ]);
   const I = new Uint16Array([0, 1, 1, 2, 2, 3, 3, 0, 4, 5, 5, 6, 6, 7, 7, 4, 0, 4, 1, 5, 2, 6, 3, 7]);
   return { positions: P, indices: I, count: I.length };
+}
+
+const U = 1 / 16;
+
+// Add this new function to create axis gizmo geometry
+export function makeAxisGizmo() {
+  return {
+    positions: new Float32Array([
+      -4, 0, 0, 4, 0, 0, // X axis
+      0, -4, 0, 0, 4, 0, // Y axis
+      0, 0, -4, 0, 0, 4, // Z axis
+    ]),
+    colors: new Float32Array([
+      1, 0, 0, 1, 0, 0, // Red for X
+      0, 1, 0, 0, 1, 0, // Green for Y
+      0, 0, 1, 0, 0, 1, // Blue for Z
+    ]),
+    count: 6
+  };
 }
 

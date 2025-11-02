@@ -1,6 +1,6 @@
 import './style.css'
 import { Mat4, Vec3 } from './math.js';
-import { makeCubeEdges, OrbitCamera } from './3d.js';
+import { makeCubeEdges, makeAxisGizmo, OrbitCamera } from './3d.js';
 import { createProgram } from './webgl.js';
 import lambertFrag from './lambert.frag';
 import lambertVert from './lambert.vert';
@@ -33,6 +33,31 @@ import {
   const renderProg = createProgram(gl, lambertVert, lambertFrag);
   const pickProg = createProgram(gl, pickVert, pickFrag);
   const wireProg = createProgram(gl, wireframeVert, wireframeFrag);
+
+  const axisVert = `#version 300 es
+  precision mediump float;
+  uniform mat4 uModel;
+  uniform mat4 uView;
+  uniform mat4 uProj;
+  in vec3 aPosition;
+  in vec3 aColor;
+  out vec3 vColor;
+  
+  void main() {
+    gl_Position = uProj * uView * uModel * vec4(aPosition * 0.15, 1.0);
+    vColor = aColor;
+  }`;
+  
+  const axisFrag = `#version 300 es
+  precision mediump float;
+  in vec3 vColor;
+  out vec4 fragColor;
+  
+  void main() {
+    fragColor = vec4(vColor, 1.0);
+  }`;
+
+  const axisProg = createProgram(gl, axisVert, axisFrag);
 
   // Locations
   const rLoc = {
@@ -67,6 +92,14 @@ import {
     uColor: gl.getUniformLocation(wireProg, 'uColor')
   };
 
+  const axisLoc = {
+    aPosition: gl.getAttribLocation(axisProg, 'aPosition'),
+    aColor: gl.getAttribLocation(axisProg, 'aColor'),
+    uModel: gl.getUniformLocation(axisProg, 'uModel'),
+    uView: gl.getUniformLocation(axisProg, 'uView'),
+    uProj: gl.getUniformLocation(axisProg, 'uProj')
+  };
+
   // Buffers (render)
   let renderVAO = gl.createVertexArray();
   let renderPosBuf = gl.createBuffer();
@@ -96,6 +129,29 @@ import {
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, edgeIdxBuf);
   gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, edges.indices, gl.STATIC_DRAW);
   gl.bindVertexArray(null);
+
+
+// gizmo
+
+
+// Add after other buffer setup
+const gizmo = makeAxisGizmo();
+const gizmoVAO = gl.createVertexArray();
+const gizmoPosBuffer = gl.createBuffer();
+const gizmoColBuffer = gl.createBuffer();
+
+gl.bindVertexArray(gizmoVAO);
+gl.bindBuffer(gl.ARRAY_BUFFER, gizmoPosBuffer);
+gl.bufferData(gl.ARRAY_BUFFER, gizmo.positions, gl.STATIC_DRAW);
+gl.enableVertexAttribArray(axisLoc.aPosition);
+gl.vertexAttribPointer(axisLoc.aPosition, 3, gl.FLOAT, false, 0, 0);
+
+gl.bindBuffer(gl.ARRAY_BUFFER, gizmoColBuffer);
+gl.bufferData(gl.ARRAY_BUFFER, gizmo.colors, gl.STATIC_DRAW);
+gl.enableVertexAttribArray(axisLoc.aColor);
+gl.vertexAttribPointer(axisLoc.aColor, 3, gl.FLOAT, false, 0, 0);
+gl.bindVertexArray(null);
+
 
   /*** ---- World State ---- ***/
   let N = 16, cell = 1 / N, half = 0.5;
@@ -851,6 +907,17 @@ import {
     gl.uniformMatrix3fv(rLoc.uNormalMat, false, new Float32Array([1, 0, 0, 0, 1, 0, 0, 0, 1]));
     gl.uniform3fv(rLoc.uLightDirWS, new Float32Array([0.7 / 1.7, 1.2 / 1.7, 0.9 / 1.7])); gl.uniform1f(rLoc.uAmbient, ambient);
     gl.bindVertexArray(renderVAO); gl.drawElements(gl.TRIANGLES, renderIndexCount, gl.UNSIGNED_INT, 0); gl.bindVertexArray(null);
+
+    // Render axis gizmo
+    gl.disable(gl.DEPTH_TEST); // Draw on top
+    gl.useProgram(axisProg);
+    gl.uniformMatrix4fv(axisLoc.uModel, false, model);
+    gl.uniformMatrix4fv(axisLoc.uView, false, camera.view());
+    gl.uniformMatrix4fv(axisLoc.uProj, false, proj);
+    gl.bindVertexArray(gizmoVAO);
+    gl.drawArrays(gl.LINES, 0, gizmo.count);
+    gl.bindVertexArray(null);
+    gl.enable(gl.DEPTH_TEST);
 
     updateHover();
 
