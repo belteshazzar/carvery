@@ -44,7 +44,9 @@ import {
   out vec3 vColor;
   
   void main() {
-    gl_Position = uProj * uView * uModel * vec4(aPosition * 0.15, 1.0);
+    // Scale the gizmo but don't offset it - it should be at origin
+    vec3 pos = aPosition;
+    gl_Position = uProj * uView * uModel * vec4(pos, 1.0);
     vColor = aColor;
   }`;
   
@@ -154,7 +156,8 @@ gl.bindVertexArray(null);
 
 
   /*** ---- World State ---- ***/
-  let N = 16, cell = 1 / N, half = 0.5;
+  let N = 16;
+
   let isSolid = new Array(N * N * N).fill(true);
   let voxelMat = new Uint8Array(N * N * N);    // 0..15
   let palette = createPalette();
@@ -176,7 +179,15 @@ gl.bindVertexArray(null);
 
   function coordsOf(id) { const z = Math.floor(id / (N * N)); const y = Math.floor((id - z * N * N) / N); const x = id - z * N * N - y * N; return [x, y, z]; }
 
-  function centerOf(id) { const [x, y, z] = coordsOf(id); return new Float32Array([-half + cell * (x + 0.5), -half + cell * (y + 0.5), -half + cell * (z + 0.5)]); }
+  // Update the coordinate conversion functions to remove half-offset
+  function centerOf(id) { 
+    const [x, y, z] = coordsOf(id); 
+    return new Float32Array([
+      x + 0.5,  // Center of voxel is at x + 0.5
+      y + 0.5,  
+      z + 0.5
+    ]); 
+  }
 
   function faceExposed(x, y, z, f) { const d = FACE_DIRS[f], here = isSolid[idx3(x, y, z)]; const nx = x + d[0], ny = y + d[1], nz = z + d[2]; const nb = within(nx, ny, nz) ? isSolid[idx3(nx, ny, nz)] : false; return here && !nb; }
 
@@ -188,7 +199,7 @@ gl.bindVertexArray(null);
   seedMaterials("bands");
 
   function resizeWorld(newN) {
-    N = Math.max(1, Math.floor(newN)); cell = 1 / N; half = 0.5;
+    N = Math.max(1, Math.floor(newN)); 
     isSolid = new Array(N * N * N).fill(false);
     voxelMat = new Uint8Array(N * N * N);
     clearHistory(); // world layout changed → clear undo/redo
@@ -223,15 +234,37 @@ gl.bindVertexArray(null);
               if (m == null) { iCol++; continue; }
               let w = 1; while (iCol + w < dims[u] && mask[(iCol + w) + dims[u] * jRow] === m) w++;
               let h = 1; heightLoop: while (jRow + h < dims[v]) { for (let xw = 0; xw < w; xw++) { if (mask[(iCol + xw) + dims[u] * (jRow + h)] !== m) break heightLoop; } h++; }
-              const du = [0, 0, 0]; du[u] = w * cell;
-              const dv = [0, 0, 0]; dv[v] = h * cell;
-              const base = [0, 0, 0]; base[u] = -half + cell * iCol; base[v] = -half + cell * jRow; base[axis] = -half + cell * k;
+              // Update base position calculation in buildGreedyRenderMesh()
+              const base = [0, 0, 0]; 
+              base[u] = iCol;  // Remove cell multiplication
+              base[v] = jRow;  
+              base[axis] = k;
               const eps = 1e-6;
-              let v0 = base.slice(), v1 = [base[0] + du[0], base[1] + du[1], base[2] + du[2]];
-              let v2 = [v1[0] + dv[0], v1[1] + dv[1], v1[2] + dv[2]], v3 = [base[0] + dv[0], base[1] + dv[1], base[2] + dv[2]];
+
+              // Fix quad vertex positions to use direct coordinates
+              const du = [0, 0, 0]; du[u] = w;
+              const dv = [0, 0, 0]; dv[v] = h;
+              
+              // Create quad vertices using actual coordinates
+              const v0 = base.slice();
+              const v1 = base.slice(); v1[u] += w;
+              const v2 = v1.slice(); v2[v] += h;
+              const v3 = base.slice(); v3[v] += h;
+
+              // Add epsilon offset in normal direction
               const nrm = [0, 0, 0]; nrm[axis] = n[axis];
-              v0[axis] += n[axis] * eps; v1[axis] += n[axis] * eps; v2[axis] += n[axis] * eps; v3[axis] += n[axis] * eps;
-              positions.push(v0[0], v0[1], v0[2], v1[0], v1[1], v1[2], v2[0], v2[1], v2[2], v3[0], v3[1], v3[2]);
+              v0[axis] += n[axis] * eps;
+              v1[axis] += n[axis] * eps;
+              v2[axis] += n[axis] * eps;
+              v3[axis] += n[axis] * eps;
+
+              positions.push(
+                v0[0], v0[1], v0[2],
+                v1[0], v1[1], v1[2],
+                v2[0], v2[1], v2[2],
+                v3[0], v3[1], v3[2]
+              );
+
               normals.push(nrm[0], nrm[1], nrm[2], nrm[0], nrm[1], nrm[2], nrm[0], nrm[1], nrm[2], nrm[0], nrm[1], nrm[2]);
               matIds.push(m, m, m, m);
               if (n[axis] > 0) { indices.push(indexBase, indexBase + 1, indexBase + 2, indexBase, indexBase + 2, indexBase + 3); }
@@ -272,19 +305,49 @@ gl.bindVertexArray(null);
 
   /*** ---- Pick faces (unmerged) ---- ***/
   function buildPickFaces() {
-    const positions = [], packed = [], indices = []; let base = 0;
-    const faces = [{ axis: 0, sign: +1, u: 2, v: 1, id: 0 }, { axis: 0, sign: -1, u: 2, v: 1, id: 1 }, { axis: 1, sign: +1, u: 0, v: 2, id: 2 }, { axis: 1, sign: -1, u: 0, v: 2, id: 3 }, { axis: 2, sign: +1, u: 0, v: 1, id: 4 }, { axis: 2, sign: -1, u: 0, v: 1, id: 5 }];
-    for (let z = 0; z < N; z++)for (let y = 0; y < N; y++)for (let x = 0; x < N; x++) {
-      const vIdx = idx3(x, y, z); if (!isSolid[vIdx]) continue; const min = [-half + x * cell, -half + y * cell, -half + z * cell];
+    const positions = [], packed = [], indices = []; 
+    let base = 0;
+    
+    const faces = [
+      { axis: 0, sign: +1, u: 2, v: 1, id: 0 }, 
+      { axis: 0, sign: -1, u: 2, v: 1, id: 1 }, 
+      { axis: 1, sign: +1, u: 0, v: 2, id: 2 }, 
+      { axis: 1, sign: -1, u: 0, v: 2, id: 3 }, 
+      { axis: 2, sign: +1, u: 0, v: 1, id: 4 }, 
+      { axis: 2, sign: -1, u: 0, v: 1, id: 5 }
+    ];
+
+    for (let z = 0; z < N; z++) for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      const vIdx = idx3(x, y, z); 
+      if (!isSolid[vIdx]) continue; 
+      
+      // Remove half offset, use direct cell-based positioning
+      const min = [x, y, z];  // Remove cell multiplication
+
       for (const f of faces) {
         if (!faceExposed(x, y, z, f.id)) continue;
-        const plane = min.slice(); plane[f.axis] += (f.sign > 0 ? cell : 0);
+        
+        const plane = min.slice(); 
+        plane[f.axis] += (f.sign > 0 ? 1 : 0);  // Use 1 instead of cell
+        
         const u = f.u, v = f.v;
-        const p0 = plane.slice(), p1 = plane.slice(); p1[u] += cell;
-        const p2 = p1.slice(); p2[v] += cell; const p3 = plane.slice(); p3[v] += cell;
-        positions.push(p0[0], p0[1], p0[2], p1[0], p1[1], p1[2], p2[0], p2[1], p2[2], p3[0], p3[1], p3[2]);
-        const pack = ((vIdx + 1) << 3) | (f.id & 7); packed.push(pack, pack, pack, pack);
-        indices.push(base, base + 1, base + 2, base, base + 2, base + 3); base += 4;
+        const p0 = plane.slice();
+        const p1 = plane.slice(); p1[u] += 1;
+        const p2 = p1.slice(); p2[v] += 1;
+        const p3 = plane.slice(); p3[v] += 1;
+        
+        positions.push(
+          p0[0], p0[1], p0[2], 
+          p1[0], p1[1], p1[2], 
+          p2[0], p2[1], p2[2], 
+          p3[0], p3[1], p3[2]
+        );
+        
+        const pack = ((vIdx + 1) << 3) | (f.id & 7); 
+        packed.push(pack, pack, pack, pack);
+        
+        indices.push(base, base + 1, base + 2, base, base + 2, base + 3); 
+        base += 4;
       }
     }
     gl.bindVertexArray(pickVAO);
@@ -305,7 +368,11 @@ gl.bindVertexArray(null);
   rebuildAll();
 
   /*** ---- Camera / lighting ---- ***/
-  const camera = new OrbitCamera({ radius: 2.3, theta: 0.9, phi: 0.9 });
+  const camera = new OrbitCamera({ 
+    radius: 32,  // Increase to match new world size
+    theta: -0.785, // -45 degrees to see positive axes
+    phi: 0.615    // ~35 degrees up
+  });
   const model = Mat4.identity();
   let proj = Mat4.perspective(60 * Math.PI / 180, 1, 0.01, 100);
   const ambient = 0.22;
@@ -370,10 +437,14 @@ gl.bindVertexArray(null);
 
   /*** ---- Wireframe drawing ---- ***/
   function drawWireAABB(minX, minY, minZ, maxX, maxY, maxZ, color, inflate = 1.006) {
-    const sx = (maxX - minX + 1) * cell, sy = (maxY - minY + 1) * cell, sz = (maxZ - minZ + 1) * cell;
-    const cx = (-half + minX * cell) + sx * 0.5;
-    const cy = (-half + minY * cell) + sy * 0.5;
-    const cz = (-half + minZ * cell) + sz * 0.5;
+    const sx = (maxX - minX + 1);  // Remove cell multiplication
+    const sy = (maxY - minY + 1);
+    const sz = (maxZ - minZ + 1);
+    
+    const cx = minX + sx * 0.5;  // Remove cell multiplication
+    const cy = minY + sy * 0.5;
+    const cz = minZ + sz * 0.5;
+
     gl.useProgram(wireProg);
     gl.uniformMatrix4fv(wLoc.uModel, false, model); gl.uniformMatrix4fv(wLoc.uView, false, camera.view()); gl.uniformMatrix4fv(wLoc.uProj, false, proj);
     gl.uniform3fv(wLoc.uOffset, new Float32Array([cx, cy, cz]));

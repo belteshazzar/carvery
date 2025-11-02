@@ -79,22 +79,60 @@ export function makeCubeEdges() {
   return { positions: P, indices: I, count: I.length };
 }
 
-const U = 1 / 16;
-
 // Add this new function to create axis gizmo geometry
 export function makeAxisGizmo() {
+  const positions = [];
+  const colors = [];
+  
+  // Main axes - now extending to 16 units
+  positions.push(
+    0,0,0, 16,0,0,  // X axis
+    0,0,0, 0,16,0,  // Y axis
+    0,0,0, 0,0,16   // Z axis
+  );
+  colors.push(
+    1,0,0, 1,0,0,  // Red for X
+    0,1,0, 0,1,0,  // Green for Y
+    0,0,1, 0,0,1   // Blue for Z
+  );
+
+  // Grid color (subtle grey)
+  const gridColor = [0.2, 0.2, 0.2];
+
+  // XY plane grid (floor)
+  for (let i = 0; i <= 16; i++) {
+    // Vertical lines
+    positions.push(i,0,0, i,16,0);
+    colors.push(...gridColor, ...gridColor);
+    // Horizontal lines
+    positions.push(0,i,0, 16,i,0);
+    colors.push(...gridColor, ...gridColor);
+  }
+
+  // XZ plane grid (back)
+  for (let i = 0; i <= 16; i++) {
+    // Vertical lines
+    positions.push(i,0,0, i,0,16);
+    colors.push(...gridColor, ...gridColor);
+    // Horizontal lines
+    positions.push(0,0,i, 16,0,i);
+    colors.push(...gridColor, ...gridColor);
+  }
+
+  // YZ plane grid (side)
+  for (let i = 0; i <= 16; i++) {
+    // Vertical lines
+    positions.push(0,i,0, 0,i,16);
+    colors.push(...gridColor, ...gridColor);
+    // Horizontal lines
+    positions.push(0,0,i, 0,16,i);
+    colors.push(...gridColor, ...gridColor);
+  }
+
   return {
-    positions: new Float32Array([
-      -4, 0, 0, 4, 0, 0, // X axis
-      0, -4, 0, 0, 4, 0, // Y axis
-      0, 0, -4, 0, 0, 4, // Z axis
-    ]),
-    colors: new Float32Array([
-      1, 0, 0, 1, 0, 0, // Red for X
-      0, 1, 0, 0, 1, 0, // Green for Y
-      0, 0, 1, 0, 0, 1, // Blue for Z
-    ]),
-    count: 6
+    positions: new Float32Array(positions),
+    colors: new Float32Array(colors),
+    count: positions.length / 3
   };
 }
 
