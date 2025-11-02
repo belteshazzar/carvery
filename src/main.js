@@ -537,6 +537,12 @@ gl.bindVertexArray(null);
     reader.readAsText(file);
   });
 
+  function intToHexChar(i) {
+    if (i >= 0 && i <= 9) return String.fromCharCode('0'.charCodeAt(0) + i);
+    if (i >= 10 && i <= 15) return String.fromCharCode('a'.charCodeAt(0) + (i - 10));
+    return '0';
+  }
+
   function exportToJSON() {
     const palHex = [];
     
@@ -547,7 +553,9 @@ gl.bindVertexArray(null);
       for (let y = 0; y < N; y++) {
         for (let x = 0; x < N; x++) {
           const id = idx3(x, y, z);
-          if (isSolid[id]) voxels.push( `${decToHex(x).slice(-1)}${decToHex(y).slice(-1)}${decToHex(z).slice(-1)}${voxelMat[id] | 0}`);
+          if (isSolid[id]) {
+            voxels.push( `${intToHexChar(x)}${intToHexChar(y)}${intToHexChar(z)}${intToHexChar(voxelMat[id])}`);
+          }
         }
       }
     }
