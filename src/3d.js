@@ -84,30 +84,20 @@ export function makeAxisGizmo() {
   const positions = [];
   const colors = [];
   
-  // Main axes - now extending to 16 units
-  positions.push(
-    0,0,0, 16,0,0,  // X axis
-    0,0,0, 0,16,0,  // Y axis
-    0,0,0, 0,0,16   // Z axis
-  );
-  colors.push(
-    1,0,0, 1,0,0,  // Red for X
-    0,1,0, 0,1,0,  // Green for Y
-    0,0,1, 0,0,1   // Blue for Z
-  );
+
 
   // Grid color (subtle grey)
   const gridColor = [0.2, 0.2, 0.2];
 
-  // XY plane grid (floor)
-  for (let i = 0; i <= 16; i++) {
-    // Vertical lines
-    positions.push(i,0,0, i,16,0);
-    colors.push(...gridColor, ...gridColor);
-    // Horizontal lines
-    positions.push(0,i,0, 16,i,0);
-    colors.push(...gridColor, ...gridColor);
-  }
+  // // XY plane grid (floor)
+  // for (let i = 0; i <= 16; i++) {
+  //   // Vertical lines
+  //   positions.push(i,0,0, i,16,0);
+  //   colors.push(...gridColor, ...gridColor);
+  //   // Horizontal lines
+  //   positions.push(0,i,0, 16,i,0);
+  //   colors.push(...gridColor, ...gridColor);
+  // }
 
   // XZ plane grid (back)
   for (let i = 0; i <= 16; i++) {
@@ -119,16 +109,28 @@ export function makeAxisGizmo() {
     colors.push(...gridColor, ...gridColor);
   }
 
-  // YZ plane grid (side)
-  for (let i = 0; i <= 16; i++) {
-    // Vertical lines
-    positions.push(0,i,0, 0,i,16);
-    colors.push(...gridColor, ...gridColor);
-    // Horizontal lines
-    positions.push(0,0,i, 0,16,i);
-    colors.push(...gridColor, ...gridColor);
-  }
+  // // YZ plane grid (side)
+  // for (let i = 0; i <= 16; i++) {
+  //   // Vertical lines
+  //   positions.push(0,i,0, 0,i,16);
+  //   colors.push(...gridColor, ...gridColor);
+  //   // Horizontal lines
+  //   positions.push(0,0,i, 0,16,i);
+  //   colors.push(...gridColor, ...gridColor);
+  // }
 
+    // Extended main axes (20 units long to extend past grid)
+  positions.push(
+    0,0,0, 20,0,0,  // X axis
+    0,0,0, 0,20,0,  // Y axis
+    0,0,0, 0,0,20   // Z axis
+  );
+  colors.push(
+    1,0,0, 1,0,0,  // Red for X
+    0,1,0, 0,1,0,  // Green for Y
+    0,0,1, 0,0,1   // Blue for Z
+  );
+  
   return {
     positions: new Float32Array(positions),
     colors: new Float32Array(colors),

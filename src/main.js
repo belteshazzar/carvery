@@ -1,5 +1,5 @@
 import './style.css'
-import { Mat4, Vec3 } from './math.js';
+import { Mat4, Vec3, toRadians } from './math.js';
 import { makeCubeEdges, makeAxisGizmo, OrbitCamera } from './3d.js';
 import { createProgram } from './webgl.js';
 import lambertFrag from './lambert.frag';
@@ -367,11 +367,13 @@ gl.bindVertexArray(null);
 
   rebuildAll();
 
+
   /*** ---- Camera / lighting ---- ***/
   const camera = new OrbitCamera({ 
-    radius: 32,  // Increase to match new world size
-    theta: -0.785, // -45 degrees to see positive axes
-    phi: 0.615    // ~35 degrees up
+    target: [8,8,8],
+    radius: 40,  // Increase to match new world size
+    theta: toRadians(215), // 45 degrees to see positive axes
+    phi: toRadians(60)    // ~35 degrees up
   });
   const model = Mat4.identity();
   let proj = Mat4.perspective(60 * Math.PI / 180, 1, 0.01, 100);
@@ -427,11 +429,17 @@ gl.bindVertexArray(null);
   function decodePickAt(xc, yc) {
     if (pickIndexCount === 0) return { voxel: -1, face: -1 };
     renderPick();
-    const { x, y } = clientToFB(xc, yc); const px = new Uint8Array(4);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, pickFBO); gl.readPixels(x, y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px); gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    const { x, y } = clientToFB(xc, yc);
+    const px = new Uint8Array(4);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, pickFBO);
+    gl.readPixels(x, y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     const packed = (px[0]) | (px[1] << 8) | (px[2] << 16);
+    console.log('Picked pixel RGBA:', px, ' Packed:', packed);
     if (packed === 0) return { voxel: -1, face: -1 };
-    const face = packed & 7; const vId = (packed >> 3) - 1; if (vId < 0 || vId >= isSolid.length) return { voxel: -1, face: -1 };
+    const face = packed & 7;
+    const vId = (packed >> 3) - 1;
+    if (vId < 0 || vId >= isSolid.length) return { voxel: -1, face: -1 };
     return { voxel: vId, face };
   }
 
@@ -969,14 +977,14 @@ gl.bindVertexArray(null);
   const COLOR_CARVE = [1.0, 0.32, 0.32];
   const COLOR_ADD = [0.27, 0.95, 0.42];
 
-  /*** ---- Render loop ---- ***/
+  // Add call to updateAxisLabels in render loop
   function render() {
     gl.clearColor(0.07, 0.08, 0.1, 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     gl.useProgram(renderProg);
     gl.uniform3fv(rLoc.uPalette, palette);
     gl.uniformMatrix4fv(rLoc.uModel, false, model); gl.uniformMatrix4fv(rLoc.uView, false, camera.view()); gl.uniformMatrix4fv(rLoc.uProj, false, proj);
     gl.uniformMatrix3fv(rLoc.uNormalMat, false, new Float32Array([1, 0, 0, 0, 1, 0, 0, 0, 1]));
-    gl.uniform3fv(rLoc.uLightDirWS, new Float32Array([0.7 / 1.7, 1.2 / 1.7, 0.9 / 1.7])); gl.uniform1f(rLoc.uAmbient, ambient);
+    gl.uniform3fv(rLoc.uLightDirWS, new Float32Array([0.7 / 1.7, -1.2 / 1.7, 0.9 / 1.7])); gl.uniform1f(rLoc.uAmbient, ambient);
     gl.bindVertexArray(renderVAO); gl.drawElements(gl.TRIANGLES, renderIndexCount, gl.UNSIGNED_INT, 0); gl.bindVertexArray(null);
 
     // Render axis gizmo
@@ -991,6 +999,7 @@ gl.bindVertexArray(null);
     gl.enable(gl.DEPTH_TEST);
 
     updateHover();
+//    updateAxisLabels();
 
     if (mode !== 'move' && hoverVoxel >= 0 && hoverFace >= 0) {
       if (option === 'plane') {

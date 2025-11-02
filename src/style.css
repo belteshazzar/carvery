@@ -217,3 +217,25 @@ input[type="color"]{
   cursor: not-allowed;
   background: transparent;
 }
+
+.axis-labels {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  color: white;
+  font-family: monospace;
+  font-size: 12px;
+  font-weight: bold;
+  text-shadow: 1px 1px 1px rgba(0,0,0,0.5);
+}
+
+.axis-label {
+  position: absolute;
+  transform: translate(-50%, -50%);
+}
+
+.axis-label.x { color: #ff4444; }
+.axis-label.y { color: #44ff44; }
+.axis-label.z { color: #4444ff; }
+

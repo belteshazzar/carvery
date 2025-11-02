@@ -1,3 +1,8 @@
+// Converts degrees to radians
+  export function toRadians(degrees) {
+    return degrees * (Math.PI / 180);
+  }
+
 
 export const Vec3 = {
   /**
@@ -82,5 +87,23 @@ export const Mat4 = {
     o[14] = -(z[0] * eye[0] + z[1] * eye[1] + z[2] * eye[2]);
     o[15] = 1;
     return o;
+  },
+
+  /**
+   * Transforms a vector by a 4x4 matrix
+   * @param {Float32Array} m 4x4 matrix (16 elements)
+   * @param {number[]} v Vector [x,y,z] or [x,y,z,w]
+   * @returns {number[]} Transformed vector [x,y,z,w]
+   */
+  transform: (m, v) => {
+    const x = v[0], y = v[1], z = v[2];
+    const w = v.length === 4 ? v[3] : 1;
+    
+    return [
+      m[0] * x + m[4] * y + m[8]  * z + m[12] * w,
+      m[1] * x + m[5] * y + m[9]  * z + m[13] * w,
+      m[2] * x + m[6] * y + m[10] * z + m[14] * w,
+      m[3] * x + m[7] * y + m[11] * z + m[15] * w
+    ];
   }
 };
