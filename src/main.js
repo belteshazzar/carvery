@@ -8,6 +8,8 @@ import wireframeFrag from './wireframe.frag';
 import wireframeVert from './wireframe.vert';
 import pickFrag from './pick.frag';
 import pickVert from './pick.vert';
+import axisFrag from './axis.frag';
+import axisVert from './axis.vert';
 import { 
   hexToRgbF,
   rgbToHexF,
@@ -33,77 +35,9 @@ import {
   const renderProg = createProgram(gl, lambertVert, lambertFrag);
   const pickProg = createProgram(gl, pickVert, pickFrag);
   const wireProg = createProgram(gl, wireframeVert, wireframeFrag);
-
-  const axisVert = `#version 300 es
-  precision mediump float;
-  uniform mat4 uModel;
-  uniform mat4 uView;
-  uniform mat4 uProj;
-  in vec3 aPosition;
-  in vec3 aColor;
-  out vec3 vColor;
-  
-  void main() {
-    // Scale the gizmo but don't offset it - it should be at origin
-    vec3 pos = aPosition;
-    gl_Position = uProj * uView * uModel * vec4(pos, 1.0);
-    vColor = aColor;
-  }`;
-  
-  const axisFrag = `#version 300 es
-  precision mediump float;
-  in vec3 vColor;
-  out vec4 fragColor;
-  
-  void main() {
-    fragColor = vec4(vColor, 1.0);
-  }`;
-
   const axisProg = createProgram(gl, axisVert, axisFrag);
 
-  // Locations
-  const rLoc = {
-    aPosition: gl.getAttribLocation(renderProg, 'aPosition'),
-    aNormal: gl.getAttribLocation(renderProg, 'aNormal'),
-    aMatId: gl.getAttribLocation(renderProg, 'aMatId'),
-    uModel: gl.getUniformLocation(renderProg, 'uModel'),
-    uView: gl.getUniformLocation(renderProg, 'uView'),
-    uProj: gl.getUniformLocation(renderProg, 'uProj'),
-    uNormalMat: gl.getUniformLocation(renderProg, 'uNormalMat'),
-    uLightDirWS: gl.getUniformLocation(renderProg, 'uLightDirWS'),
-    uAmbient: gl.getUniformLocation(renderProg, 'uAmbient'),
-    uPalette: gl.getUniformLocation(renderProg, 'uPalette[0]')
-  };
-
-  const pLoc = {
-    aPosition: gl.getAttribLocation(pickProg, 'aPosition'),
-    aPacked: gl.getAttribLocation(pickProg, 'aPacked'),
-    uModel: gl.getUniformLocation(pickProg, 'uModel'),
-    uView: gl.getUniformLocation(pickProg, 'uView'),
-    uProj: gl.getUniformLocation(pickProg, 'uProj')
-  };
-
-  const wLoc = {
-    aPosition: gl.getAttribLocation(wireProg, 'aPosition'),
-    uModel: gl.getUniformLocation(wireProg, 'uModel'),
-    uView: gl.getUniformLocation(wireProg, 'uView'),
-    uProj: gl.getUniformLocation(wireProg, 'uProj'),
-    uOffset: gl.getUniformLocation(wireProg, 'uOffset'),
-    uScaleVec: gl.getUniformLocation(wireProg, 'uScaleVec'),
-    uInflate: gl.getUniformLocation(wireProg, 'uInflate'),
-    uColor: gl.getUniformLocation(wireProg, 'uColor')
-  };
-
-  const axisLoc = {
-    aPosition: gl.getAttribLocation(axisProg, 'aPosition'),
-    aColor: gl.getAttribLocation(axisProg, 'aColor'),
-    uModel: gl.getUniformLocation(axisProg, 'uModel'),
-    uView: gl.getUniformLocation(axisProg, 'uView'),
-    uProj: gl.getUniformLocation(axisProg, 'uProj')
-  };
-
   // Buffers (render)
-  let renderVAO = gl.createVertexArray();
   let renderPosBuf = gl.createBuffer();
   let renderNrmBuf = gl.createBuffer();
   let renderMatBuf = gl.createBuffer();
@@ -111,7 +45,7 @@ import {
   let renderIndexCount = 0;
 
   // Buffers (pick)
-  let pickVAO = gl.createVertexArray();
+
   let pickPosBuf = gl.createBuffer();
   let pickPackedBuf = gl.createBuffer();
   let pickIdxBuf = gl.createBuffer();
@@ -119,15 +53,15 @@ import {
 
   // Wireframe mesh
   const edges = makeCubeEdges();
-  const edgeVAO = gl.createVertexArray();
   const edgePosBuf = gl.createBuffer();
   const edgeIdxBuf = gl.createBuffer();
 
-  gl.bindVertexArray(edgeVAO);
+  gl.bindVertexArray(wireProg.vao);
   gl.bindBuffer(gl.ARRAY_BUFFER, edgePosBuf);
   gl.bufferData(gl.ARRAY_BUFFER, edges.positions, gl.STATIC_DRAW);
-  gl.enableVertexAttribArray(wLoc.aPosition);
-  gl.vertexAttribPointer(wLoc.aPosition, 3, gl.FLOAT, false, 0, 0);
+  gl.enableVertexAttribArray(wireProg.aPosition.location);
+
+  gl.vertexAttribPointer(wireProg.aPosition.location, 3, gl.FLOAT, false, 0, 0);
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, edgeIdxBuf);
   gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, edges.indices, gl.STATIC_DRAW);
   gl.bindVertexArray(null);
@@ -138,20 +72,19 @@ import {
 
 // Add after other buffer setup
 const gizmo = makeAxisGizmo();
-const gizmoVAO = gl.createVertexArray();
 const gizmoPosBuffer = gl.createBuffer();
 const gizmoColBuffer = gl.createBuffer();
 
-gl.bindVertexArray(gizmoVAO);
+gl.bindVertexArray(axisProg.vao);
 gl.bindBuffer(gl.ARRAY_BUFFER, gizmoPosBuffer);
 gl.bufferData(gl.ARRAY_BUFFER, gizmo.positions, gl.STATIC_DRAW);
-gl.enableVertexAttribArray(axisLoc.aPosition);
-gl.vertexAttribPointer(axisLoc.aPosition, 3, gl.FLOAT, false, 0, 0);
+gl.enableVertexAttribArray(axisProg.aPosition.location);
+gl.vertexAttribPointer(axisProg.aPosition.location, 3, gl.FLOAT, false, 0, 0);
 
 gl.bindBuffer(gl.ARRAY_BUFFER, gizmoColBuffer);
 gl.bufferData(gl.ARRAY_BUFFER, gizmo.colors, gl.STATIC_DRAW);
-gl.enableVertexAttribArray(axisLoc.aColor);
-gl.vertexAttribPointer(axisLoc.aColor, 3, gl.FLOAT, false, 0, 0);
+gl.enableVertexAttribArray(axisProg.aColor.location);
+gl.vertexAttribPointer(axisProg.aColor.location, 3, gl.FLOAT, false, 0, 0);
 gl.bindVertexArray(null);
 
 
@@ -164,20 +97,29 @@ gl.bindVertexArray(null);
 
   const defaultHex = ['#e76f51', '#f4a261', '#e9c46a', '#2a9d8f', '#264653', '#a8dadc', '#457b9d', '#1d3557', '#ff6b6b', '#ffd93d', '#6bcb77', '#4d96ff', '#b983ff', '#ff4d6d', '#9ef01a', '#00f5d4'];
 
-  function setPaletteColor(i, rgb) { palette[i * 3 + 0] = rgb[0]; palette[i * 3 + 1] = rgb[1]; palette[i * 3 + 2] = rgb[2]; }
+  function setPaletteColor(i, rgb) {
+    palette[i * 3 + 0] = rgb[0]; 
+    palette[i * 3 + 1] = rgb[1]; 
+    palette[i * 3 + 2] = rgb[2];
+  }
 
   for (let i = 0; i < 16; i++) {
     const [r, g, b] = hexToRgbF(defaultHex[i]); 
     setPaletteColor(i, [r, g, b]);
   }
 
-  const FACE_DIRS = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];
+  const FACE_DIRS = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1],[0,0,0]]; // last is for ground plane
   const FACE_INFO = [{ axis: 0, u: 2, v: 1 }, { axis: 0, u: 2, v: 1 }, { axis: 1, u: 0, v: 2 }, { axis: 1, u: 0, v: 2 }, { axis: 2, u: 0, v: 1 }, { axis: 2, u: 0, v: 1 }];
-  const FACE_LABEL = ["+X", "-X", "+Y", "-Y", "+Z", "-Z"];
+  const FACE_LABEL = ["+X", "-X", "+Y", "-Y", "+Z", "-Z", "Y+"]; // last is for ground plane
   const idx3 = (x, y, z) => x + N * (y + N * z);
   const within = (x, y, z) => x >= 0 && y >= 0 && z >= 0 && x < N && y < N && z < N;
 
-  function coordsOf(id) { const z = Math.floor(id / (N * N)); const y = Math.floor((id - z * N * N) / N); const x = id - z * N * N - y * N; return [x, y, z]; }
+  function coordsOf(id) {
+    const z = Math.floor(id / (N * N));
+    const y = Math.floor((id - z * N * N) / N);
+    const x = id - z * N * N - y * N;
+    return [x, y, z];
+  }
 
   // Update the coordinate conversion functions to remove half-offset
   function centerOf(id) { 
@@ -189,7 +131,12 @@ gl.bindVertexArray(null);
     ]); 
   }
 
-  function faceExposed(x, y, z, f) { const d = FACE_DIRS[f], here = isSolid[idx3(x, y, z)]; const nx = x + d[0], ny = y + d[1], nz = z + d[2]; const nb = within(nx, ny, nz) ? isSolid[idx3(nx, ny, nz)] : false; return here && !nb; }
+  function faceExposed(x, y, z, f) {
+    const d = FACE_DIRS[f], here = isSolid[idx3(x, y, z)]; 
+    const nx = x + d[0], ny = y + d[1], nz = z + d[2]; 
+    const nb = within(nx, ny, nz) ? isSolid[idx3(nx, ny, nz)] : false; 
+    return here && !nb;
+  }
 
   function seedMaterials(mode = "bands") {
     for (let z = 0; z < N; z++) for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
@@ -232,8 +179,10 @@ gl.bindVertexArray(null);
             while (iCol < dims[u]) {
               const m = mask[iCol + dims[u] * jRow];
               if (m == null) { iCol++; continue; }
-              let w = 1; while (iCol + w < dims[u] && mask[(iCol + w) + dims[u] * jRow] === m) w++;
-              let h = 1; heightLoop: while (jRow + h < dims[v]) { for (let xw = 0; xw < w; xw++) { if (mask[(iCol + xw) + dims[u] * (jRow + h)] !== m) break heightLoop; } h++; }
+              let w = 1; 
+              while (iCol + w < dims[u] && mask[(iCol + w) + dims[u] * jRow] === m) w++;
+              let h = 1; 
+              heightLoop: while (jRow + h < dims[v]) { for (let xw = 0; xw < w; xw++) { if (mask[(iCol + xw) + dims[u] * (jRow + h)] !== m) break heightLoop; } h++; }
               // Update base position calculation in buildGreedyRenderMesh()
               const base = [0, 0, 0]; 
               base[u] = iCol;  // Remove cell multiplication
@@ -267,8 +216,11 @@ gl.bindVertexArray(null);
 
               normals.push(nrm[0], nrm[1], nrm[2], nrm[0], nrm[1], nrm[2], nrm[0], nrm[1], nrm[2], nrm[0], nrm[1], nrm[2]);
               matIds.push(m, m, m, m);
-              if (n[axis] > 0) { indices.push(indexBase, indexBase + 1, indexBase + 2, indexBase, indexBase + 2, indexBase + 3); }
-              else { indices.push(indexBase, indexBase + 3, indexBase + 2, indexBase, indexBase + 2, indexBase + 1); }
+              if (n[axis] > 0) { 
+                indices.push(indexBase, indexBase + 1, indexBase + 2, indexBase, indexBase + 2, indexBase + 3); 
+              } else { 
+                indices.push(indexBase, indexBase + 3, indexBase + 2, indexBase, indexBase + 2, indexBase + 1); 
+              }
               indexBase += 4;
               for (let y2 = 0; y2 < h; y2++) for (let x2 = 0; x2 < w; x2++) mask[(iCol + x2) + dims[u] * (jRow + y2)] = null;
               iCol += w;
@@ -280,21 +232,26 @@ gl.bindVertexArray(null);
     }
 
     // Upload render mesh
-    gl.bindVertexArray(renderVAO);
+    gl.bindVertexArray(renderProg.vao);
+
     gl.bindBuffer(gl.ARRAY_BUFFER, renderPosBuf);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.DYNAMIC_DRAW);
-    gl.enableVertexAttribArray(rLoc.aPosition);
-    gl.vertexAttribPointer(rLoc.aPosition, 3, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(renderProg.aPosition.location);
+    gl.vertexAttribPointer(renderProg.aPosition.location, 3, gl.FLOAT, false, 0, 0);
+
     gl.bindBuffer(gl.ARRAY_BUFFER, renderNrmBuf);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(normals), gl.DYNAMIC_DRAW);
-    gl.enableVertexAttribArray(rLoc.aNormal);
-    gl.vertexAttribPointer(rLoc.aNormal, 3, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(renderProg.aNormal.location);
+    gl.vertexAttribPointer(renderProg.aNormal.location, 3, gl.FLOAT, false, 0, 0);
+
     gl.bindBuffer(gl.ARRAY_BUFFER, renderMatBuf);
     gl.bufferData(gl.ARRAY_BUFFER, new Uint8Array(matIds), gl.DYNAMIC_DRAW);
-    gl.enableVertexAttribArray(rLoc.aMatId);
-    gl.vertexAttribIPointer(rLoc.aMatId, 1, gl.UNSIGNED_BYTE, 0, 0);
+    gl.enableVertexAttribArray(renderProg.aMatId.location);
+    gl.vertexAttribIPointer(renderProg.aMatId.location, 1, gl.UNSIGNED_BYTE, 0, 0);
+
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, renderIdxBuf);
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint32Array(indices), gl.DYNAMIC_DRAW);
+   
     gl.bindVertexArray(null);
 
     renderIndexCount = indices.length;
@@ -307,34 +264,43 @@ gl.bindVertexArray(null);
   function buildPickFaces() {
     const positions = [], packed = [], indices = []; 
     let base = 0;
-    
+
     const faces = [
       { axis: 0, sign: +1, u: 2, v: 1, id: 0 }, 
       { axis: 0, sign: -1, u: 2, v: 1, id: 1 }, 
       { axis: 1, sign: +1, u: 0, v: 2, id: 2 }, 
       { axis: 1, sign: -1, u: 0, v: 2, id: 3 }, 
       { axis: 2, sign: +1, u: 0, v: 1, id: 4 }, 
-      { axis: 2, sign: -1, u: 0, v: 1, id: 5 }
+      { axis: 2, sign: -1, u: 0, v: 1, id: 5 },
+      { axis: 1, sign: +1, u: 0, v: 2, id: 6 }, // bottom face duplicate for ground plane
     ];
 
-    for (let z = 0; z < N; z++) for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
-      const vIdx = idx3(x, y, z); 
-      if (!isSolid[vIdx]) continue; 
+    for (let z = 0; z < N; z++) for (let y = -1; y < N; y++) for (let x = 0; x < N; x++) {
+      const vIdx = idx3(x, y==-1?0:y, z); 
+      if (y !== -1 && !isSolid[vIdx]) continue; 
+      if (y === -1 && isSolid[vIdx]) continue;
       
       // Remove half offset, use direct cell-based positioning
       const min = [x, y, z];  // Remove cell multiplication
 
       for (const f of faces) {
-        if (!faceExposed(x, y, z, f.id)) continue;
-        
+        if (y === -1) {
+          if (f.id !== 6) continue;
+        } else {
+          if (f.id === 6) continue;
+          if (!faceExposed(x, y, z, f.id)) continue;
+        }
         const plane = min.slice(); 
         plane[f.axis] += (f.sign > 0 ? 1 : 0);  // Use 1 instead of cell
         
         const u = f.u, v = f.v;
         const p0 = plane.slice();
-        const p1 = plane.slice(); p1[u] += 1;
-        const p2 = p1.slice(); p2[v] += 1;
-        const p3 = plane.slice(); p3[v] += 1;
+        const p1 = plane.slice();
+        p1[u] += 1;
+        const p2 = p1.slice();
+        p2[v] += 1;
+        const p3 = plane.slice();
+        p3[v] += 1;
         
         positions.push(
           p0[0], p0[1], p0[2], 
@@ -343,27 +309,32 @@ gl.bindVertexArray(null);
           p3[0], p3[1], p3[2]
         );
         
-        const pack = ((vIdx + 1) << 3) | (f.id & 7); 
+        const pack = ((vIdx + 1) << 4) | (f.id & 7); 
         packed.push(pack, pack, pack, pack);
         
         indices.push(base, base + 1, base + 2, base, base + 2, base + 3); 
         base += 4;
       }
     }
-    gl.bindVertexArray(pickVAO);
+    gl.bindVertexArray(pickProg.vao);
     gl.bindBuffer(gl.ARRAY_BUFFER, pickPosBuf);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.DYNAMIC_DRAW);
-    gl.enableVertexAttribArray(pLoc.aPosition); gl.vertexAttribPointer(pLoc.aPosition, 3, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(pickProg.aPosition.location); 
+    gl.vertexAttribPointer(pickProg.aPosition.location, 3, gl.FLOAT, false, 0, 0);
     gl.bindBuffer(gl.ARRAY_BUFFER, pickPackedBuf);
     gl.bufferData(gl.ARRAY_BUFFER, new Uint32Array(packed), gl.DYNAMIC_DRAW);
-    gl.enableVertexAttribArray(pLoc.aPacked); gl.vertexAttribIPointer(pLoc.aPacked, 1, gl.UNSIGNED_INT, 0, 0);
+    gl.enableVertexAttribArray(pickProg.aPacked.location); 
+    gl.vertexAttribIPointer(pickProg.aPacked.location, 1, gl.UNSIGNED_INT, 0, 0);
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, pickIdxBuf);
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint32Array(indices), gl.DYNAMIC_DRAW);
     gl.bindVertexArray(null);
     pickIndexCount = indices.length;
   }
 
-  function rebuildAll() { buildGreedyRenderMesh(); buildPickFaces(); }
+  function rebuildAll() { 
+    buildGreedyRenderMesh(); 
+    buildPickFaces();
+  }
 
   rebuildAll();
 
@@ -385,16 +356,27 @@ gl.bindVertexArray(null);
   function resizePickTargets() {
     const w = canvas.width, h = canvas.height;
     if (w === pickW && h === pickH && pickFBO) return;
-    if (pickTex) gl.deleteTexture(pickTex); if (pickDepth) gl.deleteRenderbuffer(pickDepth); if (pickFBO) gl.deleteFramebuffer(pickFBO);
-    pickTex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, pickTex);
+    if (pickTex) gl.deleteTexture(pickTex);
+    if (pickDepth) gl.deleteRenderbuffer(pickDepth);
+    if (pickFBO) gl.deleteFramebuffer(pickFBO);
+
+    pickTex = gl.createTexture(); 
+    gl.bindTexture(gl.TEXTURE_2D, pickTex);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    pickDepth = gl.createRenderbuffer(); gl.bindRenderbuffer(gl.RENDERBUFFER, pickDepth); gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, w, h);
-    pickFBO = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, pickFBO);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    pickDepth = gl.createRenderbuffer();
+    gl.bindRenderbuffer(gl.RENDERBUFFER, pickDepth);
+    gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, w, h);
+    pickFBO = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, pickFBO);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, pickTex, 0);
     gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, pickDepth);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null); pickW = w; pickH = h;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null); 
+    pickW = w; 
+    pickH = h;
   }
 
   function resize() {
@@ -410,11 +392,18 @@ gl.bindVertexArray(null);
 
   function renderPick() {
     gl.bindFramebuffer(gl.FRAMEBUFFER, pickFBO);
-    gl.viewport(0, 0, pickW, pickH); gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-    const cullWas = gl.isEnabled(gl.CULL_FACE); if (cullWas) gl.disable(gl.CULL_FACE);
-    gl.useProgram(pickProg);
-    gl.uniformMatrix4fv(pLoc.uModel, false, model); gl.uniformMatrix4fv(pLoc.uView, false, camera.view()); gl.uniformMatrix4fv(pLoc.uProj, false, proj);
-    gl.bindVertexArray(pickVAO); gl.drawElements(gl.TRIANGLES, pickIndexCount, gl.UNSIGNED_INT, 0); gl.bindVertexArray(null);
+    gl.viewport(0, 0, pickW, pickH);
+    gl.clearColor(0, 0, 0, 1);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    const cullWas = gl.isEnabled(gl.CULL_FACE);
+    if (cullWas) gl.disable(gl.CULL_FACE);
+    gl.useProgram(pickProg.program);
+    pickProg.uModel.set(model);
+    pickProg.uView.set(camera.view());
+    pickProg.uProj.set(proj);
+    gl.bindVertexArray(pickProg.vao);
+    gl.drawElements(gl.TRIANGLES, pickIndexCount, gl.UNSIGNED_INT, 0);
+    gl.bindVertexArray(null);
     if (cullWas) gl.enable(gl.CULL_FACE);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   }
@@ -435,10 +424,9 @@ gl.bindVertexArray(null);
     gl.readPixels(x, y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     const packed = (px[0]) | (px[1] << 8) | (px[2] << 16);
-    console.log('Picked pixel RGBA:', px, ' Packed:', packed);
     if (packed === 0) return { voxel: -1, face: -1 };
     const face = packed & 7;
-    const vId = (packed >> 3) - 1;
+    const vId = (packed >> 4) - 1;
     if (vId < 0 || vId >= isSolid.length) return { voxel: -1, face: -1 };
     return { voxel: vId, face };
   }
@@ -453,13 +441,17 @@ gl.bindVertexArray(null);
     const cy = minY + sy * 0.5;
     const cz = minZ + sz * 0.5;
 
-    gl.useProgram(wireProg);
-    gl.uniformMatrix4fv(wLoc.uModel, false, model); gl.uniformMatrix4fv(wLoc.uView, false, camera.view()); gl.uniformMatrix4fv(wLoc.uProj, false, proj);
-    gl.uniform3fv(wLoc.uOffset, new Float32Array([cx, cy, cz]));
-    gl.uniform3fv(wLoc.uScaleVec, new Float32Array([sx, sy, sz]));
-    gl.uniform1f(wLoc.uInflate, inflate);
-    gl.uniform3fv(wLoc.uColor, new Float32Array(color));
-    gl.bindVertexArray(edgeVAO); gl.drawElements(gl.LINES, edges.count, gl.UNSIGNED_SHORT, 0); gl.bindVertexArray(null);
+    gl.useProgram(wireProg.program);
+    wireProg.uModel.set(model);
+    wireProg.uView.set(camera.view());
+    wireProg.uProj.set(proj);
+    wireProg.uOffset.set(new Float32Array([cx, cy, cz]));
+    wireProg.uScaleVec.set(new Float32Array([sx, sy, sz]));
+    wireProg.uInflate.set(inflate);
+    wireProg.uColor.set(new Float32Array(color));
+    gl.bindVertexArray(wireProg.vao);
+    gl.drawElements(gl.LINES, edges.count, gl.UNSIGNED_SHORT, 0);
+    gl.bindVertexArray(null);
   }
 
   function drawVoxelWire(id, color, inflate = 1.006) {
@@ -519,13 +511,29 @@ gl.bindVertexArray(null);
   const fileInput = document.getElementById('fileInput');
   document.getElementById('btnImport').addEventListener('click', () => fileInput.click());
   document.getElementById('btnExport').addEventListener('click', () => {
-    const data = exportToJSON(); const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }); const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = 'voxels.json'; a.click(); URL.revokeObjectURL(url);
+    const data = exportToJSON(); 
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }); 
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); 
+    a.href = url; 
+    a.download = 'voxels.json'; 
+    a.click();
+    URL.revokeObjectURL(url);
   });
   fileInput.addEventListener('change', (e) => {
-    const file = e.target.files[0]; if (!file) return;
+    const file = e.target.files[0]; 
+    if (!file) return;
     const reader = new FileReader();
-    reader.onload = () => { try { const obj = JSON.parse(reader.result); importFromJSON(obj); } catch (err) { alert('Invalid JSON: ' + err.message); } finally { fileInput.value = ''; } };
+    reader.onload = () => {
+      try {
+        const obj = JSON.parse(reader.result); 
+        importFromJSON(obj);
+      } catch (err) {
+        alert('Invalid JSON: ' + err.message);
+      } finally {
+        fileInput.value = '';
+      }
+    };
     reader.readAsText(file);
   });
 
@@ -573,7 +581,11 @@ gl.bindVertexArray(null);
         else if (Array.isArray(e) && e.length >= 3) rgb = [+e[0], +e[1], +e[2]];
 
         if (rgb) { 
-          setPaletteColor(i, [Math.max(0, Math.min(1, rgb[0])), Math.max(0, Math.min(1, rgb[1])), Math.max(0, Math.min(1, rgb[2]))]); 
+          setPaletteColor(i, [
+            Math.max(0, Math.min(1, rgb[0])), 
+            Math.max(0, Math.min(1, rgb[1])), 
+            Math.max(0, Math.min(1, rgb[2]))
+          ]); 
         }
       }
       paletteUI.build();
@@ -605,10 +617,12 @@ gl.bindVertexArray(null);
     { axis: 1, u: 0, v: 2 }, // -Y
     { axis: 2, u: 0, v: 1 }, // +Z
     { axis: 2, u: 0, v: 1 }, // -Z
+   { axis: 1, u: 0, v: 2 }, // ground plane +Y
   ];
 
   function getRowSurfaceVoxels(vIdx, faceId) {
-    if (vIdx < 0 || faceId < 0) return [];
+    console.log('getRowSurfaceVoxels',vIdx,faceId);
+    if (vIdx < 0 || faceId < 0 || faceId > FACE_ROW_INFO.length) return [];
     const info = FACE_ROW_INFO[faceId]
     const [x0, y0, z0] = coordsOf(vIdx); 
     const U = info.u
@@ -637,6 +651,7 @@ gl.bindVertexArray(null);
     { axis: 1, u: 0, v: 2 }, // -Y
     { axis: 2, u: 0, v: 1 }, // +Z
     { axis: 2, u: 0, v: 1 }, // -Z
+    { axis: 1, u: 0, v: 2 }, // ground plane +Y
   ];
 
   function getRowAddTargets(vIdx, faceId) {
@@ -666,16 +681,67 @@ gl.bindVertexArray(null);
   /*** ---- Plane Tool ---- ***/
 
   function getPlaneSurfaceVoxels(vIdx, faceId) {
-    if (vIdx < 0 || faceId < 0) return [];
-    const info = FACE_INFO[faceId], [x0, y0, z0] = coordsOf(vIdx); const AX = info.axis, U = info.u, V = info.v; const fixedAX = [x0, y0, z0][AX];
-    const out = []; for (let u = 0; u < N; u++)for (let v = 0; v < N; v++) { const c = [0, 0, 0]; c[AX] = fixedAX; c[U] = u; c[V] = v; if (!within(c[0], c[1], c[2])) continue; if (!isSolid[idx3(c[0], c[1], c[2])]) continue; if (!faceExposed(c[0], c[1], c[2], faceId)) continue; out.push(idx3(c[0], c[1], c[2])); }
+    if (vIdx < 0 || faceId < 0 || faceId >= FACE_INFO.length) return [];
+    const info = FACE_INFO[faceId]
+    const [x0, y0, z0] = coordsOf(vIdx);
+    const AX = info.axis
+    const U = info.u
+    const V = info.v;
+    const fixedAX = [x0, y0, z0][AX];
+    const out = [];
+
+    for (let u = 0; u < N; u++) {
+      for (let v = 0; v < N; v++) {
+        const c = [0, 0, 0];
+        c[AX] = fixedAX;
+        c[U] = u;
+        c[V] = v;
+
+        if (faceId == 6) {
+          if (!within(c[0], c[1], c[2])) continue;
+          if (!isSolid[idx3(c[0], c[1], c[2])]) continue;
+          out.push(idx3(c[0], c[1], c[2]));
+          continue;
+        }
+
+        if (!within(c[0], c[1], c[2])) continue;
+        if (!isSolid[idx3(c[0], c[1], c[2])]) continue;
+        if (!faceExposed(c[0], c[1], c[2], faceId)) continue;
+        out.push(idx3(c[0], c[1], c[2]));
+      }
+    }
+
+    return out;
+  }
+
+  function getGroundPlaneVoxels() {
+    const out = [];
+    for (let x = 0; x < N; x++) {
+      for (let z = 0; z < N; z++) {
+        const y = 0;
+        out.push(idx3(x, y, z));
+      }
+    }
     return out;
   }
 
   function getPlaneAddTargets(vIdx, faceId) {
-    const d = FACE_DIRS[faceId], surf = getPlaneSurfaceVoxels(vIdx, faceId), tSet = new Set();
-    for (const s of surf) { const [x, y, z] = coordsOf(s); const nx = x + d[0], ny = y + d[1], nz = z + d[2]; if (within(nx, ny, nz) && !isSolid[idx3(nx, ny, nz)]) tSet.add(idx3(nx, ny, nz)); }
-    return [...tSet];
+    const d = FACE_DIRS[faceId]
+    if (faceId === 6) console.log('getPlaneAddTargets for ground plane',d);
+    const surf = (faceId === 6) ? getGroundPlaneVoxels() :getPlaneSurfaceVoxels(vIdx, faceId);
+    console.log('Surface voxels count:', surf.length);
+    console.log(coordsOf(surf[0]));
+    const tSet = new Set();
+    for (const s of surf) {
+      const [x, y, z] = coordsOf(s); 
+      const nx = x + d[0]
+      const ny = y + d[1]
+      const nz = z + d[2];
+      if (within(nx, ny, nz) && !isSolid[idx3(nx, ny, nz)]) tSet.add(idx3(nx, ny, nz)); 
+    }
+    const res = [...tSet];
+    console.log('Add targets count:', res.length);
+    return res;
   }
 
   /*** ---- UNDO/REDO system ---- ***/
@@ -695,7 +761,9 @@ gl.bindVertexArray(null);
     updateUndoUI(); 
   }
 
-  function beginVoxelAction(label) { return { type: 'voxels', label, vox: [] }; }
+  function beginVoxelAction(label) {
+    return { type: 'voxels', label, vox: [] };
+  }
 
   function recordVoxelChange(act, idx, toSolid, toMat = voxelMat[idx]) {
     const fromS = isSolid[idx], fromM = voxelMat[idx];
@@ -706,7 +774,9 @@ gl.bindVertexArray(null);
     voxelMat[idx] = toMat;
   }
 
-  function beginPaletteAction(label) { return { type: 'palette', label, pal: [] }; }
+  function beginPaletteAction(label) {
+    return { type: 'palette', label, pal: [] }; 
+  }
 
   function recordPaletteChange(act, i, fromHex, toHex) {
     const from = hexToRgbF(fromHex);
@@ -720,16 +790,26 @@ gl.bindVertexArray(null);
     if (action.type === 'voxels') {
       const arr = action.vox;
       if (mode === 'undo') {
-        for (const c of arr) { isSolid[c.idx] = c.fromS; voxelMat[c.idx] = c.fromM; }
+        for (const c of arr) {
+          isSolid[c.idx] = c.fromS;
+          voxelMat[c.idx] = c.fromM;
+        }
       } else {
-        for (const c of arr) { isSolid[c.idx] = c.toS; voxelMat[c.idx] = c.toM; }
+        for (const c of arr) {
+          isSolid[c.idx] = c.toS;
+          voxelMat[c.idx] = c.toM;
+        }
       }
     } else if (action.type === 'palette') {
       const arr = action.pal;
       if (mode === 'undo') {
-        for (const p of arr) { setPaletteColor(palette, p.i, p.from); }
+        for (const p of arr) {
+          setPaletteColor(palette, p.i, p.from);
+        }
       } else {
-        for (const p of arr) { setPaletteColor(palette, p.i, p.to); }
+        for (const p of arr) {
+          setPaletteColor(palette, p.i, p.to);
+        }
       }
       paletteUI.build();
     }
@@ -767,7 +847,8 @@ gl.bindVertexArray(null);
 
   /*** ---- Input, hover, keyboard ---- ***/
   const hoverInfoEl = document.getElementById('hoverInfo');
-  let dragging = false, lastX = 0, lastY = 0; let mouseX = 0, mouseY = 0, needsPick = true, buttons = 0;
+  let dragging = false, lastX = 0, lastY = 0;
+  let mouseX = 0, mouseY = 0, needsPick = true, buttons = 0;
   let hoverVoxel = -1, hoverFace = -1;
 
   // Hover sets
@@ -833,8 +914,6 @@ gl.bindVertexArray(null);
   // Edit handlers now produce actions (undoable)
   canvas.addEventListener('mousedown', (e) => {
     canvas.focus();
-    buttons = e.buttons;
-
     const pick = decodePickAt(e.clientX, e.clientY);
     
     // If clicking on empty space, auto-start camera rotation
@@ -851,43 +930,60 @@ gl.bindVertexArray(null);
       // Paint
       if (option == 'plane') {
         const arr = getPlaneSurfaceVoxels(pick.voxel, pick.face);
-        const act = beginVoxelAction('Paint plane');
-        for (const id of arr) recordVoxelChange(act, id, true, brushMat);
-        commitAction(act);
+        if (arr.length > 0) {
+          const act = beginVoxelAction('Paint plane');
+          for (const id of arr) recordVoxelChange(act, id, true, brushMat);
+          commitAction(act);
+        }
       } else if (option == 'row') {
         const arr = getRowSurfaceVoxels(pick.voxel, pick.face);
-        const act = beginVoxelAction(`Paint row ${rowAxis}`);
-        for (const id of arr) recordVoxelChange(act, id, true, brushMat);
-        commitAction(act);
+        if (arr.length > 0) {
+          const act = beginVoxelAction(`Paint row`);
+          for (const id of arr) recordVoxelChange(act, id, true, brushMat);
+          commitAction(act);
+        }
       } else if (pick.voxel >= 0) {
+        const id = idx3(...coordsOf(pick.voxel));
+        if (isSolid[id]) {
           const act = beginVoxelAction('Paint voxel');
           recordVoxelChange(act, pick.voxel, true, brushMat);
           commitAction(act);
+        }
       }
     } else if (e.button === 0 && mode === 'add') {
-
         // Add
         if (option == 'plane') {
           const targets = getPlaneAddTargets(pick.voxel, pick.face);
-          const act = beginVoxelAction('Add plane');
-          for (const t of targets) recordVoxelChange(act, t, true, brushMat);
-          commitAction(act);
+          if (targets.length > 0) {
+            const act = beginVoxelAction('Add plane');
+            for (const t of targets) recordVoxelChange(act, t, true, brushMat);
+            commitAction(act);
+          }
         } else if (option == 'row') {
           const targets = getRowAddTargets(pick.voxel, pick.face);
-          const act = beginVoxelAction(`Add row`);
-          for (const t of targets) recordVoxelChange(act, t, true, brushMat);
-          commitAction(act);
+          if (targets.length > 0) {
+            const act = beginVoxelAction(`Add row`);
+            for (const t of targets) recordVoxelChange(act, t, true, brushMat);
+            commitAction(act);
+          }
         } else if (pick.voxel >= 0 && pick.face >= 0) {
-            const [x, y, z] = coordsOf(pick.voxel); const d = FACE_DIRS[pick.face]; const nx = x + d[0], ny = y + d[1], nz = z + d[2];
+            const [x, y, z] = coordsOf(pick.voxel);
+            const d = FACE_DIRS[pick.face];
+            const nx = x + d[0]
+            const ny = y + d[1]
+            const nz = z + d[2];
             if (within(nx, ny, nz)) {
               const id = idx3(nx, ny, nz);
-              const act = beginVoxelAction('Add voxel');
-              if (!isSolid[id]) recordVoxelChange(act, id, true, brushMat);
-              commitAction(act);
+              if (!isSolid[id]) {
+                const act = beginVoxelAction('Add voxel');
+                recordVoxelChange(act, id, true, brushMat);
+                commitAction(act);
+              }
             }
         }
 
         needsPick = true;
+
       } else if (e.button === 0 && mode === 'carve') {
         // Remove (or toggle for single)
         if (option == 'plane') {
@@ -900,10 +996,9 @@ gl.bindVertexArray(null);
           const act = beginVoxelAction(`Remove row`);
           for (const id of arr) recordVoxelChange(act, id, false, voxelMat[id]);
           commitAction(act);
-        } else if (pick.voxel >= 0) {
+        } else if (pick.voxel >= 0 && isSolid[pick.voxel]) {
             const act = beginVoxelAction('Remove voxel');
-            const cur = isSolid[pick.voxel];
-            recordVoxelChange(act, pick.voxel, !cur, voxelMat[pick.voxel]); // keep existing mat on toggle
+            recordVoxelChange(act, pick.voxel, false, voxelMat[pick.voxel]); // keep existing mat on toggle
             commitAction(act);
         }
 
@@ -950,21 +1045,31 @@ gl.bindVertexArray(null);
 
     // Compute previews
     if (hoverVoxel >= 0 && hoverFace >= 0) {
-      if (option === 'row') {
-        rowHoverSurf = getRowSurfaceVoxels(hoverVoxel, hoverFace);
+      if (mode === 'add' && option === 'row') {
         rowHoverAdd = getRowAddTargets(hoverVoxel, hoverFace);
       } else {
-        rowHoverSurf = [];
         rowHoverAdd = [];
       }
 
-      if (option === 'plane') {
-        planeHoverSurf = getPlaneSurfaceVoxels(hoverVoxel, hoverFace);
+      if (mode !== 'add' && option === 'row') {
+        rowHoverSurf = getRowSurfaceVoxels(hoverVoxel, hoverFace);
+        console.log('Row hover surf count:', rowHoverSurf.length);
+      } else {
+        rowHoverSurf = [];
+      }
+
+      if (mode === 'add' && option === 'plane') {
         planeHoverAdd = getPlaneAddTargets(hoverVoxel, hoverFace);
       } else {
-        planeHoverSurf = [];
         planeHoverAdd = [];
       }
+
+      if (mode !== 'add' && option === 'plane') {
+        planeHoverSurf = getPlaneSurfaceVoxels(hoverVoxel, hoverFace);
+      } else {
+        planeHoverSurf = [];
+      }
+
     } else {
       rowHoverSurf = [];
       rowHoverAdd = [];
@@ -979,24 +1084,30 @@ gl.bindVertexArray(null);
 
   // Add call to updateAxisLabels in render loop
   function render() {
-    gl.clearColor(0.07, 0.08, 0.1, 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-    gl.useProgram(renderProg);
-    gl.uniform3fv(rLoc.uPalette, palette);
-    gl.uniformMatrix4fv(rLoc.uModel, false, model); gl.uniformMatrix4fv(rLoc.uView, false, camera.view()); gl.uniformMatrix4fv(rLoc.uProj, false, proj);
-    gl.uniformMatrix3fv(rLoc.uNormalMat, false, new Float32Array([1, 0, 0, 0, 1, 0, 0, 0, 1]));
-    gl.uniform3fv(rLoc.uLightDirWS, new Float32Array([0.7 / 1.7, -1.2 / 1.7, 0.9 / 1.7])); gl.uniform1f(rLoc.uAmbient, ambient);
-    gl.bindVertexArray(renderVAO); gl.drawElements(gl.TRIANGLES, renderIndexCount, gl.UNSIGNED_INT, 0); gl.bindVertexArray(null);
+    gl.clearColor(0.07, 0.08, 0.1, 1); 
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    gl.useProgram(renderProg.program);
+    renderProg.uPalette.set(palette);
+    renderProg.uModel.set(model);
+    renderProg.uView.set(camera.view());
+    renderProg.uProj.set(proj);
+    renderProg.uNormalMat.set(new Float32Array([1, 0, 0, 0, 1, 0, 0, 0, 1]));
+    renderProg.uLightDirWS.set(new Float32Array([0.7 / 1.7, -1.2 / 1.7, 0.9 / 1.7]));
+    renderProg.uAmbient.set(ambient);
+    gl.bindVertexArray(renderProg.vao); 
+    gl.drawElements(gl.TRIANGLES, renderIndexCount, gl.UNSIGNED_INT, 0); 
+    gl.bindVertexArray(null);
 
     // Render axis gizmo
-    gl.disable(gl.DEPTH_TEST); // Draw on top
-    gl.useProgram(axisProg);
-    gl.uniformMatrix4fv(axisLoc.uModel, false, model);
-    gl.uniformMatrix4fv(axisLoc.uView, false, camera.view());
-    gl.uniformMatrix4fv(axisLoc.uProj, false, proj);
-    gl.bindVertexArray(gizmoVAO);
+//    gl.disable(gl.DEPTH_TEST); // Draw on top
+    gl.useProgram(axisProg.program);
+    axisProg.uModel.set(model);
+    axisProg.uView.set(camera.view());
+    axisProg.uProj.set(proj);
+    gl.bindVertexArray(axisProg.vao);
     gl.drawArrays(gl.LINES, 0, gizmo.count);
     gl.bindVertexArray(null);
-    gl.enable(gl.DEPTH_TEST);
+//    gl.enable(gl.DEPTH_TEST);
 
     updateHover();
 //    updateAxisLabels();
@@ -1025,9 +1136,13 @@ gl.bindVertexArray(null);
           const nx = x + d[0], ny = y + d[1], nz = z + d[2];
           if (within(nx, ny, nz) && !isSolid[idx3(nx, ny, nz)]) drawVoxelWire(idx3(nx, ny, nz), COLOR_ADD, 1.006);
         } else if (mode === 'carve') {
-          drawVoxelWire(hoverVoxel, COLOR_CARVE, 1.006);
+          const [x, y, z] = coordsOf(hoverVoxel);
+          const id = idx3(x, y, z);
+          if (isSolid[id]) drawVoxelWire(hoverVoxel, COLOR_CARVE, 1.006);
         } else if (mode === 'paint') {
-          drawVoxelWire(hoverVoxel, COLOR_PAINT, 1.006);
+          const [x, y, z] = coordsOf(hoverVoxel);
+          const id = idx3(x, y, z);
+          if (isSolid[id]) drawVoxelWire(hoverVoxel, COLOR_PAINT, 1.006);
         }
       }
     }

@@ -102,10 +102,10 @@ export function makeAxisGizmo() {
   // XZ plane grid (back)
   for (let i = 0; i <= 16; i++) {
     // Vertical lines
-    positions.push(i,0,0, i,0,16);
+    positions.push(i,-0.01,0, i,-0.01,16);
     colors.push(...gridColor, ...gridColor);
     // Horizontal lines
-    positions.push(0,0,i, 16,0,i);
+    positions.push(0,-0.01,i, 16,-0.01,i);
     colors.push(...gridColor, ...gridColor);
   }
 
