@@ -1,93 +1,71 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>WebGL2 • Voxel Greedy Meshing • Palette • JSON I/O • Row/Plane/Box • Undo/Redo</title>
-<style>
-
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Carvery</title>
 </head>
 <body>
 <div id="app">
-  <header>
-    Voxel Greedy Meshing • Orbit (<kbd>Shift</kbd>) • Palette • JSON I/O • Row/Plane/Box • Undo/Redo
-    <span class="sep"></span>
-    <div>Greedy quads: <span id="quads">–</span></div>
-    <div>Triangles: <span id="tris">–</span></div>
-    <div>Visible voxels: <span id="vis">–</span></div>
-    <span class="sep"></span>
-    <div>Brush material: <b id="brushMat">0</b></div>
-    <span class="right mono" id="hoverInfo">Hover: –</span>
-  </header>
-
-  <!-- Undo/Redo toolbar -->
+  <!-- Main toolbar with all controls in one row -->
   <div class="toolbar">
-
+    <!-- Mode selection -->
     <div class="radio-toolbar">
-    <input type="radio" id="modeMove" name="modeSelect" value="move" checked>
-    <label for="modeMove">Move</label>
+      <input type="radio" id="modePaint" name="modeSelect" value="paint" checked>
+      <label for="modePaint">Paint</label>
+      <input type="radio" id="modeCarve" name="modeSelect" value="carve">
+      <label for="modeCarve">Carve</label>
+      <input type="radio" id="modeAdd" name="modeSelect" value="add">
+      <label for="modeAdd">Add</label>
+    </div>
 
-    <input type="radio" id="modePaint" name="modeSelect" value="paint">
-    <label for="modePaint">Paint</label>
+    <div class="sep"></div>
 
-    <input type="radio" id="modeCarve" name="modeSelect" value="carve">
-    <label for="modeCarve">Carve</label>
-
-    <input type="radio" id="modeAdd" name="modeSelect" value="add">
-    <label for="modeAdd">Add</label>
-
-  </div>
-    <div class="toolbar">
-
+    <!-- Option selection -->
+    <div class="radio-toolbar">
       <input type="radio" id="optionVoxel" name="optionSelect" value="voxel" checked>
-    <label for="optionVoxel">Voxel</label>
+      <label for="optionVoxel">Voxel</label>
+      <input type="radio" id="optionRow" name="optionSelect" value="row">
+      <label for="optionRow">Row</label>
+      <input type="radio" id="optionPlane" name="optionSelect" value="plane">
+      <label for="optionPlane">Plane</label>
+    </div>
 
-    <input type="radio" id="optionRow" name="optionSelect" value="row">
-    <label for="optionRow">Row</label>
+    <div class="sep"></div>
 
-    <input type="radio" id="optionPlane" name="optionSelect" value="plane">
-    <label for="optionPlane">Plane</label>
+    <!-- Undo/Redo controls -->
+    <div class="undo-group">
+      <button id="btnUndo" title="Undo (Ctrl+Z / ⌘Z)" disabled>Undo</button>
+      <button id="btnRedo" title="Redo (Ctrl+Y / Ctrl+Shift+Z / ⌘Shift+Z)" disabled>Redo</button>
+    </div>
 
-  </div>
-    <div class="toolbar">
+    <div class="sep"></div>
 
-    <button id="btnUndo" title="Undo (Ctrl+Z / ⌘Z)" disabled>Undo</button>
-    <button id="btnRedo" title="Redo (Ctrl+Y / Ctrl+Shift+Z / ⌘Shift+Z)" disabled>Redo</button>
-    <span class="help" id="undoInfo">—</span>
+    <!-- Import/Export -->
+    <input id="fileInput" type="file" accept="application/json" style="display: none;" />
+    <div class="undo-group">
+      <button id="btnImport">Import</button>
+      <button id="btnExport">Export</button>
+    </div>
+
+    <div class="sep"></div>
+
+    <!-- Reset -->
+    <button id="resetSolid">Reset</button>
   </div>
 
   <!-- Palette editor -->
   <div id="palette"></div>
 
-  <!-- Editing toolbar -->
-  <div class="toolbar">
-    <button id="randPalette">Randomize palette</button>
-    <button id="randMaterials">Randomize materials</button>
-    <button id="resetSolid">Reset (solid)</button>
-    <span class="help">Material shortcuts: <b>0–9</b>, <b>A–F</b></span>
-  </div>
-
-  <!-- Import/Export toolbar -->
-  <div class="toolbar">
-    <input id="fileInput" type="file" accept="application/json" />
-    <button id="btnImport">Import JSON…</button>
-    <button id="btnExport">Export JSON</button>
-    <span class="help">JSON: {version, size:[Nx,Ny,Nz], palette[≤16], voxels:[{x,y,z,m}]}</span>
-  </div>
-
   <div id="glwrap">
     <canvas id="gl" tabindex="0"></canvas>
     <div class="hud">
-      <div><b>Controls</b></div>
-      <div>• Rotate: <b>hold Shift</b> + left drag</div>
-      <div>• Zoom: mouse wheel</div>
-      <div>• Paint: left click</div>
-      <div>• Remove: right click</div>
-      <div>• Add: <b>Ctrl + right click</b> a face</div>
-      <div>• Tools: Row <b>R</b> (axis <b>X</b>), Plane <b>P</b>, Box <b>B</b></div>
-      <div>• Material: keys <b>0–9</b> or <b>A–F</b></div>
-      <div>• Undo: <b>Ctrl+Z</b> • Redo: <b>Ctrl+Y</b> / <b>Ctrl+Shift+Z</b></div>
+      <span class="right mono" id="hoverInfo">Hover: –</span>
+      <div>Brush material: <b id="brushMat">0</b></div>
+      <span class="sep"></span>
+      <div>Greedy quads: <span id="quads">–</span></div>
+      <div>Triangles: <span id="tris">–</span></div>
+      <div>Visible voxels: <span id="vis">–</span></div>
     </div>
   </div>
 </div>

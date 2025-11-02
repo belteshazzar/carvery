@@ -1,129 +1,69 @@
 import './style.css'
 import { Mat4, Vec3 } from './math.js';
-import { OrbitCamera } from './3d.js';
+import { makeCubeEdges, OrbitCamera } from './3d.js';
 import { createProgram } from './webgl.js';
-
-/*** ======= Minimal Math & Camera ======= ***/
-
-/*** ======= WebGL Helpers ======= ***/
-
-/*** ======= Shaders ======= ***/
-// Render (Lambert) using palette (material IDs)
-const RENDER_VS = `#version 300 es
-precision mediump float;
-in vec3 aPosition;
-in vec3 aNormal;
-in uint aMatId;
-uniform mat4 uModel, uView, uProj;
-uniform mat3 uNormalMat;
-out vec3 vNormalWS;
-flat out uint vMatId;
-void main(){
-  vec4 worldPos = uModel * vec4(aPosition, 1.0);
-  vNormalWS = normalize(uNormalMat * aNormal);
-  vMatId = aMatId;
-  gl_Position = uProj * uView * worldPos;
-}`;
-const RENDER_FS = `#version 300 es
-precision mediump float;
-in vec3 vNormalWS;
-flat in uint vMatId;
-uniform vec3 uPalette[16];
-uniform vec3 uLightDirWS;
-uniform float uAmbient;
-out vec4 fragColor;
-void main(){
-  vec3 base = uPalette[int(vMatId)];
-  float NdotL = max(dot(normalize(vNormalWS), normalize(-uLightDirWS)), 0.0);
-  float lambert = uAmbient + (1.0 - uAmbient) * NdotL;
-  vec3 rgb = pow(base * lambert, vec3(1.0/1.8));
-  fragColor = vec4(rgb, 1.0);
-}`;
-// Picking (voxel + face packed into RGB)
-const PICK_VS = `#version 300 es
-precision mediump float;
-in vec3 aPosition;
-in uint aPacked; // ((voxelIdx+1)<<3) | faceId
-uniform mat4 uModel, uView, uProj;
-flat out uint vPacked;
-void main(){
-  vPacked = aPacked;
-  gl_Position = uProj * uView * uModel * vec4(aPosition, 1.0);
-}`;
-const PICK_FS = `#version 300 es
-precision mediump float;
-flat in uint vPacked;
-out vec4 fragColor;
-void main(){
-  uint r=(vPacked)&255u, g=(vPacked>>8)&255u, b=(vPacked>>16)&255u;
-  fragColor=vec4(vec3(float(r),float(g),float(b))/255.0,1.0);
-}`;
-// Wireframe (non-uniform scale for AABB outlines)
-const WIREFRAME_VS = `#version 300 es
-precision mediump float;
-in vec3 aPosition;
-uniform mat4 uModel, uView, uProj;
-uniform vec3 uOffset;     // world center of box
-uniform vec3 uScaleVec;   // world size (sx, sy, sz)
-uniform float uInflate;
-void main(){
-  vec3 p = (aPosition * uInflate) * uScaleVec + uOffset;
-  gl_Position = uProj * uView * uModel * vec4(p, 1.0);
-}`;
-const WIREFRAME_FS = `#version 300 es
-precision mediump float;
-uniform vec3 uColor;
-out vec4 fragColor;
-void main(){ fragColor = vec4(uColor, 1.0); }`;
-
-/*** ======= Wireframe Edge Mesh ======= ***/
-function makeCubeEdges() {
-  const P = new Float32Array([
-    -0.5, -0.5, -0.5, 0.5, -0.5, -0.5, 0.5, 0.5, -0.5, -0.5, 0.5, -0.5,
-    -0.5, -0.5, 0.5, 0.5, -0.5, 0.5, 0.5, 0.5, 0.5, -0.5, 0.5, 0.5
-  ]);
-  const I = new Uint16Array([0, 1, 1, 2, 2, 3, 3, 0, 4, 5, 5, 6, 6, 7, 7, 4, 0, 4, 1, 5, 2, 6, 3, 7]);
-  return { positions: P, indices: I, count: I.length };
-}
-
-/*** ======= Utilities ======= ***/
-const hexToRgbF = (hex) => {
-  const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  return m ? [parseInt(m[1], 16) / 255, parseInt(m[2], 16) / 255, parseInt(m[3], 16) / 255] : [1, 1, 1];
-};
-const decToHex = (x) => ('0' + Math.round(x * 255).toString(16)).slice(-2);
-const rgbToHexF = (r, g, b) => {
-  return '#' + decToHex(r) + decToHex(g) + decToHex(b);
-};
+import lambertFrag from './lambert.frag';
+import lambertVert from './lambert.vert';
+import wireframeFrag from './wireframe.frag';
+import wireframeVert from './wireframe.vert';
+import pickFrag from './pick.frag';
+import pickVert from './pick.vert';
+import { 
+  hexToRgbF,
+  rgbToHexF,
+  defaultPaletteHex,
+  createPalette,
+  setPaletteColor,
+  PaletteUI 
+} from './palette.js';
 
 /*** ======= App ======= ***/
 (function main() {
   const canvas = document.getElementById('gl');
-  /** @type {WebGL2RenderingContext} */
   const gl = canvas.getContext('webgl2', { antialias: true, alpha: false });
-  if (!gl) { alert('WebGL2 not supported'); return; }
-  gl.enable(gl.DEPTH_TEST); gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK);
+  if (!gl) {
+    alert('WebGL2 not supported');
+    return;
+  }
+  gl.enable(gl.DEPTH_TEST);
+  gl.enable(gl.CULL_FACE);
+  gl.cullFace(gl.BACK);
 
   // Programs
-  const renderProg = createProgram(gl, RENDER_VS, RENDER_FS);
-  const pickProg = createProgram(gl, PICK_VS, PICK_FS);
-  const wireProg = createProgram(gl, WIREFRAME_VS, WIREFRAME_FS);
+  const renderProg = createProgram(gl, lambertVert, lambertFrag);
+  const pickProg = createProgram(gl, pickVert, pickFrag);
+  const wireProg = createProgram(gl, wireframeVert, wireframeFrag);
 
   // Locations
   const rLoc = {
-    aPosition: gl.getAttribLocation(renderProg, 'aPosition'), aNormal: gl.getAttribLocation(renderProg, 'aNormal'), aMatId: gl.getAttribLocation(renderProg, 'aMatId'),
-    uModel: gl.getUniformLocation(renderProg, 'uModel'), uView: gl.getUniformLocation(renderProg, 'uView'), uProj: gl.getUniformLocation(renderProg, 'uProj'),
-    uNormalMat: gl.getUniformLocation(renderProg, 'uNormalMat'), uLightDirWS: gl.getUniformLocation(renderProg, 'uLightDirWS'), uAmbient: gl.getUniformLocation(renderProg, 'uAmbient'),
+    aPosition: gl.getAttribLocation(renderProg, 'aPosition'),
+    aNormal: gl.getAttribLocation(renderProg, 'aNormal'),
+    aMatId: gl.getAttribLocation(renderProg, 'aMatId'),
+    uModel: gl.getUniformLocation(renderProg, 'uModel'),
+    uView: gl.getUniformLocation(renderProg, 'uView'),
+    uProj: gl.getUniformLocation(renderProg, 'uProj'),
+    uNormalMat: gl.getUniformLocation(renderProg, 'uNormalMat'),
+    uLightDirWS: gl.getUniformLocation(renderProg, 'uLightDirWS'),
+    uAmbient: gl.getUniformLocation(renderProg, 'uAmbient'),
     uPalette: gl.getUniformLocation(renderProg, 'uPalette[0]')
   };
+
   const pLoc = {
-    aPosition: gl.getAttribLocation(pickProg, 'aPosition'), aPacked: gl.getAttribLocation(pickProg, 'aPacked'),
-    uModel: gl.getUniformLocation(pickProg, 'uModel'), uView: gl.getUniformLocation(pickProg, 'uView'), uProj: gl.getUniformLocation(pickProg, 'uProj')
+    aPosition: gl.getAttribLocation(pickProg, 'aPosition'),
+    aPacked: gl.getAttribLocation(pickProg, 'aPacked'),
+    uModel: gl.getUniformLocation(pickProg, 'uModel'),
+    uView: gl.getUniformLocation(pickProg, 'uView'),
+    uProj: gl.getUniformLocation(pickProg, 'uProj')
   };
+
   const wLoc = {
     aPosition: gl.getAttribLocation(wireProg, 'aPosition'),
-    uModel: gl.getUniformLocation(wireProg, 'uModel'), uView: gl.getUniformLocation(wireProg, 'uView'), uProj: gl.getUniformLocation(wireProg, 'uProj'),
-    uOffset: gl.getUniformLocation(wireProg, 'uOffset'), uScaleVec: gl.getUniformLocation(wireProg, 'uScaleVec'), uInflate: gl.getUniformLocation(wireProg, 'uInflate'),
+    uModel: gl.getUniformLocation(wireProg, 'uModel'),
+    uView: gl.getUniformLocation(wireProg, 'uView'),
+    uProj: gl.getUniformLocation(wireProg, 'uProj'),
+    uOffset: gl.getUniformLocation(wireProg, 'uOffset'),
+    uScaleVec: gl.getUniformLocation(wireProg, 'uScaleVec'),
+    uInflate: gl.getUniformLocation(wireProg, 'uInflate'),
     uColor: gl.getUniformLocation(wireProg, 'uColor')
   };
 
@@ -147,6 +87,7 @@ const rgbToHexF = (r, g, b) => {
   const edgeVAO = gl.createVertexArray();
   const edgePosBuf = gl.createBuffer();
   const edgeIdxBuf = gl.createBuffer();
+
   gl.bindVertexArray(edgeVAO);
   gl.bindBuffer(gl.ARRAY_BUFFER, edgePosBuf);
   gl.bufferData(gl.ARRAY_BUFFER, edges.positions, gl.STATIC_DRAW);
@@ -160,19 +101,27 @@ const rgbToHexF = (r, g, b) => {
   let N = 16, cell = 1 / N, half = 0.5;
   let isSolid = new Array(N * N * N).fill(true);
   let voxelMat = new Uint8Array(N * N * N);    // 0..15
-  let palette = new Float32Array(16 * 3);
+  let palette = createPalette();
 
   const defaultHex = ['#e76f51', '#f4a261', '#e9c46a', '#2a9d8f', '#264653', '#a8dadc', '#457b9d', '#1d3557', '#ff6b6b', '#ffd93d', '#6bcb77', '#4d96ff', '#b983ff', '#ff4d6d', '#9ef01a', '#00f5d4'];
+
   function setPaletteColor(i, rgb) { palette[i * 3 + 0] = rgb[0]; palette[i * 3 + 1] = rgb[1]; palette[i * 3 + 2] = rgb[2]; }
-  for (let i = 0; i < 16; i++) { const [r, g, b] = hexToRgbF(defaultHex[i]); setPaletteColor(i, [r, g, b]); }
+
+  for (let i = 0; i < 16; i++) {
+    const [r, g, b] = hexToRgbF(defaultHex[i]); 
+    setPaletteColor(i, [r, g, b]);
+  }
 
   const FACE_DIRS = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];
   const FACE_INFO = [{ axis: 0, u: 2, v: 1 }, { axis: 0, u: 2, v: 1 }, { axis: 1, u: 0, v: 2 }, { axis: 1, u: 0, v: 2 }, { axis: 2, u: 0, v: 1 }, { axis: 2, u: 0, v: 1 }];
   const FACE_LABEL = ["+X", "-X", "+Y", "-Y", "+Z", "-Z"];
   const idx3 = (x, y, z) => x + N * (y + N * z);
   const within = (x, y, z) => x >= 0 && y >= 0 && z >= 0 && x < N && y < N && z < N;
+
   function coordsOf(id) { const z = Math.floor(id / (N * N)); const y = Math.floor((id - z * N * N) / N); const x = id - z * N * N - y * N; return [x, y, z]; }
+
   function centerOf(id) { const [x, y, z] = coordsOf(id); return new Float32Array([-half + cell * (x + 0.5), -half + cell * (y + 0.5), -half + cell * (z + 0.5)]); }
+
   function faceExposed(x, y, z, f) { const d = FACE_DIRS[f], here = isSolid[idx3(x, y, z)]; const nx = x + d[0], ny = y + d[1], nz = z + d[2]; const nb = within(nx, ny, nz) ? isSolid[idx3(nx, ny, nz)] : false; return here && !nb; }
 
   function seedMaterials(mode = "bands") {
@@ -296,6 +245,7 @@ const rgbToHexF = (r, g, b) => {
   }
 
   function rebuildAll() { buildGreedyRenderMesh(); buildPickFaces(); }
+
   rebuildAll();
 
   /*** ---- Camera / lighting ---- ***/
@@ -306,6 +256,7 @@ const rgbToHexF = (r, g, b) => {
 
   /*** ---- Resize & Pick Targets ---- ***/
   let dpr = 1, pickFBO = null, pickTex = null, pickDepth = null, pickW = 0, pickH = 0;
+
   function resizePickTargets() {
     const w = canvas.width, h = canvas.height;
     if (w === pickW && h === pickH && pickFBO) return;
@@ -320,6 +271,7 @@ const rgbToHexF = (r, g, b) => {
     gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, pickDepth);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null); pickW = w; pickH = h;
   }
+
   function resize() {
     dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
     const w = canvas.clientWidth || canvas.parentElement.clientWidth, h = canvas.clientHeight || canvas.parentElement.clientHeight;
@@ -328,6 +280,7 @@ const rgbToHexF = (r, g, b) => {
     proj = Mat4.perspective(60 * Math.PI / 180, canvas.width / canvas.height, 0.01, 100);
     resizePickTargets();
   }
+
   window.addEventListener('resize', resize, { passive: true }); requestAnimationFrame(resize);
 
   function renderPick() {
@@ -340,12 +293,14 @@ const rgbToHexF = (r, g, b) => {
     if (cullWas) gl.enable(gl.CULL_FACE);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   }
+
   function clientToFB(xc, yc) {
     const r = canvas.getBoundingClientRect();
     const x = Math.floor((xc - r.left) * (canvas.width / r.width));
     const y = Math.floor((r.height - (yc - r.top)) * (canvas.height / r.height));
     return { x, y };
   }
+
   function decodePickAt(xc, yc) {
     if (pickIndexCount === 0) return { voxel: -1, face: -1 };
     renderPick();
@@ -378,47 +333,31 @@ const rgbToHexF = (r, g, b) => {
   }
 
   /*** ---- UI: Palette & brush ---- ***/
-  const paletteEl = document.getElementById('palette'); let brushMat = 0;
-  function buildPaletteUI() {
-    paletteEl.innerHTML = '';
-    for (let i = 0; i < 16; i++) {
-      const hex = rgbToHexF(palette[i * 3 + 0], palette[i * 3 + 1], palette[i * 3 + 2]);
-      const row = document.createElement('div'); row.className = 'swatch';
-      const idx = document.createElement('div'); idx.className = 'idx'; idx.textContent = i.toString(16).toUpperCase();
-      const chip = document.createElement('div'); chip.className = 'chip'; chip.style.background = hex; if (i === brushMat) chip.classList.add('active');
-      chip.title = `Select material ${i}`; chip.addEventListener('click', () => selectBrush(i));
-      const picker = document.createElement('input'); picker.type = 'color'; picker.value = hex; picker.title = `Edit palette[${i}]`;
-      // Palette live update on input; record undo on change (single action)
-      let lastHex = hex;
-      picker.addEventListener('focus', () => { lastHex = picker.value; });
-      picker.addEventListener('pointerdown', () => { lastHex = picker.value; });
-      picker.addEventListener('input', () => { const [r, g, b] = hexToRgbF(picker.value); setPaletteColor(i, [r, g, b]); chip.style.background = picker.value; });
-      picker.addEventListener('change', () => {
-        if (picker.value !== lastHex) {
-          const act = beginPaletteAction(`Palette ${i}`);
-          recordPaletteChange(act, i, lastHex, picker.value);
-          commitAction(act, /*rebuild*/false);
-          lastHex = picker.value;
-        }
-      });
-      row.appendChild(idx); row.appendChild(chip); row.appendChild(picker); paletteEl.appendChild(row);
+  const paletteUI = new PaletteUI(
+    document.getElementById('palette'),
+    palette,
+    (brushId) => {
+      brushMat = brushId;
+    },
+    (index, fromHex, toHex) => {
+      const act = beginPaletteAction(`Palette ${index}`);
+      recordPaletteChange(act, index, fromHex, toHex);
+      commitAction(act, false);
     }
-    document.getElementById('brushMat').textContent = brushMat;
-  }
-  buildPaletteUI();
-  function selectBrush(id) { brushMat = id & 15; document.getElementById('brushMat').textContent = brushMat; document.querySelectorAll('.chip').forEach(c => c.classList.remove('active')); const chips = document.querySelectorAll('.chip'); if (chips[brushMat]) chips[brushMat].classList.add('active'); }
+  );
 
-  // Buttons for palette/materials/world
-  document.getElementById('randPalette').addEventListener('click', () => {
-    for (let i = 0; i < 16; i++) setPaletteColor(i, [Math.random() * 0.9 + 0.1, Math.random() * 0.9 + 0.1, Math.random() * 0.9 + 0.1]);
-    buildPaletteUI();
-    clearHistory(); // treat as scene change
-  });
-  document.getElementById('randMaterials').addEventListener('click', () => {
-    seedMaterials('random'); rebuildAll(); clearHistory();
-  });
+  // Update brush material access
+  function selectBrush(id) {
+    paletteUI.selectBrush(id);
+    brushMat = paletteUI.getBrush();
+  }
+
+  // Update reset button handler
   document.getElementById('resetSolid').addEventListener('click', () => {
-    isSolid.fill(true); seedMaterials('bands'); rebuildAll(); clearHistory();
+    isSolid.fill(true);
+    seedMaterials('bands');
+    rebuildAll();
+    clearHistory();
   });
 
   let mode = document.querySelector('input[name="modeSelect"]:checked').value;
@@ -441,7 +380,6 @@ const rgbToHexF = (r, g, b) => {
     });
   });
 
-
   /*** ---- Import/Export JSON ---- ***/
   const fileInput = document.getElementById('fileInput');
   document.getElementById('btnImport').addEventListener('click', () => fileInput.click());
@@ -455,6 +393,7 @@ const rgbToHexF = (r, g, b) => {
     reader.onload = () => { try { const obj = JSON.parse(reader.result); importFromJSON(obj); } catch (err) { alert('Invalid JSON: ' + err.message); } finally { fileInput.value = ''; } };
     reader.readAsText(file);
   });
+
   function exportToJSON() {
     const palHex = [];
     
@@ -474,16 +413,16 @@ const rgbToHexF = (r, g, b) => {
   }
 
   function hexCharToInt(hex) {
-  // Convert a single hex character (0-9, a-f, A-F) to integer (0-15)
-  const c = hex.toLowerCase();
-  if (c >= '0' && c <= '9') {
-    return c.charCodeAt(0) - '0'.charCodeAt(0);
+    // Convert a single hex character (0-9, a-f, A-F) to integer (0-15)
+    const c = hex.toLowerCase();
+    if (c >= '0' && c <= '9') {
+      return c.charCodeAt(0) - '0'.charCodeAt(0);
+    }
+    if (c >= 'a' && c <= 'f') {
+      return 10 + (c.charCodeAt(0) - 'a'.charCodeAt(0));
+    }
+    return 0; // Invalid hex character
   }
-  if (c >= 'a' && c <= 'f') {
-    return 10 + (c.charCodeAt(0) - 'a'.charCodeAt(0));
-  }
-  return 0; // Invalid hex character
-}
 
   function importFromJSON(obj) {
     if (!obj || typeof obj !== 'object') throw new Error('Root must be object');
@@ -502,7 +441,7 @@ const rgbToHexF = (r, g, b) => {
           setPaletteColor(i, [Math.max(0, Math.min(1, rgb[0])), Math.max(0, Math.min(1, rgb[1])), Math.max(0, Math.min(1, rgb[2]))]); 
         }
       }
-      buildPaletteUI();
+      paletteUI.build();
     }
 
     isSolid.fill(false);
@@ -510,7 +449,6 @@ const rgbToHexF = (r, g, b) => {
   
     for (const v of obj.voxels) {
       if (!v) continue;
-      console.log(v);
       const x = hexCharToInt(v[0]);
       const y = hexCharToInt(v[1]);
       const z = hexCharToInt(v[2]);
@@ -525,54 +463,72 @@ const rgbToHexF = (r, g, b) => {
     clearHistory(); // imported scene becomes baseline
   }
 
-  /*** ---- Row Tool ---- ***/
-  // let rowToolOn = false, rowAxis = 'U';
-  // const rowStateEl = document.getElementById('rowState'), rowAxisLbl = document.getElementById('rowAxisLbl');
-  // function refreshRowUI() { rowStateEl.textContent = rowToolOn ? 'On' : 'Off'; rowAxisLbl.textContent = rowAxis; document.getElementById('toggleRow').classList.toggle('toggled', rowToolOn); document.getElementById('toggleAxis').classList.toggle('toggled', true); }
-  // document.getElementById('toggleRow').addEventListener('click', () => { rowToolOn = !rowToolOn; if (rowToolOn) { planeToolOn = false; refreshPlaneUI(); boxToolOn = false; refreshBoxUI(); } refreshRowUI(); });
-  // document.getElementById('toggleAxis').addEventListener('click', () => { rowAxis = (rowAxis === 'U' ? 'V' : 'U'); refreshRowUI(); });
-  // refreshRowUI();
+  const FACE_ROW_INFO = [
+    { axis: 0, u: 2, v: 1 }, // +X
+    { axis: 0, u: 2, v: 1 }, // -X
+    { axis: 1, u: 0, v: 2 }, // +Y
+    { axis: 1, u: 0, v: 2 }, // -Y
+    { axis: 2, u: 0, v: 1 }, // +Z
+    { axis: 2, u: 0, v: 1 }, // -Z
+  ];
 
-  function getRowSurfaceVoxels(vIdx, faceId, axisMode) {
+  function getRowSurfaceVoxels(vIdx, faceId) {
     if (vIdx < 0 || faceId < 0) return [];
-    const info = FACE_INFO[faceId], [x0, y0, z0] = coordsOf(vIdx); 
-    const U = info.u, V = info.v, AX = info.axis; 
-    const fixedV = [x0, y0, z0][V], fixedAX = [x0, y0, z0][AX];
+    const info = FACE_ROW_INFO[faceId]
+    const [x0, y0, z0] = coordsOf(vIdx); 
+    const U = info.u
+    const V = info.v
+    const AX = info.axis;
+    const fixedU = [x0, y0, z0][U];
+    const fixedV = [x0, y0, z0][V];
     const out = [];
+
     for (let t = 0; t < N; t++) {
       const c = [0, 0, 0];
-      if (axisMode === 'U') {
-        c[U] = t;
+        c[U] = fixedU;
         c[V] = fixedV;
-        c[AX] = fixedAX;
-      } else {
-        c[U] = [x0, y0, z0][U];
-        c[V] = t;
-        c[AX] = fixedAX;
-      }
+        c[AX] = t;
       if (!within(c[0], c[1], c[2])) continue;
       if (!isSolid[idx3(c[0], c[1], c[2])]) continue;
-      if (!faceExposed(c[0], c[1], c[2], faceId)) continue;
       out.push(idx3(c[0], c[1], c[2]));
     }
     return out;
   }
-  function getRowAddTargets(vIdx, faceId, axisMode) {
-    const d = FACE_DIRS[faceId], surf = getRowSurfaceVoxels(vIdx, faceId, axisMode), tSet = new Set();
-    for (const s of surf) {
-      const [x, y, z] = coordsOf(s);
-      const nx = x + d[0], ny = y + d[1], nz = z + d[2];
-      if (within(nx, ny, nz) && !isSolid[idx3(nx, ny, nz)]) tSet.add(idx3(nx, ny, nz));
+
+  const FACE_ROW_ADD_INFO = [
+    { axis: 0, u: 2, v: 1 }, // +X
+    { axis: 0, u: 2, v: 1 }, // -X
+    { axis: 1, u: 0, v: 2 }, // +Y
+    { axis: 1, u: 0, v: 2 }, // -Y
+    { axis: 2, u: 0, v: 1 }, // +Z
+    { axis: 2, u: 0, v: 1 }, // -Z
+  ];
+
+  function getRowAddTargets(vIdx, faceId) {
+    if (vIdx < 0 || faceId < 0) return [];
+
+    const info = FACE_ROW_ADD_INFO[faceId]
+    const [x0, y0, z0] = coordsOf(vIdx); 
+    const U = info.u
+    const V = info.v
+    const AX = info.axis;
+    const fixedU = [x0, y0, z0][U];
+    const fixedV = [x0, y0, z0][V];
+    const out = [];
+
+    for (let t = 0; t < N; t++) {
+      const c = [0, 0, 0];
+      c[U] = fixedU;
+      c[V] = fixedV;
+      c[AX] = t;
+      if (!within(c[0], c[1], c[2])) continue;
+      if (isSolid[idx3(c[0], c[1], c[2])]) continue;
+      out.push(idx3(c[0], c[1], c[2]));
     }
-    return [...tSet];
+    return out;
   }
 
   /*** ---- Plane Tool ---- ***/
-  // let planeToolOn = false;
-  // const planeStateEl = document.getElementById('planeState');
-  // function refreshPlaneUI() { planeStateEl.textContent = planeToolOn ? 'On' : 'Off'; document.getElementById('togglePlane').classList.toggle('toggled', planeToolOn); }
-  // document.getElementById('togglePlane').addEventListener('click', () => { planeToolOn = !planeToolOn; if (planeToolOn) { rowToolOn = false; refreshRowUI(); boxToolOn = false; refreshBoxUI(); } refreshPlaneUI(); });
-  // refreshPlaneUI();
 
   function getPlaneSurfaceVoxels(vIdx, faceId) {
     if (vIdx < 0 || faceId < 0) return [];
@@ -580,65 +536,32 @@ const rgbToHexF = (r, g, b) => {
     const out = []; for (let u = 0; u < N; u++)for (let v = 0; v < N; v++) { const c = [0, 0, 0]; c[AX] = fixedAX; c[U] = u; c[V] = v; if (!within(c[0], c[1], c[2])) continue; if (!isSolid[idx3(c[0], c[1], c[2])]) continue; if (!faceExposed(c[0], c[1], c[2], faceId)) continue; out.push(idx3(c[0], c[1], c[2])); }
     return out;
   }
+
   function getPlaneAddTargets(vIdx, faceId) {
     const d = FACE_DIRS[faceId], surf = getPlaneSurfaceVoxels(vIdx, faceId), tSet = new Set();
     for (const s of surf) { const [x, y, z] = coordsOf(s); const nx = x + d[0], ny = y + d[1], nz = z + d[2]; if (within(nx, ny, nz) && !isSolid[idx3(nx, ny, nz)]) tSet.add(idx3(nx, ny, nz)); }
     return [...tSet];
   }
 
-  /*** ---- Box Tool ---- ***/
-  // let boxToolOn = false; let boxSize = 3; let boxFaceOffset = true;
-  // const boxStateEl = document.getElementById('boxState'); const boxSizeEl = document.getElementById('boxSize'); const boxSizeLbl = document.getElementById('boxSizeLbl'); const boxFaceOffsetEl = document.getElementById('boxFaceOffset');
-  // function refreshBoxUI() { boxStateEl.textContent = boxToolOn ? 'On' : 'Off'; document.getElementById('toggleBox').classList.toggle('toggled', boxToolOn); boxSizeLbl.textContent = boxSize; }
-  // document.getElementById('toggleBox').addEventListener('click', () => { boxToolOn = !boxToolOn; if (boxToolOn) { rowToolOn = false; refreshRowUI(); planeToolOn = false; refreshPlaneUI(); } refreshBoxUI(); });
-  // boxSizeEl.addEventListener('input', () => { boxSize = Math.max(2, Math.min(8, boxSizeEl.value | 0)); refreshBoxUI(); });
-  // boxFaceOffsetEl.addEventListener('change', () => { boxFaceOffset = boxFaceOffsetEl.checked; });
-  // refreshBoxUI();
-
-  // function getCenteredBoxBounds(cx, cy, cz, size) {
-  //   const h = Math.floor((size - 1) / 2);
-  //   const minX = cx - h, maxX = cx + (size - 1 - h);
-  //   const minY = cy - h, maxY = cy + (size - 1 - h);
-  //   const minZ = cz - h, maxZ = cz + (size - 1 - h);
-  //   return [minX, minY, minZ, maxX, maxY, maxZ];
-  // }
-  // function clampBounds(minX, minY, minZ, maxX, maxY, maxZ) {
-  //   return [
-  //     Math.max(0, Math.min(N - 1, minX)),
-  //     Math.max(0, Math.min(N - 1, minY)),
-  //     Math.max(0, Math.min(N - 1, minZ)),
-  //     Math.max(0, Math.min(N - 1, maxX)),
-  //     Math.max(0, Math.min(N - 1, maxY)),
-  //     Math.max(0, Math.min(N - 1, maxZ)),
-  //   ];
-  // }
-  // function offsetBoundsByFace(minX, minY, minZ, maxX, maxY, maxZ, faceId) {
-  //   if (faceId < 0) return [minX, minY, minZ, maxX, maxY, maxZ];
-  //   const d = FACE_DIRS[faceId];
-  //   return [minX + d[0], minY + d[1], minZ + d[2], maxX + d[0], maxY + d[1], maxZ + d[2]];
-  // }
-  // function forEachInBounds(minX, minY, minZ, maxX, maxY, maxZ, fn) {
-  //   for (let z = minZ; z <= maxZ; z++) for (let y = minY; y <= maxY; y++) for (let x = minX; x <= maxX; x++) fn(x, y, z);
-  // }
-
   /*** ---- UNDO/REDO system ---- ***/
-  const undoBtn = document.getElementById('btnUndo');
-  const redoBtn = document.getElementById('btnRedo');
-  const undoInfo = document.getElementById('undoInfo');
-
   const undoStack = [];
   const redoStack = [];
+  const undoBtn = document.getElementById('btnUndo');
+  const redoBtn = document.getElementById('btnRedo');
 
   function updateUndoUI() {
     undoBtn.disabled = undoStack.length === 0;
     redoBtn.disabled = redoStack.length === 0;
-    const last = undoStack[undoStack.length - 1];
-    const next = redoStack[redoStack.length - 1];
-    undoInfo.textContent = `Undo: ${last ? last.label : '—'} • Redo: ${next ? next.label : '—'}`;
   }
-  function clearHistory() { undoStack.length = 0; redoStack.length = 0; updateUndoUI(); }
+
+  function clearHistory() { 
+    undoStack.length = 0; 
+    redoStack.length = 0; 
+    updateUndoUI(); 
+  }
 
   function beginVoxelAction(label) { return { type: 'voxels', label, vox: [] }; }
+
   function recordVoxelChange(act, idx, toSolid, toMat = voxelMat[idx]) {
     const fromS = isSolid[idx], fromM = voxelMat[idx];
     if (fromS === toSolid && fromM === toMat) return;
@@ -647,7 +570,9 @@ const rgbToHexF = (r, g, b) => {
     isSolid[idx] = toSolid;
     voxelMat[idx] = toMat;
   }
+
   function beginPaletteAction(label) { return { type: 'palette', label, pal: [] }; }
+
   function recordPaletteChange(act, i, fromHex, toHex) {
     const from = hexToRgbF(fromHex);
     const to = hexToRgbF(toHex);
@@ -667,13 +592,14 @@ const rgbToHexF = (r, g, b) => {
     } else if (action.type === 'palette') {
       const arr = action.pal;
       if (mode === 'undo') {
-        for (const p of arr) { setPaletteColor(p.i, p.from); }
+        for (const p of arr) { setPaletteColor(palette, p.i, p.from); }
       } else {
-        for (const p of arr) { setPaletteColor(p.i, p.to); }
+        for (const p of arr) { setPaletteColor(palette, p.i, p.to); }
       }
-      buildPaletteUI(); // refresh swatches to reflect the current palette colors
+      paletteUI.build();
     }
   }
+
   function commitAction(action, rebuild = true) {
     if (action.type === 'voxels' && action.vox.length === 0) return;
     if (action.type === 'palette' && (!action.pal || action.pal.length === 0)) return;
@@ -682,6 +608,7 @@ const rgbToHexF = (r, g, b) => {
     updateUndoUI();
     if (action.type === 'voxels' && rebuild) rebuildAll();
   }
+
   function undo() {
     if (undoStack.length === 0) return;
     const act = undoStack.pop();
@@ -690,6 +617,7 @@ const rgbToHexF = (r, g, b) => {
     updateUndoUI();
     if (act.type === 'voxels') rebuildAll();
   }
+
   function redo() {
     if (redoStack.length === 0) return;
     const act = redoStack.pop();
@@ -698,19 +626,17 @@ const rgbToHexF = (r, g, b) => {
     updateUndoUI();
     if (act.type === 'voxels') rebuildAll();
   }
+
   undoBtn.addEventListener('click', undo);
   redoBtn.addEventListener('click', redo);
 
   /*** ---- Input, hover, keyboard ---- ***/
   const hoverInfoEl = document.getElementById('hoverInfo');
-  let dragging = false, rotating = false, lastX = 0, lastY = 0; let mouseX = 0, mouseY = 0, needsPick = true, ctrlDown = false, buttons = 0;
+  let dragging = false, lastX = 0, lastY = 0; let mouseX = 0, mouseY = 0, needsPick = true, buttons = 0;
   let hoverVoxel = -1, hoverFace = -1;
 
   // Hover sets
   let rowHoverSurf = [], rowHoverAdd = [], planeHoverSurf = [], planeHoverAdd = [];
-  // Box hover bounds
-  // let boxHoverBounds = null; // [minX,minY,minZ,maxX,maxY,maxZ]
-  // let boxHoverAddBounds = null;
 
   function updateHoverUI() {
     if (hoverVoxel < 0 || hoverFace < 0) {
@@ -748,10 +674,7 @@ const rgbToHexF = (r, g, b) => {
       }
       refreshRowUI();
     }
-    if (k === 'x' || k === 'X') {
-      rowAxis = (rowAxis === 'U' ? 'V' : 'U');
-      refreshRowUI();
-    }
+
     if (k === 'p' || k === 'P') {
       planeToolOn = !planeToolOn;
       if (planeToolOn) {
@@ -762,21 +685,11 @@ const rgbToHexF = (r, g, b) => {
       }
       refreshPlaneUI();
     }
-    if (k === 'b' || k === 'B') {
-      boxToolOn = !boxToolOn;
-      if (boxToolOn) {
-        rowToolOn = false;
-        refreshRowUI();
-        planeToolOn = false;
-        refreshPlaneUI();
-      }
-      refreshBoxUI();
-    }
-    ctrlDown = e.ctrlKey || e.metaKey;
+    
     needsPick = true;
   });
+
   window.addEventListener('keyup', (e) => {
-    ctrlDown = e.ctrlKey || e.metaKey;
     needsPick = true;
   });
 
@@ -787,16 +700,17 @@ const rgbToHexF = (r, g, b) => {
     canvas.focus();
     buttons = e.buttons;
 
-    if (e.button === 0 && mode === 'move') {
-      dragging = true;
-      rotating = true;
-      lastX = e.clientX;
-      lastY = e.clientY;
+    const pick = decodePickAt(e.clientX, e.clientY);
+    
+    // If clicking on empty space, auto-start camera rotation
+    if (pick.voxel < 0 || pick.face < 0) {
+      if (e.button === 0) {
+        dragging = true;
+        lastX = e.clientX;
+        lastY = e.clientY;
+      }
       return;
     }
-
-
-    const pick = decodePickAt(e.clientX, e.clientY);
 
     if (e.button === 0 && mode === 'paint') {
       // Paint
@@ -806,7 +720,7 @@ const rgbToHexF = (r, g, b) => {
         for (const id of arr) recordVoxelChange(act, id, true, brushMat);
         commitAction(act);
       } else if (option == 'row') {
-        const arr = getRowSurfaceVoxels(pick.voxel, pick.face, rowAxis);
+        const arr = getRowSurfaceVoxels(pick.voxel, pick.face);
         const act = beginVoxelAction(`Paint row ${rowAxis}`);
         for (const id of arr) recordVoxelChange(act, id, true, brushMat);
         commitAction(act);
@@ -824,8 +738,8 @@ const rgbToHexF = (r, g, b) => {
           for (const t of targets) recordVoxelChange(act, t, true, brushMat);
           commitAction(act);
         } else if (option == 'row') {
-          const targets = getRowAddTargets(pick.voxel, pick.face, rowAxis);
-          const act = beginVoxelAction(`Add row ${rowAxis}`);
+          const targets = getRowAddTargets(pick.voxel, pick.face);
+          const act = beginVoxelAction(`Add row`);
           for (const t of targets) recordVoxelChange(act, t, true, brushMat);
           commitAction(act);
         } else if (pick.voxel >= 0 && pick.face >= 0) {
@@ -837,6 +751,8 @@ const rgbToHexF = (r, g, b) => {
               commitAction(act);
             }
         }
+
+        needsPick = true;
       } else if (e.button === 0 && mode === 'carve') {
         // Remove (or toggle for single)
         if (option == 'plane') {
@@ -845,8 +761,8 @@ const rgbToHexF = (r, g, b) => {
           for (const id of arr) recordVoxelChange(act, id, false, voxelMat[id]);
           commitAction(act);
         } else if (option == 'row') {
-          const arr = getRowSurfaceVoxels(pick.voxel, pick.face, rowAxis);
-          const act = beginVoxelAction(`Remove row ${rowAxis}`);
+          const arr = getRowSurfaceVoxels(pick.voxel, pick.face);
+          const act = beginVoxelAction(`Remove row`);
           for (const id of arr) recordVoxelChange(act, id, false, voxelMat[id]);
           commitAction(act);
         } else if (pick.voxel >= 0) {
@@ -856,22 +772,22 @@ const rgbToHexF = (r, g, b) => {
             commitAction(act);
         }
 
+        needsPick = true;
     }
   });
 
   window.addEventListener('mouseup', () => { 
     dragging = false; 
-    rotating = false; 
     buttons = 0; 
   });
 
   window.addEventListener('mousemove', (e) => {
-    if (!dragging || !rotating) { 
+    if (!dragging) { 
       mouseX = e.clientX;
       mouseY = e.clientY;
       needsPick = true; 
     }
-    if (dragging && rotating) { 
+    if (dragging) { 
       const dx = e.clientX - lastX, dy = e.clientY - lastY; 
       lastX = e.clientX;
       lastY = e.clientY; 
@@ -898,7 +814,7 @@ const rgbToHexF = (r, g, b) => {
     updateHoverUI();
 
     // Compute previews
-    if (mode !== 'move' && hoverVoxel >= 0 && hoverFace >= 0) {
+    if (hoverVoxel >= 0 && hoverFace >= 0) {
       if (option === 'row') {
         rowHoverSurf = getRowSurfaceVoxels(hoverVoxel, hoverFace);
         rowHoverAdd = getRowAddTargets(hoverVoxel, hoverFace);
@@ -922,6 +838,10 @@ const rgbToHexF = (r, g, b) => {
     }
   }
 
+  const COLOR_PAINT = [1.0, 0.60, 0.20];
+  const COLOR_CARVE = [1.0, 0.32, 0.32];
+  const COLOR_ADD = [0.27, 0.95, 0.42];
+
   /*** ---- Render loop ---- ***/
   function render() {
     gl.clearColor(0.07, 0.08, 0.1, 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -936,39 +856,37 @@ const rgbToHexF = (r, g, b) => {
 
     if (mode !== 'move' && hoverVoxel >= 0 && hoverFace >= 0) {
       if (option === 'plane') {
-        if (planeHoverAdd.length) {
-          for (const t of planeHoverAdd) drawVoxelWire(t, [0.27, 0.95, 0.42], 1.006);
-        } else if (planeHoverSurf.length) {
-          for (const id of planeHoverSurf) drawVoxelWire(id, [1.0, 0.32, 0.32], 1.006);
-        } else if (planeHoverSurf.length) {
-          for (const id of planeHoverSurf) drawVoxelWire(id, [1.0, 0.60, 0.20], 1.006);
+        if (mode === 'add') {
+          for (const t of planeHoverAdd) drawVoxelWire(t, COLOR_ADD, 1.006);
+        } else if (mode === 'carve') {
+          for (const id of planeHoverSurf) drawVoxelWire(id, COLOR_CARVE, 1.006);
+        } else if (mode === 'paint') {
+          for (const id of planeHoverSurf) drawVoxelWire(id, COLOR_PAINT, 1.006);
         }
       } else if (option === 'row') {
-        if (rowHoverAdd.length) {
-          for (const t of rowHoverAdd) drawVoxelWire(t, [0.27, 0.95, 0.42], 1.006);
-        } else if (rowHoverSurf.length) {
-          for (const id of rowHoverSurf) drawVoxelWire(id, [1.0, 0.32, 0.32], 1.006);
-        } else if (rowHoverSurf.length) {
-          for (const id of rowHoverSurf) drawVoxelWire(id, [1.0, 0.60, 0.20], 1.006);
+        if (mode === 'add') {
+          for (const t of rowHoverAdd) drawVoxelWire(t, COLOR_ADD, 1.006);
+        } else if (mode === 'carve') {
+          for (const id of rowHoverSurf) drawVoxelWire(id, COLOR_CARVE, 1.006);
+        } else if (mode === 'paint') {
+          for (const id of rowHoverSurf) drawVoxelWire(id, COLOR_PAINT, 1.006);
         }
       } else if (option === 'voxel') {
         if (mode === 'add') {
-          console.log('draw add voxel preview');
           const [x, y, z] = coordsOf(hoverVoxel);
           const d = FACE_DIRS[hoverFace];
           const nx = x + d[0], ny = y + d[1], nz = z + d[2];
-          if (within(nx, ny, nz) && !isSolid[idx3(nx, ny, nz)]) drawVoxelWire(idx3(nx, ny, nz), [0.27, 0.95, 0.42], 1.006);
+          if (within(nx, ny, nz) && !isSolid[idx3(nx, ny, nz)]) drawVoxelWire(idx3(nx, ny, nz), COLOR_ADD, 1.006);
         } else if (mode === 'carve') {
-          console.log('draw carve voxel preview');
-          drawVoxelWire(hoverVoxel, [1.0, 0.32, 0.32], 1.006);
+          drawVoxelWire(hoverVoxel, COLOR_CARVE, 1.006);
         } else if (mode === 'paint') {
-          console.log('draw paint voxel preview');
-          drawVoxelWire(hoverVoxel, [1.0, 0.60, 0.20], 1.006);
+          drawVoxelWire(hoverVoxel, COLOR_PAINT, 1.006);
         }
       }
     }
     requestAnimationFrame(render);
   }
+
   requestAnimationFrame(render);
   setTimeout(resize, 0);
 })();

@@ -10,5 +10,8 @@
   },
   "devDependencies": {
     "vite": "^7.1.7"
+  },
+  "dependencies": {
+    "vite-plugin-glsl": "^1.5.4"
   }
 }
