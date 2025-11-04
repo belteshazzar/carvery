@@ -32,39 +32,12 @@ export const rgbToHexF = (r, g, b) => {
 /**
  * Default palette colors.
  */
-export const defaultPaletteHex = [
+const defaultPaletteHex = [
   '#e76f51', '#f4a261', '#e9c46a', '#2a9d8f', 
   '#264653', '#a8dadc', '#457b9d', '#1d3557',
   '#ff6b6b', '#ffd93d', '#6bcb77', '#4d96ff', 
   '#b983ff', '#ff4d6d', '#9ef01a', '#00f5d4'
 ];
-
-/**
- * Creates and initializes a new palette.
- * 
- * @returns {Float32Array} Palette array of RGB values
- */
-export function createPalette() {
-  const palette = new Float32Array(16 * 3);
-  for (let i = 0; i < 16; i++) {
-    const [r, g, b] = hexToRgbF(defaultPaletteHex[i]);
-    setPaletteColor(palette, i, [r, g, b]);
-  }
-  return palette;
-}
-
-/**
- * Sets a color in the palette.
- * 
- * @param {Float32Array} palette Palette array
- * @param {number} i Index (0-15)
- * @param {number[]} rgb RGB color array [r,g,b]
- */
-export function setPaletteColor(palette, i, rgb) {
-  palette[i * 3 + 0] = rgb[0];
-  palette[i * 3 + 1] = rgb[1];
-  palette[i * 3 + 2] = rgb[2];
-}
 
 /**
  * Builds and manages the palette UI
@@ -76,9 +49,9 @@ export class PaletteUI {
    * @param {Function} onBrushChange Callback when brush selection changes
    * @param {Function} onColorChange Callback when color changes with undo data
    */
-  constructor(container, palette, onBrushChange, onColorChange) {
+  constructor(container, onBrushChange, onColorChange) {
     this.container = container;
-    this.palette = palette;
+    this.colors = new Float32Array(16 * 3);
     this.onBrushChange = onBrushChange;
     this.onColorChange = onColorChange;
     this.brushMat = 0;
@@ -90,14 +63,20 @@ export class PaletteUI {
    * Rebuilds the entire palette UI
    */
   build() {
+
+    for (let i = 0; i < 16; i++) {
+      const [r, g, b] = hexToRgbF(defaultPaletteHex[i]);
+      this.setPaletteColor(i, [r, g, b]);
+    }
+
     this.container.innerHTML = '';
     this.pickers.clear();
     
     for (let i = 0; i < 16; i++) {
       const hex = rgbToHexF(
-        this.palette[i * 3 + 0], 
-        this.palette[i * 3 + 1], 
-        this.palette[i * 3 + 2]
+        this.colors[i * 3 + 0], 
+        this.colors[i * 3 + 1], 
+        this.colors[i * 3 + 2]
       );
 
       const swatch = document.createElement('div');
@@ -107,7 +86,7 @@ export class PaletteUI {
 
       const idx = document.createElement('div');
       idx.className = 'idx';
-      idx.textContent = i.toString(16).toUpperCase();
+      idx.textContent = i.toString(16).toLowerCase();
 
       const color = document.createElement('div');
       color.className = 'color';
@@ -128,7 +107,7 @@ export class PaletteUI {
         const onPickerChange = () => {
           const newHex = picker.value;
           const [r, g, b] = hexToRgbF(newHex);
-          setPaletteColor(this.palette, i, [r, g, b]);
+          this.setPaletteColor(i, [r, g, b]);
           color.style.background = newHex;
           
           if (newHex !== lastHex) {
@@ -164,6 +143,12 @@ export class PaletteUI {
       this.container.appendChild(swatch);
     }
 
+  }
+
+  setPaletteColor(i, rgb) {
+    this.colors[i * 3 + 0] = rgb[0];
+    this.colors[i * 3 + 1] = rgb[1];
+    this.colors[i * 3 + 2] = rgb[2];
   }
 
   /**

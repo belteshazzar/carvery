@@ -13,8 +13,6 @@ import axisVert from './axis.vert';
 import { 
   hexToRgbF,
   rgbToHexF,
-  createPalette,
-  setPaletteColor,
   PaletteUI 
 } from './palette.js';
 
@@ -75,7 +73,6 @@ function main() {
 
   let isSolid = new Array(N * N * N).fill(true);
   let voxelMat = new Uint8Array(N * N * N);    // 0..15
-  let palette = createPalette();
 
   const FACE_DIRS = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1],[0,0,0]]; // last is for ground plane
   const FACE_INFO = [{ axis: 0, u: 2, v: 1 }, { axis: 0, u: 2, v: 1 }, { axis: 1, u: 0, v: 2 }, { axis: 1, u: 0, v: 2 }, { axis: 2, u: 0, v: 1 }, { axis: 2, u: 0, v: 1 }];
@@ -489,11 +486,10 @@ function main() {
   }
 
   /*** ---- UI: Palette & brush ---- ***/
-  const paletteUI = new PaletteUI(
+  const palette = new PaletteUI(
     document.getElementById('palette'),
-    palette,
     (brushId) => {
-      brushMat = brushId;
+      //brushMat = brushId;
     },
     (index, fromHex, toHex) => {
       const act = beginPaletteAction(`Palette ${index}`);
@@ -501,12 +497,6 @@ function main() {
       commitAction(act, false);
     }
   );
-
-  // Update brush material access
-  function selectBrush(id) {
-    paletteUI.selectBrush(id);
-    brushMat = paletteUI.getBrush();
-  }
 
   // Update reset button handler
   document.getElementById('resetSolid').addEventListener('click', () => {
@@ -572,8 +562,8 @@ function main() {
 
   function exportToJSON() {
     const palHex = [];
-    
-    for (let i = 0; i < 16; i++) palHex.push(rgbToHexF(palette[i * 3 + 0], palette[i * 3 + 1], palette[i * 3 + 2]));
+
+    for (let i = 0; i < 16; i++) palHex.push(rgbToHexF(palette.colors[i * 3 + 0], palette.colors[i * 3 + 1], palette.colors[i * 3 + 2]));
 
     const voxels = [];
     for (let z = 0; z < N; z++) {
@@ -616,14 +606,13 @@ function main() {
         else if (Array.isArray(e) && e.length >= 3) rgb = [+e[0], +e[1], +e[2]];
 
         if (rgb) { 
-          setPaletteColor(i, [
+          palette.setPaletteColor(i, [
             Math.max(0, Math.min(1, rgb[0])), 
             Math.max(0, Math.min(1, rgb[1])), 
             Math.max(0, Math.min(1, rgb[2]))
           ]); 
         }
       }
-      paletteUI.build();
     }
 
     isSolid.fill(false);
@@ -834,14 +823,14 @@ function main() {
       const arr = action.pal;
       if (mode === 'undo') {
         for (const p of arr) {
-          setPaletteColor(palette, p.i, p.from);
+          palette.setPaletteColor(p.i, p.from);
         }
       } else {
         for (const p of arr) {
-          setPaletteColor(palette, p.i, p.to);
+          palette.setPaletteColor(p.i, p.to);
         }
       }
-      paletteUI.build();
+
     }
   }
 
@@ -953,9 +942,9 @@ function main() {
     }
   
     // Quick material: 0-9, A-F
-    if (/^[0-9]$/.test(k)) selectBrush(parseInt(k, 10));
-    else if (/^[a-f]$/i.test(k)) selectBrush(10 + parseInt(k, 16) - 10);
-    
+    if (/^[0-9]$/.test(k)) palette.selectBrush(parseInt(k, 10));
+    else if (/^[a-f]$/i.test(k)) palette.selectBrush(10 + parseInt(k, 16) - 10);
+
     needsPick = true;
   });
 
@@ -986,21 +975,21 @@ function main() {
         const arr = getPlaneSurfaceVoxels(pick.voxel, pick.face);
         if (arr.length > 0) {
           const act = beginVoxelAction('Paint plane');
-          for (const id of arr) recordVoxelChange(act, id, true, brushMat);
+          for (const id of arr) recordVoxelChange(act, id, true, palette.getBrush());
           commitAction(act);
         }
       } else if (option == 'row') {
         const arr = getRowSurfaceVoxels(pick.voxel, pick.face);
         if (arr.length > 0) {
           const act = beginVoxelAction(`Paint row`);
-          for (const id of arr) recordVoxelChange(act, id, true, brushMat);
+          for (const id of arr) recordVoxelChange(act, id, true, palette.getBrush());
           commitAction(act);
         }
       } else if (pick.voxel >= 0) {
         const id = idx3(...coordsOf(pick.voxel));
         if (isSolid[id]) {
           const act = beginVoxelAction('Paint voxel');
-          recordVoxelChange(act, pick.voxel, true, brushMat);
+          recordVoxelChange(act, pick.voxel, true, palette.getBrush());
           commitAction(act);
         }
       }
@@ -1010,14 +999,14 @@ function main() {
           const targets = getPlaneAddTargets(pick.voxel, pick.face);
           if (targets.length > 0) {
             const act = beginVoxelAction('Add plane');
-            for (const t of targets) recordVoxelChange(act, t, true, brushMat);
+            for (const t of targets) recordVoxelChange(act, t, true, palette.getBrush());
             commitAction(act);
           }
         } else if (option == 'row') {
           const targets = getRowAddTargets(pick.voxel, pick.face);
           if (targets.length > 0) {
             const act = beginVoxelAction(`Add row`);
-            for (const t of targets) recordVoxelChange(act, t, true, brushMat);
+            for (const t of targets) recordVoxelChange(act, t, true, palette.getBrush());
             commitAction(act);
           }
         } else if (pick.voxel >= 0 && pick.face >= 0) {
@@ -1030,7 +1019,7 @@ function main() {
               const id = idx3(nx, ny, nz);
               if (!isSolid[id]) {
                 const act = beginVoxelAction('Add voxel');
-                recordVoxelChange(act, id, true, brushMat);
+                recordVoxelChange(act, id, true, palette.getBrush());
                 commitAction(act);
               }
             }
@@ -1140,7 +1129,7 @@ function main() {
     gl.clearColor(0.07, 0.08, 0.1, 1); 
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     gl.useProgram(renderProg.program);
-    renderProg.uPalette.set(palette);
+    renderProg.uPalette.set(palette.colors);
     renderProg.uModel.set(model);
     renderProg.uView.set(camera.view());
     renderProg.uProj.set(proj);
