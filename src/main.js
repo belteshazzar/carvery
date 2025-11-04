@@ -876,7 +876,9 @@ function main() {
   redoBtn.addEventListener('click', redo);
 
   /*** ---- Input, hover, keyboard ---- ***/
-  const hoverInfoEl = document.getElementById('hoverInfo');
+  const xEl = document.getElementById('x');
+  const yEl = document.getElementById('y');
+  const zEl = document.getElementById('z');
   let dragging = false, lastX = 0, lastY = 0;
   let mouseX = 0, mouseY = 0, needsPick = true, buttons = 0;
   let hoverVoxel = -1, hoverFace = -1;
@@ -886,11 +888,15 @@ function main() {
 
   function updateHoverUI() {
     if (hoverVoxel < 0 || hoverFace < 0) {
-      hoverInfoEl.textContent = 'Hover: –';
+      xEl.textContent = '-';
+      yEl.textContent = '-';
+      zEl.textContent = '-';
       return; 
     }
     const [x, y, z] = coordsOf(hoverVoxel);
-    hoverInfoEl.textContent = `Hover: (${x}, ${y}, ${z}) face ${FACE_LABEL[hoverFace] || '?'}`;
+    xEl.textContent = x;
+    yEl.textContent = y;
+    zEl.textContent = z;
   }
 
   window.addEventListener('keydown', (e) => {

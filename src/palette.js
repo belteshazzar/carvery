@@ -150,7 +150,6 @@ export class PaletteUI {
 
       // Left click to select brush
       swatch.addEventListener('click', (e) => {
-        console.log(`Swatch ${i} clicked`);
         if (!e.ctrlKey) {
           this.selectBrush(i);
         }
@@ -165,7 +164,6 @@ export class PaletteUI {
       this.container.appendChild(swatch);
     }
 
-    document.getElementById('brushMat').textContent = this.brushMat;
   }
 
   /**
@@ -174,9 +172,7 @@ export class PaletteUI {
    * @param {number} id New brush material ID
    */
   selectBrush(id) {
-    console.log(`Selected brush material: ${id}`);
     this.brushMat = id & 15;
-    document.getElementById('brushMat').textContent = this.brushMat;
     
     this.container.querySelectorAll('.swatch').forEach(s => 
       s.classList.remove('active')

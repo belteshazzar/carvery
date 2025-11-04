@@ -7,8 +7,19 @@
 </head>
 <body>
 <div id="app">
+
+  <div id="glwrap">
+    <canvas id="gl" tabindex="0"></canvas>
+    <div class="hud">
+      <div><span id="x">-</span>,<span id="y">-</span>,<span id="z">-</span></div>
+      <div>Voxels: <span id="vis">–</span></div>
+      <div>Quads: <span id="quads">–</span></div>
+      <div>Triangles: <span id="tris">–</span></div>
+    </div>
+  </div>
   <!-- Main toolbar with all controls in one row -->
   <div class="toolbar">
+    <div class="toolbar-row">
     <!-- Mode selection -->
     <div class="radio-toolbar">
       <input type="radio" id="modePaint" name="modeSelect" value="paint" checked>
@@ -55,19 +66,8 @@
   </div>
 
   <!-- Palette editor -->
-  <div id="palette"></div>
-
-  <div id="glwrap">
-    <canvas id="gl" tabindex="0"></canvas>
-    <div class="hud">
-      <span class="right mono" id="hoverInfo">Hover: –</span>
-      <div>Brush material: <b id="brushMat">0</b></div>
-      <span class="sep"></span>
-      <div>Greedy quads: <span id="quads">–</span></div>
-      <div>Triangles: <span id="tris">–</span></div>
-      <div>Visible voxels: <span id="vis">–</span></div>
-    </div>
-  </div>
+  <div class="toolbar-row" id="palette"></div>
+</div>
 </div>
 
   <script type="module" src="/src/main.js"></script>
