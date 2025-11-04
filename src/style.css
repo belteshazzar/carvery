@@ -109,22 +109,21 @@ button:hover {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 20px;
+  width: 60px;
+  height: 28px;
   cursor: pointer;
   position: relative;
-  transition: border-color 0.2s;
-  padding: 6px 12px;
-    background: #1a2233;
+  background: #1a2233;
   color: #cfd3dc;
   border: 1px solid #2a3550;
   border-radius: 6px;
   font-size: 14px;
+  padding: 0;
+  overflow: hidden;
 }
 
 .swatch:hover {
-  border-color: #aaa;
+  background: #202a3f;
 }
 
 .swatch.active {
@@ -132,85 +131,22 @@ button:hover {
 }
 
 .swatch .idx {
-  color: #fff;
-  text-shadow: 1px 1px 1px rgba(0,0,0,0.5);
+  flex: 1;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   user-select: none;
 }
 
-input[type="color"]{
-    background-color: transparent;
-    border: 0px;
-    outline: none;
-    -webkit-box-shadow: none;
-    -moz-box-shadow: none;
-    box-shadow: none;
-    width:5px;
-    color:transparent;
-    cursor:default;
-    pointer-events: none;
-    position: relative;
-    left: 15px;
-}
 .swatch .color {
-  width: 20px;
+  width: 50%;
   height: 100%;
-}
-  
-/* Update app grid to better handle the single row palette */
-#app {
-  display: grid;
-  grid-template-columns: 1fr;
-  grid-template-rows: auto auto auto 1fr;
-  gap: 8px;
-  padding: 16px;
-  height: 100vh;
-  background: #1e1e1e;
-  color: #fff;
+  border-left: 1px solid #2a3550;
+  border-top-right-radius: 5px;
+  border-bottom-right-radius: 5px;
 }
 
-#glwrap {
-  grid-row: 4;
-}
-
-/* Group undo/redo buttons to match radio groups */
-.undo-group {
-  display: inline-flex;
-  align-items: center;
-  background: #1a2233;
-  border-radius: 6px;
-  padding: 0;
-  border: 1px solid #2a3550;
-}
-
-.undo-group button {
-  color: #cfd3dc;
-  background: transparent;
-  padding: 6px 12px;
-  font-size: 14px;
-  border: none;
-  border-right: 1px solid #2a3550;
-  margin: 0;
-  border-radius: 0;
-}
-
-.undo-group button:last-child {
-  border-right: none;
-}
-
-.undo-group button:first-child {
-  border-radius: 5px 0 0 5px;
-}
-
-.undo-group button:last-child {
-  border-radius: 0 5px 5px 0;
-}
-
-.undo-group button:hover {
-  background: #202a3f;
-}
-
-.undo-group button:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-  background: transparent;
+input[type="color"] {
+  display: none;
 }
