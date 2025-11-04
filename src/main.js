@@ -13,14 +13,14 @@ import axisVert from './axis.vert';
 import { 
   hexToRgbF,
   rgbToHexF,
-  defaultPaletteHex,
   createPalette,
   setPaletteColor,
   PaletteUI 
 } from './palette.js';
 
 /*** ======= App ======= ***/
-(function main() {
+function main() {
+
   const canvas = document.getElementById('gl');
   const gl = canvas.getContext('webgl2', { antialias: true, alpha: false });
   if (!gl) {
@@ -37,60 +37,37 @@ import {
   const wireProg = createProgram(gl, wireframeVert, wireframeFrag);
   const axisProg = createProgram(gl, axisVert, axisFrag);
 
-  // Buffers (render)
-  let renderPosBuf = gl.createBuffer();
-  let renderNrmBuf = gl.createBuffer();
-  let renderMatBuf = gl.createBuffer();
-  let renderIdxBuf = gl.createBuffer();
-  let renderIndexCount = 0;
-
-  // Buffers (pick)
-
-  let pickPosBuf = gl.createBuffer();
-  let pickPackedBuf = gl.createBuffer();
-  let pickIdxBuf = gl.createBuffer();
-
-  let groundPosBuffer = gl.createBuffer();
-  let groundPackedBuffer = gl.createBuffer();
-  let groundIndexBuffer = gl.createBuffer();
-
-//  let pickIndexCount = 0;
-
   // Wireframe mesh
+
   const edges = makeCubeEdges();
-  const edgePosBuf = gl.createBuffer();
-  const edgeIdxBuf = gl.createBuffer();
 
   gl.bindVertexArray(wireProg.vao);
-  gl.bindBuffer(gl.ARRAY_BUFFER, edgePosBuf);
+  gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
   gl.bufferData(gl.ARRAY_BUFFER, edges.positions, gl.STATIC_DRAW);
   gl.enableVertexAttribArray(wireProg.aPosition.location);
 
   gl.vertexAttribPointer(wireProg.aPosition.location, 3, gl.FLOAT, false, 0, 0);
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, edgeIdxBuf);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.createBuffer());
   gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, edges.indices, gl.STATIC_DRAW);
   gl.bindVertexArray(null);
 
+  // gizmo
 
-// gizmo
+  const gizmo = makeAxisGizmo();
 
+  gl.bindVertexArray(axisProg.vao);
 
-// Add after other buffer setup
-const gizmo = makeAxisGizmo();
-const gizmoPosBuffer = gl.createBuffer();
-const gizmoColBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+  gl.bufferData(gl.ARRAY_BUFFER, gizmo.positions, gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(axisProg.aPosition.location);
+  gl.vertexAttribPointer(axisProg.aPosition.location, 3, gl.FLOAT, false, 0, 0);
 
-gl.bindVertexArray(axisProg.vao);
-gl.bindBuffer(gl.ARRAY_BUFFER, gizmoPosBuffer);
-gl.bufferData(gl.ARRAY_BUFFER, gizmo.positions, gl.STATIC_DRAW);
-gl.enableVertexAttribArray(axisProg.aPosition.location);
-gl.vertexAttribPointer(axisProg.aPosition.location, 3, gl.FLOAT, false, 0, 0);
+  gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+  gl.bufferData(gl.ARRAY_BUFFER, gizmo.colors, gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(axisProg.aColor.location);
+  gl.vertexAttribPointer(axisProg.aColor.location, 3, gl.FLOAT, false, 0, 0);
 
-gl.bindBuffer(gl.ARRAY_BUFFER, gizmoColBuffer);
-gl.bufferData(gl.ARRAY_BUFFER, gizmo.colors, gl.STATIC_DRAW);
-gl.enableVertexAttribArray(axisProg.aColor.location);
-gl.vertexAttribPointer(axisProg.aColor.location, 3, gl.FLOAT, false, 0, 0);
-gl.bindVertexArray(null);
+  gl.bindVertexArray(null);
 
 
   /*** ---- World State ---- ***/
@@ -99,19 +76,6 @@ gl.bindVertexArray(null);
   let isSolid = new Array(N * N * N).fill(true);
   let voxelMat = new Uint8Array(N * N * N);    // 0..15
   let palette = createPalette();
-
-  const defaultHex = ['#e76f51', '#f4a261', '#e9c46a', '#2a9d8f', '#264653', '#a8dadc', '#457b9d', '#1d3557', '#ff6b6b', '#ffd93d', '#6bcb77', '#4d96ff', '#b983ff', '#ff4d6d', '#9ef01a', '#00f5d4'];
-
-  function setPaletteColor(i, rgb) {
-    palette[i * 3 + 0] = rgb[0]; 
-    palette[i * 3 + 1] = rgb[1]; 
-    palette[i * 3 + 2] = rgb[2];
-  }
-
-  for (let i = 0; i < 16; i++) {
-    const [r, g, b] = hexToRgbF(defaultHex[i]); 
-    setPaletteColor(i, [r, g, b]);
-  }
 
   const FACE_DIRS = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1],[0,0,0]]; // last is for ground plane
   const FACE_INFO = [{ axis: 0, u: 2, v: 1 }, { axis: 0, u: 2, v: 1 }, { axis: 1, u: 0, v: 2 }, { axis: 1, u: 0, v: 2 }, { axis: 2, u: 0, v: 1 }, { axis: 2, u: 0, v: 1 }];
@@ -124,16 +88,6 @@ gl.bindVertexArray(null);
     const y = Math.floor((id - z * N * N) / N);
     const x = id - z * N * N - y * N;
     return [x, y, z];
-  }
-
-  // Update the coordinate conversion functions to remove half-offset
-  function centerOf(id) { 
-    const [x, y, z] = coordsOf(id); 
-    return new Float32Array([
-      x + 0.5,  // Center of voxel is at x + 0.5
-      y + 0.5,  
-      z + 0.5
-    ]); 
   }
 
   function faceExposed(x, y, z, f) {
@@ -150,14 +104,6 @@ gl.bindVertexArray(null);
   }
   seedMaterials("bands");
 
-  function resizeWorld(newN) {
-    N = Math.max(1, Math.floor(newN)); 
-    isSolid = new Array(N * N * N).fill(false);
-    voxelMat = new Uint8Array(N * N * N);
-    clearHistory(); // world layout changed → clear undo/redo
-  }
-
-  /*** ---- Greedy meshing (merge by material) ---- ***/
   function buildGreedyRenderMesh() {
     const positions = [], normals = [], matIds = [], indices = [];
     let indexBase = 0;
@@ -239,36 +185,33 @@ gl.bindVertexArray(null);
     // Upload render mesh
     gl.bindVertexArray(renderProg.vao);
 
-    gl.bindBuffer(gl.ARRAY_BUFFER, renderPosBuf);
+    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.DYNAMIC_DRAW);
     gl.enableVertexAttribArray(renderProg.aPosition.location);
     gl.vertexAttribPointer(renderProg.aPosition.location, 3, gl.FLOAT, false, 0, 0);
 
-    gl.bindBuffer(gl.ARRAY_BUFFER, renderNrmBuf);
+    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(normals), gl.DYNAMIC_DRAW);
     gl.enableVertexAttribArray(renderProg.aNormal.location);
     gl.vertexAttribPointer(renderProg.aNormal.location, 3, gl.FLOAT, false, 0, 0);
 
-    gl.bindBuffer(gl.ARRAY_BUFFER, renderMatBuf);
+    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
     gl.bufferData(gl.ARRAY_BUFFER, new Uint8Array(matIds), gl.DYNAMIC_DRAW);
     gl.enableVertexAttribArray(renderProg.aMatId.location);
     gl.vertexAttribIPointer(renderProg.aMatId.location, 1, gl.UNSIGNED_BYTE, 0, 0);
 
-    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, renderIdxBuf);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.createBuffer());
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint32Array(indices), gl.DYNAMIC_DRAW);
    
     gl.bindVertexArray(null);
 
-    renderIndexCount = indices.length;
-    document.getElementById('quads').textContent = (renderIndexCount / 6).toString();
-    document.getElementById('tris').textContent = renderIndexCount.toString();
+    renderProg.meta.renderIndexCount = indices.length;
+    document.getElementById('quads').textContent = (renderProg.meta.renderIndexCount / 6).toString();
+    document.getElementById('tris').textContent = renderProg.meta.renderIndexCount.toString();
     document.getElementById('vis').textContent = visCount().toString();
   }
 
   /*** ---- Pick faces (unmerged) ---- ***/
-  // Add these as global variables
-  let pickVoxelVAO, pickGroundVAO;
-  let pickVoxelCount = 0, pickGroundCount = 0;
 
   // Modify buildPickFaces to create separate geometries
   function buildPickFaces() {
@@ -296,7 +239,6 @@ gl.bindVertexArray(null);
       const f = faces[fid];
 
         const plane = min.slice();
-        //plane[f.axis] += (f.sign > 0 ? 1 : 0);
         
         const u = f.u
         const v = f.v;
@@ -324,10 +266,7 @@ gl.bindVertexArray(null);
         groundBase, groundBase + 2, groundBase + 3
       );
       groundBase += 4;
-
     }
-
-
 
     for (let z = 0; z < N; z++) for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
       const vIdx = idx3(x, y, z);
@@ -369,44 +308,45 @@ gl.bindVertexArray(null);
       }
     }
 
-    // Create and setup VAOs
-    if (!pickVoxelVAO) pickVoxelVAO = gl.createVertexArray();
-    if (!pickGroundVAO) pickGroundVAO = gl.createVertexArray();
+    // Create second vao for pickProg
+    if (!pickProg.vaoGround) pickProg.vaoGround = gl.createVertexArray();
 
     // Setup voxel VAO
-    gl.bindVertexArray(pickVoxelVAO);
-    gl.bindBuffer(gl.ARRAY_BUFFER, pickPosBuf);
+    gl.bindVertexArray(pickProg.vao);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(voxelPos), gl.DYNAMIC_DRAW);
     gl.enableVertexAttribArray(pickProg.aPosition.location);
     gl.vertexAttribPointer(pickProg.aPosition.location, 3, gl.FLOAT, false, 0, 0);
     
-    gl.bindBuffer(gl.ARRAY_BUFFER, pickPackedBuf);
+    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
     gl.bufferData(gl.ARRAY_BUFFER, new Uint32Array(voxelPacked), gl.DYNAMIC_DRAW);
     gl.enableVertexAttribArray(pickProg.aPacked.location);
     gl.vertexAttribIPointer(pickProg.aPacked.location, 1, gl.UNSIGNED_INT, 0, 0);
     
-    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, pickIdxBuf);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.createBuffer());
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint32Array(voxelIndices), gl.DYNAMIC_DRAW);
 
     // Setup ground VAO
-    gl.bindVertexArray(pickGroundVAO);    
-    gl.bindBuffer(gl.ARRAY_BUFFER, groundPosBuffer);
+    gl.bindVertexArray(pickProg.vaoGround);
+    
+    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(groundPos), gl.STATIC_DRAW);
     gl.enableVertexAttribArray(pickProg.aPosition.location);
     gl.vertexAttribPointer(pickProg.aPosition.location, 3, gl.FLOAT, false, 0, 0);
     
-    gl.bindBuffer(gl.ARRAY_BUFFER, groundPackedBuffer);
+    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
     gl.bufferData(gl.ARRAY_BUFFER, new Uint32Array(groundPacked), gl.STATIC_DRAW);
     gl.enableVertexAttribArray(pickProg.aPacked.location);
     gl.vertexAttribIPointer(pickProg.aPacked.location, 1, gl.UNSIGNED_INT, 0, 0);
     
-    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, groundIndexBuffer);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.createBuffer());
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint32Array(groundIndices), gl.STATIC_DRAW);
 
     gl.bindVertexArray(null);
 
-    pickVoxelCount = voxelIndices.length;
-    pickGroundCount = groundIndices.length;
+    pickProg.meta.pickVoxelCount = voxelIndices.length;
+    pickProg.meta.pickGroundCount = groundIndices.length;
   }
 
   function rebuildAll() { 
@@ -481,13 +421,13 @@ gl.bindVertexArray(null);
     pickProg.uView.set(camera.view());
     pickProg.uProj.set(proj);
 
-    gl.bindVertexArray(pickVoxelVAO);
-    gl.drawElements(gl.TRIANGLES, pickVoxelCount, gl.UNSIGNED_INT, 0);
+    gl.bindVertexArray(pickProg.vao);
+    gl.drawElements(gl.TRIANGLES, pickProg.meta.pickVoxelCount, gl.UNSIGNED_INT, 0);
 
     // Draw ground plane only for add mode
     if (mode === 'add') {
-      gl.bindVertexArray(pickGroundVAO);
-      gl.drawElements(gl.TRIANGLES, pickGroundCount, gl.UNSIGNED_INT, 0);
+      gl.bindVertexArray(pickProg.vaoGround);
+      gl.drawElements(gl.TRIANGLES, pickProg.meta.pickGroundCount, gl.UNSIGNED_INT, 0);
     }
 
     gl.bindVertexArray(null);
@@ -503,7 +443,7 @@ gl.bindVertexArray(null);
   }
 
   function decodePickAt(xc, yc) {
-    if (pickVoxelCount === 0 && pickGroundCount === 0) return { voxel: -1, face: -1 };
+    if (pickProg.meta.pickVoxelCount === 0 && pickProg.meta.pickGroundCount === 0) return { voxel: -1, face: -1 };
     renderPick();
     const { x, y } = clientToFB(xc, yc);
     const px = new Uint8Array(4);
@@ -954,43 +894,61 @@ gl.bindVertexArray(null);
   }
 
   window.addEventListener('keydown', (e) => {
-    const k = e.key;
+    const k = e.key.toLowerCase();
+
+    // Mode shortcuts
+    if (k === 'q') {
+      document.getElementById('modePaint').checked = true;
+      mode = 'paint';
+      return;
+    }
+    
+    if (k === 'w') {
+      document.getElementById('modeCarve').checked = true;
+      mode = 'carve';
+      return;
+    }
+    
+    if (k === 's') {
+      document.getElementById('modeAdd').checked = true;
+      mode = 'add';
+      return;
+    }
+
+    if (!e.ctrlKey && k === 'v') {
+      document.getElementById('optionVoxel').checked = true;
+      option = 'voxel';
+      return;
+    }
+
+    if (k === 'r') {
+      document.getElementById('optionRow').checked = true;
+      option = 'row';
+      return;
+    }
+
+    if (k === 'p') {
+      document.getElementById('optionPlane').checked = true;
+      option = 'plane';
+      return;
+    }
+
     // Undo/Redo
-    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && (k === 'z' || k === 'Z')) {
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && (k === 'z')) {
       e.preventDefault();
       undo();
       return;
     }
-    if ((e.ctrlKey || e.metaKey) && (k === 'y' || (e.shiftKey && (k === 'z' || k === 'Z')))) {
+
+    if ((e.ctrlKey || e.metaKey) && (k === 'y' || (e.shiftKey && (k === 'z')))) {
       e.preventDefault();
       redo();
       return;
     }
+  
     // Quick material: 0-9, A-F
     if (/^[0-9]$/.test(k)) selectBrush(parseInt(k, 10));
     else if (/^[a-f]$/i.test(k)) selectBrush(10 + parseInt(k, 16) - 10);
-    // Tools
-    if (k === 'r' || k === 'R') {
-      rowToolOn = !rowToolOn;
-      if (rowToolOn) {
-        planeToolOn = false;
-        refreshPlaneUI();
-        boxToolOn = false;
-        refreshBoxUI();
-      }
-      refreshRowUI();
-    }
-
-    if (k === 'p' || k === 'P') {
-      planeToolOn = !planeToolOn;
-      if (planeToolOn) {
-        rowToolOn = false;
-        refreshRowUI();
-        boxToolOn = false;
-        refreshBoxUI();
-      }
-      refreshPlaneUI();
-    }
     
     needsPick = true;
   });
@@ -1184,7 +1142,7 @@ gl.bindVertexArray(null);
     renderProg.uLightDirWS.set(new Float32Array([0.7 / 1.7, -1.2 / 1.7, 0.9 / 1.7]));
     renderProg.uAmbient.set(ambient);
     gl.bindVertexArray(renderProg.vao); 
-    gl.drawElements(gl.TRIANGLES, renderIndexCount, gl.UNSIGNED_INT, 0); 
+    gl.drawElements(gl.TRIANGLES, renderProg.meta.renderIndexCount, gl.UNSIGNED_INT, 0); 
     gl.bindVertexArray(null);
 
     // Render axis gizmo
@@ -1237,4 +1195,6 @@ gl.bindVertexArray(null);
 
   requestAnimationFrame(render);
   setTimeout(resize, 0);
-})();
+}
+
+document.addEventListener('DOMContentLoaded', main);

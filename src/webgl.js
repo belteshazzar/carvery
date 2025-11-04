@@ -58,6 +58,7 @@ export function createProgram(gl, vsSrc, fsSrc) {
   }
   const res = {
     program: p,
+    meta: {},
     vao: gl.createVertexArray()
   };
 
