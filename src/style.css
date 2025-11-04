@@ -97,18 +97,6 @@ button:hover {
   border-left: none;
 }
 
-/*
-  #palette { display:grid; grid-template-columns: repeat(8, minmax(120px, 1fr)); gap:8px; padding:8px 12px; background:#0f131a; border-bottom:1px solid #1c2230; }
-  .swatch { display:flex; gap:8px; align-items:center; background:#0d1117; padding:6px 8px; border:1px solid #1e2636; border-radius:8px; }
-  .chip {
-    width:24px; height:24px; border-radius:6px; border:1px solid #2a3550; cursor:pointer; position:relative;
-    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
-  }
-  .chip.active { outline:2px solid #9cd1ff; }
-  .idx { width:18px; text-align:center; font-size:11px; color:#9aa6bd; }
-  .swatch input[type="color"]{ width: 42px; height: 24px; border:none; background:none; padding:0; cursor:pointer; }
-*/
-
 #palette {
   display: flex;
   flex-flow: row wrap;
@@ -124,11 +112,15 @@ button:hover {
   justify-content: center;
   width: 40px;
   height: 20px;
-  border-radius: 4px;
   cursor: pointer;
-  border: 2px solid transparent;
   position: relative;
   transition: border-color 0.2s;
+  padding: 6px 12px;
+    background: #1a2233;
+  color: #cfd3dc;
+  border: 1px solid #2a3550;
+  border-radius: 6px;
+  font-size: 14px;
 }
 
 .swatch:hover {
@@ -136,7 +128,7 @@ button:hover {
 }
 
 .swatch.active {
-  border-color: #fff;
+  border-color: #007acc;
 }
 
 .swatch .idx {
@@ -156,8 +148,13 @@ input[type="color"]{
     color:transparent;
     cursor:default;
     pointer-events: none;
+    position: relative;
+    left: 15px;
 }
-
+.swatch .color {
+  width: 20px;
+  height: 100%;
+}
   
 /* Update app grid to better handle the single row palette */
 #app {
@@ -217,25 +214,3 @@ input[type="color"]{
   cursor: not-allowed;
   background: transparent;
 }
-
-.axis-labels {
-  position: absolute;
-  top: 0;
-  left: 0;
-  pointer-events: none;
-  color: white;
-  font-family: monospace;
-  font-size: 12px;
-  font-weight: bold;
-  text-shadow: 1px 1px 1px rgba(0,0,0,0.5);
-}
-
-.axis-label {
-  position: absolute;
-  transform: translate(-50%, -50%);
-}
-
-.axis-label.x { color: #ff4444; }
-.axis-label.y { color: #44ff44; }
-.axis-label.z { color: #4444ff; }
-

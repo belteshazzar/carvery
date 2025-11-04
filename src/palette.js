@@ -100,15 +100,18 @@ export class PaletteUI {
         this.palette[i * 3 + 2]
       );
 
-      const row = document.createElement('div');
-      row.className = 'swatch';
-      row.style.background = hex;
-      if (i === this.brushMat) row.classList.add('active');
-      row.title = `Left click: Select material ${i}\n${navigator.platform.includes('Mac') ? 'Control+click' : 'Right click'}: Edit color`;
+      const swatch = document.createElement('div');
+      swatch.className = 'swatch';
+      if (i === this.brushMat) swatch.classList.add('active');
+      swatch.title = `Left click: Select material ${i}\n${navigator.platform.includes('Mac') ? 'Control+click' : 'Right click'}: Edit color`;
 
       const idx = document.createElement('div');
       idx.className = 'idx';
       idx.textContent = i.toString(16).toUpperCase();
+
+      const color = document.createElement('div');
+      color.className = 'color';
+      color.style.background = hex;
 
       // Create hidden color picker
       const picker = document.createElement('input');
@@ -126,7 +129,7 @@ export class PaletteUI {
           const newHex = picker.value;
           const [r, g, b] = hexToRgbF(newHex);
           setPaletteColor(this.palette, i, [r, g, b]);
-          row.style.background = newHex;
+          color.style.background = newHex;
           
           if (newHex !== lastHex) {
             this.onColorChange(i, lastHex, newHex);
@@ -146,7 +149,7 @@ export class PaletteUI {
       };
 
       // Left click to select brush
-      row.addEventListener('click', (e) => {
+      swatch.addEventListener('click', (e) => {
         console.log(`Swatch ${i} clicked`);
         if (!e.ctrlKey) {
           this.selectBrush(i);
@@ -154,11 +157,12 @@ export class PaletteUI {
       });
 
       // Right click or Control+click to open color picker
-      row.addEventListener('contextmenu', openColorPicker);
+      swatch.addEventListener('contextmenu', openColorPicker);
 
-      row.appendChild(idx);
-      row.appendChild(picker);
-      this.container.appendChild(row);
+      swatch.appendChild(idx);
+      swatch.appendChild(picker);
+      swatch.appendChild(color);
+      this.container.appendChild(swatch);
     }
 
     document.getElementById('brushMat').textContent = this.brushMat;
