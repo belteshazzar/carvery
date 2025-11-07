@@ -17,6 +17,7 @@ import {
 } from './palette.js';
 import { AnimationSystem } from './animation.js';
 import { VoxelChunk } from './voxel-chunk.js';
+import { initializeUI } from './ui.js';
 
 /*** ======= App ======= ***/
 function main() {
@@ -75,44 +76,6 @@ function main() {
 const animSystem = new AnimationSystem();
 let animationTransforms = new Map();
 let lastTime = 0;
-
-// Add animation UI handlers
-document.getElementById('btnCompile').addEventListener('click', () => {
-  const dsl = document.getElementById('animationDSL').value;
-  try {
-    animSystem.parse(dsl);
-
-console.log('Parsed animation:', animSystem);
-for (const [name, group] of animSystem.groups) {
-  console.log(`Group: ${name}`, group);
-  chunk.addGroup(name, group.bounds.min, group.bounds.max);
-}
-    //animSystem.assignVoxelsToGroups(chunk.isSolid, N);
-    buildAllMeshes();
-
-      groupNames = ["main", ...Array.from(animSystem.groups.keys())];
-  updateGroupPanel();
-
-  } catch(e) {
-    console.error('Animation compile error:', e);
-  }
-});
-
-document.getElementById('btnPlay').addEventListener('click', () => {
-  animSystem.playing = true;
-  lastTime = performance.now();
-});
-
-document.getElementById('btnPause').addEventListener('click', () => {
-  animSystem.playing = false;
-});
-
-document.getElementById('btnReset').addEventListener('click', () => {
-  animSystem.time = 0;
-  animSystem.playing = false;
-  animationTransforms.clear();
-  rebuildAll();
-});
 
   /*** ---- World State ---- ***/
   let N = 16;
@@ -280,61 +243,10 @@ document.getElementById('btnReset').addEventListener('click', () => {
     }
   );
 
-  // Update reset button handler
-  document.getElementById('resetSolid').addEventListener('click', () => {
-    chunk.fill(true);
-    chunkseedMaterials('bands');
-    rebuildAll();
-    clearHistory();
-  });
-
   let mode = document.querySelector('input[name="modeSelect"]:checked').value;
-  document.querySelectorAll('input[name="modeSelect"]').forEach(radio => {
-    radio.addEventListener('change', (e) => {
-      if (e.target.checked) {
-        mode = e.target.value;
-      }
-    });
-  });
-
   let option = document.querySelector('input[name="optionSelect"]:checked').value;
-  document.querySelectorAll('input[name="optionSelect"]').forEach(radio => {
-    radio.addEventListener('change', (e) => {
-      if (e.target.checked) {
-        option = e.target.value;
-      }
-    });
-  });
 
   /*** ---- Import/Export JSON ---- ***/
-  const fileInput = document.getElementById('fileInput');
-  document.getElementById('btnImport').addEventListener('click', () => fileInput.click());
-  document.getElementById('btnExport').addEventListener('click', () => {
-    const data = exportToJSON(); 
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }); 
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); 
-    a.href = url; 
-    a.download = 'voxels.json'; 
-    a.click();
-    URL.revokeObjectURL(url);
-  });
-  fileInput.addEventListener('change', (e) => {
-    const file = e.target.files[0]; 
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const obj = JSON.parse(reader.result); 
-        importFromJSON(obj);
-      } catch (err) {
-        alert('Invalid JSON: ' + err.message);
-      } finally {
-        fileInput.value = '';
-      }
-    };
-    reader.readAsText(file);
-  });
 
   function intToHexChar(i) {
     if (i >= 0 && i <= 9) return String.fromCharCode('0'.charCodeAt(0) + i);
@@ -548,10 +460,10 @@ document.getElementById('btnReset').addEventListener('click', () => {
   /*** ---- UNDO/REDO system ---- ***/
   const undoStack = [];
   const redoStack = [];
-  const undoBtn = document.getElementById('btnUndo');
-  const redoBtn = document.getElementById('btnRedo');
 
   function updateUndoUI() {
+    const undoBtn = document.getElementById('btnUndo');
+    const redoBtn = document.getElementById('btnRedo');
     undoBtn.disabled = undoStack.length === 0;
     redoBtn.disabled = redoStack.length === 0;
   }
@@ -643,13 +555,7 @@ document.getElementById('btnReset').addEventListener('click', () => {
     if (act.type === 'voxels') rebuildAll();
   }
 
-  undoBtn.addEventListener('click', undo);
-  redoBtn.addEventListener('click', redo);
-
   /*** ---- Input, hover, keyboard ---- ***/
-  const xEl = document.getElementById('x');
-  const yEl = document.getElementById('y');
-  const zEl = document.getElementById('z');
   let dragging = false, lastX = 0, lastY = 0;
   let mouseX = 0, mouseY = 0, needsPick = true, buttons = 0;
   let hoverVoxel = -1, hoverFace = -1;
@@ -657,208 +563,8 @@ document.getElementById('btnReset').addEventListener('click', () => {
   // Hover sets
   let rowHoverSurf = [], rowHoverAdd = [], planeHoverSurf = [], planeHoverAdd = [];
 
-  function updateHoverUI() {
-    if (hoverVoxel < 0 || hoverFace < 0) {
-      xEl.textContent = '-';
-      yEl.textContent = '-';
-      zEl.textContent = '-';
-      return; 
-    }
-    const [x, y, z] = chunk.coordsOf(hoverVoxel);
-    xEl.textContent = x;
-    yEl.textContent = y;
-    zEl.textContent = z;
-  }
-
-  window.addEventListener('keydown', (e) => {
-    const k = e.key.toLowerCase();
-
-    // Mode shortcuts
-    if (k === 'q') {
-      document.getElementById('modePaint').checked = true;
-      mode = 'paint';
-      return;
-    }
-    
-    if (k === 'w') {
-      document.getElementById('modeCarve').checked = true;
-      mode = 'carve';
-      return;
-    }
-    
-    if (k === 's') {
-      document.getElementById('modeAdd').checked = true;
-      mode = 'add';
-      return;
-    }
-
-    if (!e.ctrlKey && k === 'v') {
-      document.getElementById('optionVoxel').checked = true;
-      option = 'voxel';
-      return;
-    }
-
-    if (k === 'r') {
-      document.getElementById('optionRow').checked = true;
-      option = 'row';
-      return;
-    }
-
-    if (k === 'p') {
-      document.getElementById('optionPlane').checked = true;
-      option = 'plane';
-      return;
-    }
-
-    // Undo/Redo
-    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && (k === 'z')) {
-      e.preventDefault();
-      undo();
-      return;
-    }
-
-    if ((e.ctrlKey || e.metaKey) && (k === 'y' || (e.shiftKey && (k === 'z')))) {
-      e.preventDefault();
-      redo();
-      return;
-    }
-  
-    // Quick material: 0-9, A-F
-    if (/^[0-9]$/.test(k)) palette.selectBrush(parseInt(k, 10));
-    else if (/^[a-f]$/i.test(k)) palette.selectBrush(10 + parseInt(k, 16) - 10);
-
-    needsPick = true;
-  });
-
-  window.addEventListener('keyup', (e) => {
-    needsPick = true;
-  });
-
-  canvas.addEventListener('contextmenu', (e) => e.preventDefault());
-
-  // Edit handlers now produce actions (undoable)
-  canvas.addEventListener('mousedown', (e) => {
-    canvas.focus();
-    const pick = decodePickAt(e.clientX, e.clientY);
-    
-    // If clicking on empty space, auto-start camera rotation
-    if (pick.voxel < 0 || pick.face < 0) {
-      if (e.button === 0) {
-        dragging = true;
-        lastX = e.clientX;
-        lastY = e.clientY;
-      }
-      return;
-    }
-
-    if (e.button === 0 && mode === 'paint') {
-      // Paint
-      if (option == 'plane') {
-        const arr = getPlaneSurfaceVoxels(pick.voxel, pick.face);
-        if (arr.length > 0) {
-          const act = beginVoxelAction('Paint plane');
-          for (const id of arr) recordVoxelChange(act, id, true, palette.getBrush());
-          commitAction(act);
-        }
-      } else if (option == 'row') {
-        const arr = getRowSurfaceVoxels(pick.voxel, pick.face);
-        if (arr.length > 0) {
-          const act = beginVoxelAction(`Paint row`);
-          for (const id of arr) recordVoxelChange(act, id, true, palette.getBrush());
-          commitAction(act);
-        }
-      } else if (pick.voxel >= 0) {
-        const id = chunk.idx3(...chunk.coordsOf(pick.voxel));
-        if (chunk.isSolid(id)) {
-          const act = beginVoxelAction('Paint voxel');
-          recordVoxelChange(act, pick.voxel, true, palette.getBrush());
-          commitAction(act);
-        }
-      }
-    } else if (e.button === 0 && mode === 'add') {
-        // Add
-        if (option == 'plane') {
-          const targets = getPlaneAddTargets(pick.voxel, pick.face);
-          if (targets.length > 0) {
-            const act = beginVoxelAction('Add plane');
-            for (const t of targets) recordVoxelChange(act, t, true, palette.getBrush());
-            commitAction(act);
-          }
-        } else if (option == 'row') {
-          const targets = getRowAddTargets(pick.voxel, pick.face);
-          if (targets.length > 0) {
-            const act = beginVoxelAction(`Add row`);
-            for (const t of targets) recordVoxelChange(act, t, true, palette.getBrush());
-            commitAction(act);
-          }
-        } else if (pick.voxel >= 0 && pick.face >= 0) {
-            const [x, y, z] = chunk.coordsOf(pick.voxel);
-            const d = FACE_DIRS[pick.face];
-            const nx = x + d[0]
-            const ny = y + d[1]
-            const nz = z + d[2];
-            if (chunk.within(nx, ny, nz)) {
-              const id = chunk.idx3(nx, ny, nz);
-              if (!chunk.isSolid(id)) {
-                const act = beginVoxelAction('Add voxel');
-                recordVoxelChange(act, id, true, palette.getBrush());
-                commitAction(act);
-              }
-            }
-        }
-
-        needsPick = true;
-
-      } else if (e.button === 0 && mode === 'carve') {
-        // Remove (or toggle for single)
-        if (option == 'plane') {
-          const arr = getPlaneSurfaceVoxels(pick.voxel, pick.face);
-          const act = beginVoxelAction('Remove plane');
-          for (const id of arr) recordVoxelChange(act, id, false, chunk.material(id));
-          commitAction(act);
-        } else if (option == 'row') {
-          const arr = getRowSurfaceVoxels(pick.voxel, pick.face);
-          const act = beginVoxelAction(`Remove row`);
-          for (const id of arr) recordVoxelChange(act, id, false, chunk.material(id));
-          commitAction(act);
-        } else if (pick.voxel >= 0 && chunk.isSolid(pick.voxel)) {
-            const act = beginVoxelAction('Remove voxel');
-            recordVoxelChange(act, pick.voxel, false, chunk.material(pick.voxel)); // keep existing mat on toggle
-            commitAction(act);
-        }
-
-        needsPick = true;
-    }
-  });
-
-  window.addEventListener('mouseup', () => { 
-    dragging = false; 
-    buttons = 0; 
-  });
-
-  window.addEventListener('mousemove', (e) => {
-    if (!dragging) { 
-      mouseX = e.clientX;
-      mouseY = e.clientY;
-      needsPick = true; 
-    }
-    if (dragging) { 
-      const dx = e.clientX - lastX, dy = e.clientY - lastY; 
-      lastX = e.clientX;
-      lastY = e.clientY; 
-      const s = 0.005;
-      camera.theta += dx * s;
-      camera.phi -= dy * s;
-      camera.clamp();
-    }
-  }, { passive: true });
-
-  canvas.addEventListener('wheel', (e) => {
-    e.preventDefault();
-    const z = Math.pow(1.1, e.deltaY * 0.01);
-    camera.radius *= z;
-    camera.clamp();
-  }, { passive: false });
+  // Will be set by initializeUI
+  let updateHoverUI = () => {};
 
   function updateHover() {
     if (!needsPick) return;
@@ -905,6 +611,57 @@ document.getElementById('btnReset').addEventListener('click', () => {
   const COLOR_PAINT = [1.0, 0.60, 0.20];
   const COLOR_CARVE = [1.0, 0.32, 0.32];
   const COLOR_ADD = [0.27, 0.95, 0.42];
+
+  /*** ======= Grouping Meshes ======= ***/
+  const meshData = {};
+  let groupNames = [];
+
+  function buildAllMeshes() {
+  // 1. Remove group voxels from main
+  const mainSolid = new Array(N*N*N).fill(false);
+  for (let i = 0; i < chunk.isSolid.length; i++) mainSolid[i] = chunk.isSolid(i);
+  for (const group of animSystem.groups.values()) {
+    for (const idx of group.voxels) mainSolid[idx] = false;
+  }
+  meshData["main"] = { visible: true };
+
+  // 2. Create isSolid for each group
+  for (const [name, group] of animSystem.groups.entries()) {
+    const arr = new Array(N*N*N).fill(false);
+    for (const idx of group.voxels) arr[idx] = true;
+    meshData[name] = { isSolid: arr, visible: true };
+  }
+
+  // 3. Build geometry for each
+  for (const name of Object.keys(meshData)) {
+    const solidArr = name === "main" ? mainSolid : meshData[name].isSolid;
+    if (!meshData[name].vao) meshData[name].vao = gl.createVertexArray();
+    const { vao, indexCount } = chunk.buildGreedyRenderMesh(gl,renderProg, meshData[name].vao);
+    //meshData[name].vao = vao;
+    meshData[name].indexCount = indexCount;
+  }
+
+  // 4. Update group names
+  groupNames = ["main", ...Array.from(animSystem.groups.keys())];
+  updateGroupPanel();
+}
+
+function updateGroupPanel() {
+  const panel = document.getElementById('groupPanel');
+  panel.innerHTML = '';
+  groupNames.forEach(name => {
+    const label = document.createElement('label');
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = meshData[name].visible;
+    cb.addEventListener('change', () => {
+      meshData[name].visible = cb.checked;
+    });
+    label.appendChild(cb);
+    label.appendChild(document.createTextNode(name === "main" ? "Main" : name));
+    panel.appendChild(label);
+  });
+}
 
   // Add call to updateAxisLabels in render loop
   function render() {
@@ -962,7 +719,9 @@ document.getElementById('btnReset').addEventListener('click', () => {
         if (mode === 'add') {
           const [x, y, z] = chunk.coordsOf(hoverVoxel);
           const d = FACE_DIRS[hoverFace];
-          const nx = x + d[0], ny = y + d[1], nz = z + d[2];
+          const nx = x + d[0];
+          const ny = y + d[1];
+          const nz = z + d[2];
           if (chunk.within(nx, ny, nz) && !chunk.isSolid(chunk.idx3(nx, ny, nz))) drawVoxelWire(chunk.idx3(nx, ny, nz), COLOR_ADD, 1.006);
         } else if (mode === 'carve') {
           const [x, y, z] = chunk.coordsOf(hoverVoxel);
@@ -981,56 +740,75 @@ document.getElementById('btnReset').addEventListener('click', () => {
   requestAnimationFrame(render);
   setTimeout(resize, 0);
 
-  /*** ======= Grouping Meshes ======= ***/
-  const meshData = {};
-  let groupNames = [];
+  /*** ---- Initialize UI ---- ***/
+  const uiState = {
+    canvas,
+    chunk,
+    N,
+    palette,
+    camera,
+    animSystem,
+    animationTransforms,
+    
+    // State getters/setters
+    getMode: () => mode,
+    setMode: (val) => { mode = val; },
+    getOption: () => option,
+    setOption: (val) => { option = val; },
+    getHoverVoxel: () => hoverVoxel,
+    setHoverVoxel: (val) => { hoverVoxel = val; },
+    getHoverFace: () => hoverFace,
+    setHoverFace: (val) => { hoverFace = val; },
+    setNeedsPick: (val) => { needsPick = val; },
+    getDragging: () => dragging,
+    setDragging: (val) => { dragging = val; },
+    getLastX: () => lastX,
+    setLastX: (val) => { lastX = val; },
+    getLastY: () => lastY,
+    setLastY: (val) => { lastY = val; },
+    getMouseX: () => mouseX,
+    setMouseX: (val) => { mouseX = val; },
+    getMouseY: () => mouseY,
+    setMouseY: (val) => { mouseY = val; },
+    getLastTime: () => lastTime,
+    setLastTime: (val) => { lastTime = val; },
+    getRowHoverSurf: () => rowHoverSurf,
+    setRowHoverSurf: (val) => { rowHoverSurf = val; },
+    getRowHoverAdd: () => rowHoverAdd,
+    setRowHoverAdd: (val) => { rowHoverAdd = val; },
+    getPlaneHoverSurf: () => planeHoverSurf,
+    setPlaneHoverSurf: (val) => { planeHoverSurf = val; },
+    getPlaneHoverAdd: () => planeHoverAdd,
+    setPlaneHoverAdd: (val) => { planeHoverAdd = val; },
+    getGroupNames: () => groupNames,
+    setGroupNames: (val) => { groupNames = val; },
+    
+    // Functions
+    rebuildAll,
+    buildAllMeshes,
+    clearHistory,
+    undo,
+    redo,
+    exportToJSON,
+    importFromJSON,
+    decodePickAt,
+    getRowSurfaceVoxels,
+    getRowAddTargets,
+    getPlaneSurfaceVoxels,
+    getPlaneAddTargets,
+    beginVoxelAction,
+    recordVoxelChange,
+    commitAction,
+    updateGroupPanel,
+    
+    // Constants
+    FACE_DIRS
+  };
 
-  function buildAllMeshes() {
-  // 1. Remove group voxels from main
-  const mainSolid = new Array(N*N*N).fill(false);
-  for (let i = 0; i < chunk.isSolid.length; i++) mainSolid[i] = chunk.isSolid(i);
-  for (const group of animSystem.groups.values()) {
-    for (const idx of group.voxels) mainSolid[idx] = false;
-  }
-  meshData["main"] = { visible: true };
-
-  // 2. Create isSolid for each group
-  for (const [name, group] of animSystem.groups.entries()) {
-    const arr = new Array(N*N*N).fill(false);
-    for (const idx of group.voxels) arr[idx] = true;
-    meshData[name] = { isSolid: arr, visible: true };
-  }
-
-  // 3. Build geometry for each
-  for (const name of Object.keys(meshData)) {
-    const solidArr = name === "main" ? mainSolid : meshData[name].isSolid;
-    if (!meshData[name].vao) meshData[name].vao = gl.createVertexArray();
-    const { vao, indexCount } = chunk.buildGreedyRenderMesh(gl,renderProg, meshData[name].vao);
-    //meshData[name].vao = vao;
-    meshData[name].indexCount = indexCount;
-  }
-
-  // 4. Update group names
-  groupNames = ["main", ...Array.from(animSystem.groups.keys())];
-  updateGroupPanel();
-}
-
-function updateGroupPanel() {
-  const panel = document.getElementById('groupPanel');
-  panel.innerHTML = '';
-  groupNames.forEach(name => {
-    const label = document.createElement('label');
-    const cb = document.createElement('input');
-    cb.type = 'checkbox';
-    cb.checked = meshData[name].visible;
-    cb.addEventListener('change', () => {
-      meshData[name].visible = cb.checked;
-    });
-    label.appendChild(cb);
-    label.appendChild(document.createTextNode(name === "main" ? "Main" : name));
-    panel.appendChild(label);
-  });
-}
+  initializeUI(uiState);
+  
+  // Get updateHoverUI function after initialization
+  updateHoverUI = uiState.updateHoverUI;
 }
 
 document.addEventListener('DOMContentLoaded', main);
