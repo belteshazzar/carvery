@@ -1,0 +1,356 @@
+
+const FACE_DIRS = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1],[0,0,0]]; // last is for ground plane
+
+class Group {
+
+  constructor(chunk, min, max) {
+    this._chunk = chunk;
+    this._isSolid = new Array(chunk.length).fill(false);
+
+    for (let x = min[0]; x <= max[0]; x++) {
+      for (let y = min[1]; y <= max[1]; y++) {
+        for (let z = min[2]; z <= max[2]; z++) {
+          if (!chunk.within(x, y, z)) continue;
+          const idx = chunk.idx3(x, y, z);
+          this._isSolid[idx] = true;
+        }
+      }
+    }
+  }
+
+  contains(index) {
+    return this._isSolid[index];
+  }
+}
+
+export class VoxelChunk {
+
+  constructor(size) {
+    this._size = size;
+
+    this._isSolid = new Array(size * size * size).fill(true);
+    this._material = new Uint8Array(size * size * size);
+    this._groups = new Map();
+  }
+
+  addGroup(name,min,max) {
+    const group = new Group(this, min, max);
+    this._groups.set(name, group);
+  }
+
+  fill(value) {
+    this._isSolid.fill(value);
+  }
+
+  get length() {
+    return this._isSolid.length;
+  }
+  
+  isSolid(index) {
+    return this._isSolid[index];
+  }
+
+  setSolid(index, value) {
+    this._isSolid[index] = value;
+  }
+
+  material(index) {
+    return this._material[index];
+  }
+
+  setMaterial(index, value) {
+    this._material[index] = value;
+  }
+
+  setMaterialAll(value) {
+    this._material.fill(value);
+  }
+
+  idx3(x, y, z) {
+    return x + this._size * (y + this._size * z);
+  }
+
+  within(x, y, z) {
+    return x >= 0 && y >= 0 && z >= 0 && x < this._size && y < this._size && z < this._size;
+  }
+
+  coordsOf(id) {
+    const z = Math.floor(id / (this._size * this._size));
+    const y = Math.floor((id - z * this._size * this._size) / this._size);
+    const x = id - z * this._size * this._size - y * this._size;
+    return [x, y, z];
+  }
+
+
+  faceExposed(x, y, z, f) {
+    const d = FACE_DIRS[f], here = this.isSolid(this.idx3(x, y, z)); 
+    const nx = x + d[0], ny = y + d[1], nz = z + d[2]; 
+    const nb = this.within(nx, ny, nz) ? this.isSolid(this.idx3(nx, ny, nz)) : false; 
+    return here && !nb;
+  }
+
+  seedMaterials(mode = "bands") {
+    for (let z = 0; z < this._size; z++) {
+      for (let y = 0; y < this._size; y++) {
+        for (let x = 0; x < this._size; x++) {
+          const idx = this.idx3(x, y, z);
+          const mat = mode === "random" ? ((Math.random() * 16) | 0) : (((x >> 2) + (y >> 2) + (z >> 2)) % 16);
+          this.setMaterial(idx, mat);
+        }
+      }
+    }
+  }
+
+  buildGreedyRenderMesh(gl, renderProg, vao) {
+    console.log('Building greedy mesh...', vao);
+    const positions = [], normals = [], matIds = [], indices = [];
+    let indexBase = 0;
+
+//    const visCount = () => { let vis = 0; for (let z = 0; z < this._size; z++)for (let y = 0; y < this._size; y++)for (let x = 0; x < this._size; x++) { if (!this.isSolid(this.idx3(x, y, z))) continue; if (this.faceExposed(x, y, z, 0) || this.faceExposed(x, y, z, 1) || this.faceExposed(x, y, z, 2) || this.faceExposed(x, y, z, 3) || this.faceExposed(x, y, z, 4) || this.faceExposed(x, y, z, 5)) vis++; } return vis; };
+
+    for (let axis = 0; axis < 3; axis++) {
+      const u = (axis + 1) % 3, v = (axis + 2) % 3, dims = [this._size, this._size, this._size];
+      for (let side = 0; side < 2; side++) {
+        const n = [0, 0, 0]; n[axis] = (side === 0 ? 1 : -1);
+        for (let k = 0; k <= dims[axis]; k++) {
+          const mask = new Array(dims[u] * dims[v]).fill(null);
+          for (let j = 0; j < dims[v]; j++) for (let i = 0; i < dims[u]; i++) {
+            const c = [0, 0, 0]; c[u] = i; c[v] = j; c[axis] = (side === 0 ? k - 1 : k);
+            if (!this.within(c[0], c[1], c[2])) continue;
+            const idx = this.idx3(c[0], c[1], c[2]);
+            if (!this.isSolid(idx)) continue;
+            //if (animatedVoxels.has(idx)) continue;
+            const neigh = [c[0] + n[0], c[1] + n[1], c[2] + n[2]];
+            if (this.within(neigh[0], neigh[1], neigh[2]) && this.isSolid(this.idx3(neigh[0], neigh[1], neigh[2]))) continue;
+            mask[i + dims[u] * j] = this.material(idx);
+          }
+          let jRow = 0;
+          while (jRow < dims[v]) {
+            let iCol = 0;
+            while (iCol < dims[u]) {
+              const m = mask[iCol + dims[u] * jRow];
+              if (m == null) { iCol++; continue; }
+              let w = 1; 
+              while (iCol + w < dims[u] && mask[(iCol + w) + dims[u] * jRow] === m) w++;
+              let h = 1; 
+              heightLoop: while (jRow + h < dims[v]) { for (let xw = 0; xw < w; xw++) { if (mask[(iCol + xw) + dims[u] * (jRow + h)] !== m) break heightLoop; } h++; }
+              // Update base position calculation in buildGreedyRenderMesh()
+              const base = [0, 0, 0]; 
+              base[u] = iCol;  // Remove cell multiplication
+              base[v] = jRow;  
+              base[axis] = k;
+              const eps = 1e-6;
+
+              // Fix quad vertex positions to use direct coordinates
+              const du = [0, 0, 0]; du[u] = w;
+              const dv = [0, 0, 0]; dv[v] = h;
+              
+              // Create quad vertices using actual coordinates
+              const v0 = base.slice();
+              const v1 = base.slice(); v1[u] += w;
+              const v2 = v1.slice(); v2[v] += h;
+              const v3 = base.slice(); v3[v] += h;
+
+              // Add epsilon offset in normal direction
+              const nrm = [0, 0, 0]; nrm[axis] = n[axis];
+              v0[axis] += n[axis] * eps;
+              v1[axis] += n[axis] * eps;
+              v2[axis] += n[axis] * eps;
+              v3[axis] += n[axis] * eps;
+
+              positions.push(
+                v0[0], v0[1], v0[2],
+                v1[0], v1[1], v1[2],
+                v2[0], v2[1], v2[2],
+                v3[0], v3[1], v3[2]
+              );
+
+              normals.push(nrm[0], nrm[1], nrm[2], nrm[0], nrm[1], nrm[2], nrm[0], nrm[1], nrm[2], nrm[0], nrm[1], nrm[2]);
+              matIds.push(m, m, m, m);
+              if (n[axis] > 0) { 
+                indices.push(indexBase, indexBase + 1, indexBase + 2, indexBase, indexBase + 2, indexBase + 3); 
+              } else { 
+                indices.push(indexBase, indexBase + 3, indexBase + 2, indexBase, indexBase + 2, indexBase + 1); 
+              }
+              indexBase += 4;
+              for (let y2 = 0; y2 < h; y2++) for (let x2 = 0; x2 < w; x2++) mask[(iCol + x2) + dims[u] * (jRow + y2)] = null;
+              iCol += w;
+            }
+            jRow++;
+          }
+        }
+      }
+    }
+
+    // Upload render mesh
+    gl.bindVertexArray(vao);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.DYNAMIC_DRAW);
+    gl.enableVertexAttribArray(renderProg.aPosition.location);
+    gl.vertexAttribPointer(renderProg.aPosition.location, 3, gl.FLOAT, false, 0, 0);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(normals), gl.DYNAMIC_DRAW);
+    gl.enableVertexAttribArray(renderProg.aNormal.location);
+    gl.vertexAttribPointer(renderProg.aNormal.location, 3, gl.FLOAT, false, 0, 0);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+    gl.bufferData(gl.ARRAY_BUFFER, new Uint8Array(matIds), gl.DYNAMIC_DRAW);
+    gl.enableVertexAttribArray(renderProg.aMatId.location);
+    gl.vertexAttribIPointer(renderProg.aMatId.location, 1, gl.UNSIGNED_BYTE, 0, 0);
+
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.createBuffer());
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint32Array(indices), gl.DYNAMIC_DRAW);
+   
+    gl.bindVertexArray(null);
+
+    let indexCount = indices.length;
+//    document.getElementById('quads').textContent = (indexCount / 6).toString();
+//    document.getElementById('tris').textContent = indexCount.toString();
+//    document.getElementById('vis').textContent = visCount().toString();
+//console.log('Built mesh: ', { indexCount, quads: indexCount / 6, visibleVoxels: visCount() });
+    return { vao, indexCount };
+  }
+
+
+    // Modify buildPickFaces to create separate geometries
+  buildPickFaces(gl, pickProg) {
+    // Geometry for voxel faces
+    const voxelPos = [], voxelPacked = [], voxelIndices = []; 
+    // Geometry for ground plane
+    const groundPos = [], groundPacked = [], groundIndices = [];
+    let voxelBase = 0, groundBase = 0;
+
+        // Build voxel face geometry
+    const faces = [
+      { axis: 0, sign: +1, u: 2, v: 1, id: 0 }, // +X
+      { axis: 0, sign: -1, u: 2, v: 1, id: 1 }, // -X
+      { axis: 1, sign: +1, u: 0, v: 2, id: 2 }, // +Y
+      { axis: 1, sign: -1, u: 0, v: 2, id: 3 }, // -Y
+      { axis: 2, sign: +1, u: 0, v: 1, id: 4 }, // +Z
+      { axis: 2, sign: -1, u: 0, v: 1, id: 5 }  // -Z
+    ];
+
+    const groundY = 0; // Y position of ground plane
+    // Build ground plane geometry
+    for (let z = 0; z < this._size; z++) for (let x = 0; x < this._size; x++) for (let fid = 2; fid <= 2; fid++) {
+      const vIdx = this.idx3(x, groundY, z);
+      const min = [x, groundY, z];
+      const f = faces[fid];
+
+        const plane = min.slice();
+        
+        const u = f.u
+        const v = f.v;
+        const p0 = plane.slice();
+        const p1 = plane.slice(); 
+        p1[u] += 1;
+        const p2 = p1.slice(); 
+        p2[v] += 1;
+        const p3 = plane.slice(); 
+        p3[v] += 1;
+        
+        groundPos.push(
+          p0[0], p0[1], p0[2],
+          p1[0], p1[1], p1[2],
+          p2[0], p2[1], p2[2],
+          p3[0], p3[1], p3[2]
+        );
+      
+      // Special pack value for ground plane
+      const groundPack = ((vIdx + 1) << 4) | (6 & 7); // Face ID 6 for ground plane
+
+      groundPacked.push(groundPack, groundPack, groundPack, groundPack);
+      groundIndices.push(
+        groundBase, groundBase + 1, groundBase + 2,
+        groundBase, groundBase + 2, groundBase + 3
+      );
+      groundBase += 4;
+    }
+
+    for (let z = 0; z < this._size; z++) for (let y = 0; y < this._size; y++) for (let x = 0; x < this._size; x++) {
+      const vIdx = this.idx3(x, y, z);
+      if (!this.isSolid(vIdx)) continue;
+
+      const min = [x, y, z];
+
+      for (const f of faces) {
+        if (!this.faceExposed(x, y, z, f.id)) continue;
+        
+        const plane = min.slice();
+        plane[f.axis] += (f.sign > 0 ? 1 : 0);
+        
+        const u = f.u
+        const v = f.v;
+        const p0 = plane.slice();
+        const p1 = plane.slice(); 
+        p1[u] += 1;
+        const p2 = p1.slice(); 
+        p2[v] += 1;
+        const p3 = plane.slice(); 
+        p3[v] += 1;
+        
+        voxelPos.push(
+          p0[0], p0[1], p0[2],
+          p1[0], p1[1], p1[2],
+          p2[0], p2[1], p2[2],
+          p3[0], p3[1], p3[2]
+        );
+        
+        const pack = ((vIdx + 1) << 4) | (f.id & 7);
+        voxelPacked.push(pack, pack, pack, pack);
+        
+        voxelIndices.push(
+          voxelBase, voxelBase + 1, voxelBase + 2,
+          voxelBase, voxelBase + 2, voxelBase + 3
+        );
+        voxelBase += 4;
+      }
+    }
+
+    // Create second vao for pickProg
+    if (!pickProg.vaoGround) pickProg.vaoGround = gl.createVertexArray();
+
+    // Setup voxel VAO
+    gl.bindVertexArray(pickProg.vao);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(voxelPos), gl.DYNAMIC_DRAW);
+    gl.enableVertexAttribArray(pickProg.aPosition.location);
+    gl.vertexAttribPointer(pickProg.aPosition.location, 3, gl.FLOAT, false, 0, 0);
+    
+    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+    gl.bufferData(gl.ARRAY_BUFFER, new Uint32Array(voxelPacked), gl.DYNAMIC_DRAW);
+    gl.enableVertexAttribArray(pickProg.aPacked.location);
+    gl.vertexAttribIPointer(pickProg.aPacked.location, 1, gl.UNSIGNED_INT, 0, 0);
+    
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.createBuffer());
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint32Array(voxelIndices), gl.DYNAMIC_DRAW);
+
+    // Setup ground VAO
+    gl.bindVertexArray(pickProg.vaoGround);
+    
+    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(groundPos), gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(pickProg.aPosition.location);
+    gl.vertexAttribPointer(pickProg.aPosition.location, 3, gl.FLOAT, false, 0, 0);
+    
+    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+    gl.bufferData(gl.ARRAY_BUFFER, new Uint32Array(groundPacked), gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(pickProg.aPacked.location);
+    gl.vertexAttribIPointer(pickProg.aPacked.location, 1, gl.UNSIGNED_INT, 0, 0);
+    
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.createBuffer());
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint32Array(groundIndices), gl.STATIC_DRAW);
+
+    gl.bindVertexArray(null);
+
+    pickProg.meta.pickVoxelCount = voxelIndices.length;
+    pickProg.meta.pickGroundCount = groundIndices.length;
+
+    console.log('Built pick faces: ', { voxelFaces: voxelIndices.length / 3, groundFaces: groundIndices.length / 3 });  
+  }
+
+
+}

@@ -68,6 +68,34 @@
   <!-- Palette editor -->
   <div class="toolbar-row" id="palette"></div>
 </div>
+
+<!-- Add to index.html -->
+<div class="animation-panel">
+  <textarea id="animationDSL" rows="10" cols="40" placeholder="Enter animation DSL here...">
+group door {
+  bounds 0,0,0 to 2,4,1
+  hinge at 0,0,0 axis y
+  rotate 0 to 90 duration 2s
+}
+
+group platform {
+  bounds 4,0,4 to 8,1,8
+  move y 0 to 4 duration 1s
+  wait 0.5s
+  move y 4 to 0 duration 1s
+}
+
+  </textarea>
+  <div class="animation-controls">
+    <button id="btnCompile">Compile</button>
+    <button id="btnPlay">Play</button>
+    <button id="btnPause">Pause</button>
+    <button id="btnReset">Reset</button>
+  </div>
+</div>
+
+<div id="groupPanel" class="group-panel"></div>
+
 </div>
 
   <script type="module" src="/src/main.js"></script>

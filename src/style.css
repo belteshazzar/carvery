@@ -197,3 +197,52 @@ button:hover {
 input[type="color"] {
   display: none;
 }
+
+.animation-panel {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.animation-panel textarea {
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  padding: 8px;
+  font-family: monospace;
+  resize: vertical;
+}
+
+.animation-controls {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.group-panel {
+  position: absolute;
+  top: 60px;
+  right: 12px;
+  background: rgba(0,0,0,0.7);
+  border-radius: 8px;
+  padding: 10px 16px;
+  z-index: 20;
+  color: #cfd3dc;
+  font-size: 14px;
+  min-width: 120px;
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255,255,255,0.1);
+}
+.group-panel label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+  cursor: pointer;
+}
