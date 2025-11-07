@@ -96,7 +96,7 @@ export function initializeUI(state) {
       }
       buildAllMeshes();
 
-      state.groupNames = ["main", ...Array.from(animSystem.groups.keys())];
+      state.setGroupNames(["main", ...Array.from(animSystem.groups.keys())]);
       updateGroupPanel();
 
     } catch(e) {
@@ -328,8 +328,8 @@ export function initializeUI(state) {
         } else if (pick.voxel >= 0 && pick.face >= 0) {
             const [x, y, z] = chunk.coordsOf(pick.voxel);
             const d = FACE_DIRS[pick.face];
-            const nx = x + d[0]
-            const ny = y + d[1]
+            const nx = x + d[0];
+            const ny = y + d[1];
             const nz = z + d[2];
             if (chunk.within(nx, ny, nz)) {
               const id = chunk.idx3(nx, ny, nz);

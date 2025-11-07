@@ -778,6 +778,8 @@ function updateGroupPanel() {
     setPlaneHoverSurf: (val) => { planeHoverSurf = val; },
     getPlaneHoverAdd: () => planeHoverAdd,
     setPlaneHoverAdd: (val) => { planeHoverAdd = val; },
+    getGroupNames: () => groupNames,
+    setGroupNames: (val) => { groupNames = val; },
     
     // Functions
     rebuildAll,
@@ -798,10 +800,7 @@ function updateGroupPanel() {
     updateGroupPanel,
     
     // Constants
-    FACE_DIRS,
-    
-    // Will be set by initializeUI
-    groupNames
+    FACE_DIRS
   };
 
   initializeUI(uiState);
