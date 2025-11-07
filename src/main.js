@@ -719,7 +719,9 @@ function updateGroupPanel() {
         if (mode === 'add') {
           const [x, y, z] = chunk.coordsOf(hoverVoxel);
           const d = FACE_DIRS[hoverFace];
-          const nx = x + d[0], ny = y + d[1], nz = z + d[2];
+          const nx = x + d[0];
+          const ny = y + d[1];
+          const nz = z + d[2];
           if (chunk.within(nx, ny, nz) && !chunk.isSolid(chunk.idx3(nx, ny, nz))) drawVoxelWire(chunk.idx3(nx, ny, nz), COLOR_ADD, 1.006);
         } else if (mode === 'carve') {
           const [x, y, z] = chunk.coordsOf(hoverVoxel);
