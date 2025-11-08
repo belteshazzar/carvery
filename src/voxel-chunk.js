@@ -5,21 +5,21 @@ class Group {
 
   constructor(chunk, min, max) {
     this._chunk = chunk;
-    this._isSolid = new Array(chunk.length).fill(false);
+    this._mask = new Array(chunk.length).fill(false);
 
     for (let x = min[0]; x <= max[0]; x++) {
       for (let y = min[1]; y <= max[1]; y++) {
         for (let z = min[2]; z <= max[2]; z++) {
           if (!chunk.within(x, y, z)) continue;
           const idx = chunk.idx3(x, y, z);
-          this._isSolid[idx] = true;
+          this._mask[idx] = true;
         }
       }
     }
   }
 
   contains(index) {
-    return this._isSolid[index];
+    return this._mask[index];
   }
 }
 
@@ -101,12 +101,40 @@ export class VoxelChunk {
     }
   }
 
-  buildGreedyRenderMesh(gl, renderProg, vao) {
+  buildGreedyRenderMeshMain(gl, renderProg, vao) {
+    const isSolid = (idx) => {
+      if (!this.isSolid(idx)) return false;
+      for (const group of this._groups.values()) {
+        if (group.contains(idx)) {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    return this._buildGreedyRenderMesh(gl, renderProg, vao, isSolid);
+  }
+
+  buildGreedyRenderMeshGroup(gl, renderProg, vao, groupName) {
+    const group = this._groups.get(groupName);
+    const isSolid = (idx) => {
+      if (!this.isSolid(idx)) return false;
+      if (group && group.contains(idx)) {
+        return true;
+      }
+      return false;
+    }
+
+    return this._buildGreedyRenderMesh(gl, renderProg, vao, isSolid);
+  }
+
+  _buildGreedyRenderMesh(gl, renderProg, vao, isSolid) {
     console.log('Building greedy mesh...', vao);
     const positions = [], normals = [], matIds = [], indices = [];
+
     let indexBase = 0;
 
-//    const visCount = () => { let vis = 0; for (let z = 0; z < this._size; z++)for (let y = 0; y < this._size; y++)for (let x = 0; x < this._size; x++) { if (!this.isSolid(this.idx3(x, y, z))) continue; if (this.faceExposed(x, y, z, 0) || this.faceExposed(x, y, z, 1) || this.faceExposed(x, y, z, 2) || this.faceExposed(x, y, z, 3) || this.faceExposed(x, y, z, 4) || this.faceExposed(x, y, z, 5)) vis++; } return vis; };
+  //  const visCount = () => { let vis = 0; for (let z = 0; z < this._size; z++)for (let y = 0; y < this._size; y++)for (let x = 0; x < this._size; x++) { if (!this.isSolid(this.idx3(x, y, z))) continue; if (this.faceExposed(x, y, z, 0) || this.faceExposed(x, y, z, 1) || this.faceExposed(x, y, z, 2) || this.faceExposed(x, y, z, 3) || this.faceExposed(x, y, z, 4) || this.faceExposed(x, y, z, 5)) vis++; } return vis; };
 
     for (let axis = 0; axis < 3; axis++) {
       const u = (axis + 1) % 3, v = (axis + 2) % 3, dims = [this._size, this._size, this._size];
@@ -118,10 +146,10 @@ export class VoxelChunk {
             const c = [0, 0, 0]; c[u] = i; c[v] = j; c[axis] = (side === 0 ? k - 1 : k);
             if (!this.within(c[0], c[1], c[2])) continue;
             const idx = this.idx3(c[0], c[1], c[2]);
-            if (!this.isSolid(idx)) continue;
+            if (!isSolid(idx)) continue;
             //if (animatedVoxels.has(idx)) continue;
             const neigh = [c[0] + n[0], c[1] + n[1], c[2] + n[2]];
-            if (this.within(neigh[0], neigh[1], neigh[2]) && this.isSolid(this.idx3(neigh[0], neigh[1], neigh[2]))) continue;
+            if (this.within(neigh[0], neigh[1], neigh[2]) && isSolid(this.idx3(neigh[0], neigh[1], neigh[2]))) continue;
             mask[i + dims[u] * j] = this.material(idx);
           }
           let jRow = 0;
@@ -209,8 +237,8 @@ export class VoxelChunk {
 //    document.getElementById('quads').textContent = (indexCount / 6).toString();
 //    document.getElementById('tris').textContent = indexCount.toString();
 //    document.getElementById('vis').textContent = visCount().toString();
-//console.log('Built mesh: ', { indexCount, quads: indexCount / 6, visibleVoxels: visCount() });
-    return { vao, indexCount };
+console.log('Built mesh: ', { indexCount, quads: indexCount / 6 });
+    return indexCount;
   }
 
 

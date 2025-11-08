@@ -10,10 +10,10 @@ import pickFrag from './pick.frag';
 import pickVert from './pick.vert';
 import axisFrag from './axis.frag';
 import axisVert from './axis.vert';
-import { 
+import {
   hexToRgbF,
   rgbToHexF,
-  PaletteUI 
+  PaletteUI
 } from './palette.js';
 import { AnimationSystem } from './animation.js';
 import { VoxelChunk } from './voxel-chunk.js';
@@ -34,6 +34,8 @@ function main() {
 
   // Programs
   const renderProg = createProgram(gl, lambertVert, lambertFrag);
+  renderProg.meta.visible = true;
+  renderProg.meta.groups = {};
   const pickProg = createProgram(gl, pickVert, pickFrag);
   const wireProg = createProgram(gl, wireframeVert, wireframeFrag);
   const axisProg = createProgram(gl, axisVert, axisFrag);
@@ -72,33 +74,22 @@ function main() {
 
   gl.bindVertexArray(null);
 
-// Add inside main()
-const animSystem = new AnimationSystem();
-let animationTransforms = new Map();
-let lastTime = 0;
+  // Add inside main()
+  const animSystem = new AnimationSystem();
+  let animationTransforms = new Map();
+  let lastTime = 0;
 
   /*** ---- World State ---- ***/
   let N = 16;
   const chunk = new VoxelChunk(N);
 
-  const FACE_DIRS = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1],[0,0,0]]; // last is for ground plane
+  const FACE_DIRS = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1], [0, 0, 0]]; // last is for ground plane
   const FACE_INFO = [{ axis: 0, u: 2, v: 1 }, { axis: 0, u: 2, v: 1 }, { axis: 1, u: 0, v: 2 }, { axis: 1, u: 0, v: 2 }, { axis: 2, u: 0, v: 1 }, { axis: 2, u: 0, v: 1 }];
 
   chunk.seedMaterials("bands");
 
-  /*** ---- Pick faces (unmerged) ---- ***/
-
-  function rebuildAll() { 
-    let { vao, indexCount } = chunk.buildGreedyRenderMesh(gl,renderProg, renderProg.vao); 
-    renderProg.meta.renderIndexCount = indexCount;
-    chunk.buildPickFaces(gl, pickProg);
-  }
-
-  rebuildAll();
-
-  /*** ---- Camera / lighting ---- ***/
-  const camera = new OrbitCamera({ 
-    target: [8,8,8],
+  const camera = new OrbitCamera({
+    target: [8, 8, 8],
     radius: 40,  // Increase to match new world size
     theta: toRadians(215), // 45 degrees to see positive axes
     phi: toRadians(60)    // ~35 degrees up
@@ -117,7 +108,7 @@ let lastTime = 0;
     if (pickDepth) gl.deleteRenderbuffer(pickDepth);
     if (pickFBO) gl.deleteFramebuffer(pickFBO);
 
-    pickTex = gl.createTexture(); 
+    pickTex = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, pickTex);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
@@ -131,8 +122,8 @@ let lastTime = 0;
     gl.bindFramebuffer(gl.FRAMEBUFFER, pickFBO);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, pickTex, 0);
     gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, pickDepth);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null); 
-    pickW = w; 
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    pickW = w;
     pickH = h;
   }
 
@@ -155,7 +146,7 @@ let lastTime = 0;
 
     const cullWas = gl.isEnabled(gl.CULL_FACE);
     if (cullWas) gl.disable(gl.CULL_FACE);
-    
+
     gl.useProgram(pickProg.program);
     pickProg.uModel.set(model);
     pickProg.uView.set(camera.view());
@@ -205,13 +196,13 @@ let lastTime = 0;
     const sx = (maxX - minX + 1);  // Remove cell multiplication
     const sy = (maxY - minY + 1);
     const sz = (maxZ - minZ + 1);
-    
+
     const cx = minX + sx * 0.5;  // Remove cell multiplication
     const cy = minY + sy * 0.5;
     const cz = minZ + sz * 0.5;
 
     gl.useProgram(wireProg.program);
-    
+
     wireProg.uModel.set(model);
     wireProg.uView.set(camera.view());
     wireProg.uProj.set(proj);
@@ -265,7 +256,7 @@ let lastTime = 0;
         for (let x = 0; x < N; x++) {
           const id = chunk.idx3(x, y, z);
           if (chunk.isSolid(id)) {
-            voxels.push( `${intToHexChar(x)}${intToHexChar(y)}${intToHexChar(z)}${intToHexChar(chunk.material(id))}`);
+            voxels.push(`${intToHexChar(x)}${intToHexChar(y)}${intToHexChar(z)}${intToHexChar(chunk.material(id))}`);
           }
         }
       }
@@ -290,28 +281,28 @@ let lastTime = 0;
     if (!obj || typeof obj !== 'object') throw new Error('Root must be object');
     if (!Array.isArray(obj.voxels)) throw new Error('Missing "voxels"');
     if (obj.size != 16) throw new Error('Invalid "size"');
-    
+
     if (Array.isArray(obj.palette)) {
       for (let i = 0; i < Math.min(16, obj.palette.length); i++) {
-        const e = obj.palette[i]; 
+        const e = obj.palette[i];
         let rgb;
 
-        if (typeof e === 'string') rgb = hexToRgbF(e); 
+        if (typeof e === 'string') rgb = hexToRgbF(e);
         else if (Array.isArray(e) && e.length >= 3) rgb = [+e[0], +e[1], +e[2]];
 
-        if (rgb) { 
+        if (rgb) {
           palette.setPaletteColor(i, [
-            Math.max(0, Math.min(1, rgb[0])), 
-            Math.max(0, Math.min(1, rgb[1])), 
+            Math.max(0, Math.min(1, rgb[0])),
+            Math.max(0, Math.min(1, rgb[1])),
             Math.max(0, Math.min(1, rgb[2]))
-          ]); 
+          ]);
         }
       }
     }
 
     chunk.fill(false);
     chunk.setMaterialAll(0);
-  
+
     for (const v of obj.voxels) {
       if (!v) continue;
       const x = hexCharToInt(v[0]);
@@ -324,7 +315,7 @@ let lastTime = 0;
         chunk.setMaterial(id, m);
       }
     }
-    rebuildAll();
+    buildAllMeshes();
     clearHistory(); // imported scene becomes baseline
   }
 
@@ -335,13 +326,13 @@ let lastTime = 0;
     { axis: 1, u: 0, v: 2 }, // -Y
     { axis: 2, u: 0, v: 1 }, // +Z
     { axis: 2, u: 0, v: 1 }, // -Z
-   { axis: 1, u: 0, v: 2 }, // ground plane +Y
+    { axis: 1, u: 0, v: 2 }, // ground plane +Y
   ];
 
   function getRowSurfaceVoxels(vIdx, faceId) {
     if (vIdx < 0 || faceId < 0 || faceId > FACE_ROW_INFO.length) return [];
     const info = FACE_ROW_INFO[faceId]
-    const [x0, y0, z0] = chunk.coordsOf(vIdx); 
+    const [x0, y0, z0] = chunk.coordsOf(vIdx);
     const U = info.u
     const V = info.v
     const AX = info.axis;
@@ -351,9 +342,9 @@ let lastTime = 0;
 
     for (let t = 0; t < N; t++) {
       const c = [0, 0, 0];
-        c[U] = fixedU;
-        c[V] = fixedV;
-        c[AX] = t;
+      c[U] = fixedU;
+      c[V] = fixedV;
+      c[AX] = t;
       if (!chunk.within(c[0], c[1], c[2])) continue;
       if (!chunk.isSolid(chunk.idx3(c[0], c[1], c[2]))) continue;
       out.push(chunk.idx3(c[0], c[1], c[2]));
@@ -375,7 +366,7 @@ let lastTime = 0;
     if (vIdx < 0 || faceId < 0) return [];
 
     const info = FACE_ROW_ADD_INFO[faceId]
-    const [x0, y0, z0] = chunk.coordsOf(vIdx); 
+    const [x0, y0, z0] = chunk.coordsOf(vIdx);
     const U = info.u
     const V = info.v
     const AX = info.axis;
@@ -444,10 +435,10 @@ let lastTime = 0;
 
   function getPlaneAddTargets(vIdx, faceId) {
     const d = FACE_DIRS[faceId]
-    const surf = (faceId === 6) ? getGroundPlaneVoxels() :getPlaneSurfaceVoxels(vIdx, faceId);
+    const surf = (faceId === 6) ? getGroundPlaneVoxels() : getPlaneSurfaceVoxels(vIdx, faceId);
     const tSet = new Set();
     for (const s of surf) {
-      const [x, y, z] = chunk.coordsOf(s); 
+      const [x, y, z] = chunk.coordsOf(s);
       const nx = x + d[0]
       const ny = y + d[1]
       const nz = z + d[2];
@@ -468,10 +459,10 @@ let lastTime = 0;
     redoBtn.disabled = redoStack.length === 0;
   }
 
-  function clearHistory() { 
-    undoStack.length = 0; 
-    redoStack.length = 0; 
-    updateUndoUI(); 
+  function clearHistory() {
+    undoStack.length = 0;
+    redoStack.length = 0;
+    updateUndoUI();
   }
 
   function beginVoxelAction(label) {
@@ -534,7 +525,7 @@ let lastTime = 0;
     undoStack.push(action);
     redoStack.length = 0;
     updateUndoUI();
-    if (action.type === 'voxels' && rebuild) rebuildAll();
+    if (action.type === 'voxels' && rebuild) buildAllMeshes();
   }
 
   function undo() {
@@ -543,7 +534,7 @@ let lastTime = 0;
     applyAction(act, 'undo');
     redoStack.push(act);
     updateUndoUI();
-    if (act.type === 'voxels') rebuildAll();
+    if (act.type === 'voxels') buildAllMeshes();
   }
 
   function redo() {
@@ -552,7 +543,7 @@ let lastTime = 0;
     applyAction(act, 'do');
     undoStack.push(act);
     updateUndoUI();
-    if (act.type === 'voxels') rebuildAll();
+    if (act.type === 'voxels') buildAllMeshes();
   }
 
   /*** ---- Input, hover, keyboard ---- ***/
@@ -564,7 +555,7 @@ let lastTime = 0;
   let rowHoverSurf = [], rowHoverAdd = [], planeHoverSurf = [], planeHoverAdd = [];
 
   // Will be set by initializeUI
-  let updateHoverUI = () => {};
+  let updateHoverUI = () => { };
 
   function updateHover() {
     if (!needsPick) return;
@@ -617,55 +608,47 @@ let lastTime = 0;
   let groupNames = [];
 
   function buildAllMeshes() {
-  // 1. Remove group voxels from main
-  const mainSolid = new Array(N*N*N).fill(false);
-  for (let i = 0; i < chunk.isSolid.length; i++) mainSolid[i] = chunk.isSolid(i);
-  for (const group of animSystem.groups.values()) {
-    for (const idx of group.voxels) mainSolid[idx] = false;
-  }
-  meshData["main"] = { visible: true };
 
-  // 2. Create isSolid for each group
-  for (const [name, group] of animSystem.groups.entries()) {
-    const arr = new Array(N*N*N).fill(false);
-    for (const idx of group.voxels) arr[idx] = true;
-    meshData[name] = { isSolid: arr, visible: true };
-  }
+    console.log('Rebuilding all meshes...');
+    renderProg.meta.renderIndexCount = chunk.buildGreedyRenderMeshMain(gl, renderProg, renderProg.vao);
 
-  // 3. Build geometry for each
-  for (const name of Object.keys(meshData)) {
-    const solidArr = name === "main" ? mainSolid : meshData[name].isSolid;
-    if (!meshData[name].vao) meshData[name].vao = gl.createVertexArray();
-    const { vao, indexCount } = chunk.buildGreedyRenderMesh(gl,renderProg, meshData[name].vao);
-    //meshData[name].vao = vao;
-    meshData[name].indexCount = indexCount;
+    renderProg.meta.groups = {};
+    for (const [name, group] of animSystem.groups.entries()) {
+
+      renderProg.meta.groups[name] = {};
+      renderProg.meta.groups[name].vao = gl.createVertexArray();
+      renderProg.meta.groups[name].visible = true;
+      renderProg.meta.groups[name].indexCount = chunk.buildGreedyRenderMeshGroup(gl, renderProg, renderProg.meta.groups[name].vao, name);
+    }
+
+    chunk.buildPickFaces(gl, pickProg);
+
+    updateGroupPanel();
   }
 
-  // 4. Update group names
-  groupNames = ["main", ...Array.from(animSystem.groups.keys())];
-  updateGroupPanel();
-}
+  buildAllMeshes();
 
-function updateGroupPanel() {
-  const panel = document.getElementById('groupPanel');
-  panel.innerHTML = '';
-  groupNames.forEach(name => {
-    const label = document.createElement('label');
-    const cb = document.createElement('input');
-    cb.type = 'checkbox';
-    cb.checked = meshData[name].visible;
-    cb.addEventListener('change', () => {
-      meshData[name].visible = cb.checked;
+  function updateGroupPanel() {
+    const panel = document.getElementById('groupPanel');
+    panel.innerHTML = '';
+    ["main", ...Object.keys(renderProg.meta.groups)].forEach(name => {
+      const group = name == "main" ? renderProg.meta : renderProg.meta.groups[name];
+      const label = document.createElement('label');
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = group.visible;
+      cb.addEventListener('change', () => {
+        group.visible = cb.checked;
+      });
+      label.appendChild(cb);
+      label.appendChild(document.createTextNode(name === "main" ? "Main" : name));
+      panel.appendChild(label);
     });
-    label.appendChild(cb);
-    label.appendChild(document.createTextNode(name === "main" ? "Main" : name));
-    panel.appendChild(label);
-  });
-}
+  }
 
   // Add call to updateAxisLabels in render loop
   function render() {
-    gl.clearColor(0.07, 0.08, 0.1, 1); 
+    gl.clearColor(0.07, 0.08, 0.1, 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     gl.useProgram(renderProg.program);
     renderProg.uPalette.set(palette.colors);
@@ -676,16 +659,19 @@ function updateGroupPanel() {
     renderProg.uLightDirWS.set(new Float32Array([0.7 / 1.7, -1.2 / 1.7, 0.9 / 1.7]));
     renderProg.uAmbient.set(ambient);
 
-    gl.bindVertexArray(renderProg.vao); 
-    gl.drawElements(gl.TRIANGLES, renderProg.meta.renderIndexCount, gl.UNSIGNED_INT, 0); 
-    gl.bindVertexArray(null);
+    if (renderProg.meta.visible) {
+      gl.bindVertexArray(renderProg.vao);
+      gl.drawElements(gl.TRIANGLES, renderProg.meta.renderIndexCount, gl.UNSIGNED_INT, 0);
+      gl.bindVertexArray(null);
+    }
 
-  // for (const name of groupNames) {
-  //   if (!meshData[name].visible) continue;
-  //   gl.bindVertexArray(meshData[name].vao);
-  //   gl.drawElements(gl.TRIANGLES, meshData[name].indexCount, gl.UNSIGNED_INT, 0);
-  //   gl.bindVertexArray(null);
-  // }
+    Object.keys(renderProg.meta.groups).forEach(name => {
+      const group = renderProg.meta.groups[name];
+      if (!group.visible) return;
+      gl.bindVertexArray(group.vao);
+      gl.drawElements(gl.TRIANGLES, group.indexCount, gl.UNSIGNED_INT, 0);
+      gl.bindVertexArray(null);
+    });
 
     // Render axis gizmo
     gl.useProgram(axisProg.program);
@@ -749,7 +735,7 @@ function updateGroupPanel() {
     camera,
     animSystem,
     animationTransforms,
-    
+
     // State getters/setters
     getMode: () => mode,
     setMode: (val) => { mode = val; },
@@ -782,9 +768,8 @@ function updateGroupPanel() {
     setPlaneHoverAdd: (val) => { planeHoverAdd = val; },
     getGroupNames: () => groupNames,
     setGroupNames: (val) => { groupNames = val; },
-    
+
     // Functions
-    rebuildAll,
     buildAllMeshes,
     clearHistory,
     undo,
@@ -800,13 +785,13 @@ function updateGroupPanel() {
     recordVoxelChange,
     commitAction,
     updateGroupPanel,
-    
+
     // Constants
     FACE_DIRS
   };
 
   initializeUI(uiState);
-  
+
   // Get updateHoverUI function after initialization
   updateHoverUI = uiState.updateHoverUI;
 }

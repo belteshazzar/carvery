@@ -54,7 +54,6 @@ export function initializeUI(state) {
     setPlaneHoverAdd,
     
     // Functions
-    rebuildAll,
     buildAllMeshes,
     clearHistory,
     undo,
@@ -117,7 +116,7 @@ export function initializeUI(state) {
     animSystem.time = 0;
     animSystem.playing = false;
     animationTransforms.clear();
-    rebuildAll();
+    buildAllMeshes();
   });
 
   // Mode selection
@@ -173,7 +172,7 @@ export function initializeUI(state) {
   document.getElementById('resetSolid').addEventListener('click', () => {
     chunk.fill(true);
     chunk.seedMaterials('bands');
-    rebuildAll();
+    buildAllMeshes();
     clearHistory();
   });
 
