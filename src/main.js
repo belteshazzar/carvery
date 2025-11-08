@@ -262,7 +262,7 @@ function main() {
       }
     }
 
-    return { version: 1, size: N, palette: palHex, voxels };
+    return { version: 1, size: N, palette: palHex, voxels, groups: animSystem.toJSON() };
   }
 
   function hexCharToInt(hex) {
@@ -316,6 +316,8 @@ function main() {
       }
     }
     buildAllMeshes();
+
+    if (obj.groups) animSystem.fromJSON(obj.groups);
     clearHistory(); // imported scene becomes baseline
   }
 
@@ -648,26 +650,41 @@ function main() {
 
   // Add call to updateAxisLabels in render loop
   function render() {
+    // Update animation time
+    const now = performance.now();
+    const dt = (now - lastTime) / 1000;
+    lastTime = now;
+    
+    animSystem.update(dt);
+
     gl.clearColor(0.07, 0.08, 0.1, 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     gl.useProgram(renderProg.program);
     renderProg.uPalette.set(palette.colors);
-    renderProg.uModel.set(model);
     renderProg.uView.set(camera.view());
     renderProg.uProj.set(proj);
     renderProg.uNormalMat.set(new Float32Array([1, 0, 0, 0, 1, 0, 0, 0, 1]));
     renderProg.uLightDirWS.set(new Float32Array([0.7 / 1.7, -1.2 / 1.7, 0.9 / 1.7]));
     renderProg.uAmbient.set(ambient);
 
+    // Render main mesh (non-animated voxels) with identity transform
     if (renderProg.meta.visible) {
+      renderProg.uModel.set(model);
       gl.bindVertexArray(renderProg.vao);
       gl.drawElements(gl.TRIANGLES, renderProg.meta.renderIndexCount, gl.UNSIGNED_INT, 0);
       gl.bindVertexArray(null);
     }
 
+    // Render each animated group with its transform
     Object.keys(renderProg.meta.groups).forEach(name => {
       const group = renderProg.meta.groups[name];
       if (!group.visible) return;
+      
+      // Get animation transform for this group
+      const animTransform = animSystem.getGroupTransform(name);
+      const groupModel = Mat4.multiply(model, animTransform);
+      
+      renderProg.uModel.set(groupModel);
       gl.bindVertexArray(group.vao);
       gl.drawElements(gl.TRIANGLES, group.indexCount, gl.UNSIGNED_INT, 0);
       gl.bindVertexArray(null);

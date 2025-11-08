@@ -69,20 +69,33 @@
   <div class="toolbar-row" id="palette"></div>
 </div>
 
-<!-- Add to index.html -->
+<!-- Add to index.html animation panel -->
 <div class="animation-panel">
   <textarea id="animationDSL" rows="10" cols="40" placeholder="Enter animation DSL here...">
-group door {
-  bounds 0,0,0 to 2,4,1
-  hinge at 0,0,0 axis y
-  rotate 0 to 90 duration 2s
-}
 
-group platform {
-  bounds 4,0,4 to 8,1,8
-  move y 0 to 4 duration 1s
-  wait 0.5s
-  move y 4 to 0 duration 1s
+{
+  "groups": [
+    {
+      "name": "door",
+      "bounds": { "min": [0, 0, 0], "max": [2, 4, 1] },
+      "pivot": [0, 0, 0],
+      "axis": [0, 1, 0],
+      "loop": true,
+      "keyframes": [
+        { "type": "rotate", "start": 0, "end": 90, "duration": 2 }
+      ]
+    },
+    {
+      "name": "platform",
+      "bounds": { "min": [4, 0, 4], "max": [8, 1, 8] },
+      "loop": false,
+      "keyframes": [
+        { "type": "move", "axis": "y", "start": 0, "end": 4, "duration": 1 },
+        { "type": "wait", "duration": 0.5 },
+        { "type": "move", "axis": "y", "start": 4, "end": 0, "duration": 1 }
+      ]
+    }
+  ]
 }
 
   </textarea>
@@ -90,6 +103,9 @@ group platform {
     <button id="btnCompile">Compile</button>
     <button id="btnPlay">Play</button>
     <button id="btnPause">Pause</button>
+    <select id="triggerSelect">
+      <option value="">Select group to trigger...</option>
+    </select>
     <button id="btnReset">Reset</button>
   </div>
 </div>

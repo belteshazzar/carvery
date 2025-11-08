@@ -90,6 +90,101 @@ export const Mat4 = {
   },
 
   /**
+   * Creates a translation matrix
+   * @param {number} x Translation in X
+   * @param {number} y Translation in Y
+   * @param {number} z Translation in Z
+   * @returns {Float32Array} New translation matrix (16 elements)
+   */
+  translate: (x, y, z) => {
+    const o = Mat4.identity();
+    o[12] = x;
+    o[13] = y;
+    o[14] = z;
+    return o;
+  },
+
+  /**
+   * Creates a rotation matrix around an arbitrary axis
+   * @param {number} angle Rotation angle in radians
+   * @param {number} x X component of rotation axis
+   * @param {number} y Y component of rotation axis
+   * @param {number} z Z component of rotation axis
+   * @returns {Float32Array} New rotation matrix (16 elements)
+   */
+  rotate: (angle, x, y, z) => {
+    const len = Math.sqrt(x * x + y * y + z * z);
+    if (len === 0) return Mat4.identity();
+    
+    x /= len;
+    y /= len;
+    z /= len;
+    
+    const c = Math.cos(angle);
+    const s = Math.sin(angle);
+    const t = 1 - c;
+    
+    const o = new Float32Array(16);
+    o[0] = x * x * t + c;
+    o[1] = y * x * t + z * s;
+    o[2] = z * x * t - y * s;
+    o[3] = 0;
+    
+    o[4] = x * y * t - z * s;
+    o[5] = y * y * t + c;
+    o[6] = z * y * t + x * s;
+    o[7] = 0;
+    
+    o[8] = x * z * t + y * s;
+    o[9] = y * z * t - x * s;
+    o[10] = z * z * t + c;
+    o[11] = 0;
+    
+    o[12] = 0;
+    o[13] = 0;
+    o[14] = 0;
+    o[15] = 1;
+    
+    return o;
+  },
+
+  /**
+   * Multiplies multiple matrices together (in order)
+   * @param {...Float32Array} matrices Matrices to multiply
+   * @returns {Float32Array} Result matrix (16 elements)
+   */
+  multiply: (...matrices) => {
+    if (matrices.length === 0) return Mat4.identity();
+    if (matrices.length === 1) return matrices[0];
+    
+    let result = matrices[0];
+    for (let i = 1; i < matrices.length; i++) {
+      result = Mat4.multiplyTwo(result, matrices[i]);
+    }
+    return result;
+  },
+
+  /**
+   * Multiplies two 4x4 matrices
+   * @param {Float32Array} a First matrix
+   * @param {Float32Array} b Second matrix
+   * @returns {Float32Array} Result of a * b (16 elements)
+   */
+  multiplyTwo: (a, b) => {
+    const o = new Float32Array(16);
+    for (let i = 0; i < 4; i++) {
+      for (let j = 0; j < 4; j++) {
+        o[j * 4 + i] = 
+          a[0 * 4 + i] * b[j * 4 + 0] +
+          a[1 * 4 + i] * b[j * 4 + 1] +
+          a[2 * 4 + i] * b[j * 4 + 2] +
+          a[3 * 4 + i] * b[j * 4 + 3];
+      }
+    }
+    return o;
+  },
+
+  /**
    * Transforms a vector by a 4x4 matrix
    * @param {Float32Array} m 4x4 matrix (16 elements)
    * @param {number[]} v Vector [x,y,z] or [x,y,z,w]

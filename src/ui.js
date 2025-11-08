@@ -94,14 +94,29 @@ export function initializeUI(state) {
         chunk.addGroup(name, group.bounds.min, group.bounds.max);
       }
       buildAllMeshes();
-
-      state.setGroupNames(["main", ...Array.from(animSystem.groups.keys())]);
-      updateGroupPanel();
+updateTriggerSelect();
+//      state.setGroupNames(["main", ...Array.from(animSystem.groups.keys())]);
+//      updateGroupPanel();
 
     } catch(e) {
       console.error('Animation compile error:', e);
     }
   });
+
+  // Add function to update the trigger select dropdown
+function updateTriggerSelect() {
+  const select = document.getElementById('triggerSelect');
+  select.innerHTML = '<option value="">Select group to trigger...</option>';
+  
+  for (const [name, group] of animSystem.groups.entries()) {
+    if (!group.loop) { // Only show non-looping groups
+      const option = document.createElement('option');
+      option.value = name;
+      option.textContent = name;
+      select.appendChild(option);
+    }
+  }
+}
 
   document.getElementById('btnPlay').addEventListener('click', () => {
     animSystem.playing = true;
@@ -112,11 +127,25 @@ export function initializeUI(state) {
     animSystem.playing = false;
   });
 
+  // document.getElementById('btnReset').addEventListener('click', () => {
+  //   animSystem.time = 0;
+  //   animSystem.playing = false;
+  //   animationTransforms.clear();
+  //   buildAllMeshes();
+  // });
+
+
+// Handle dropdown selection to trigger individual groups
+document.getElementById('triggerSelect').addEventListener('change', (e) => {
+  const groupName = e.target.value;
+  if (groupName) {
+    animSystem.triggerGroup(groupName);
+    e.target.value = ''; // Reset dropdown
+  }
+});
+
   document.getElementById('btnReset').addEventListener('click', () => {
-    animSystem.time = 0;
-    animSystem.playing = false;
-    animationTransforms.clear();
-    buildAllMeshes();
+    animSystem.reset();
   });
 
   // Mode selection
