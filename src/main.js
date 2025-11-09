@@ -592,6 +592,28 @@ function main() {
       }
     }
     
+    // Shift animation group bounding boxes
+    for (const group of animSystem.groups.values()) {
+      group.min[0] += dx;
+      group.min[1] += dy;
+      group.min[2] += dz;
+      
+      group.max[0] += dx;
+      group.max[1] += dy;
+      group.max[2] += dz;
+    }
+    
+    // Shift animation keyframe pivot points
+    for (const anim of animSystem.animations.values()) {
+      for (const kf of anim.keyframes) {
+        if (kf.type === 'rotate' && kf.pivot) {
+          kf.pivot[0] += dx;
+          kf.pivot[1] += dy;
+          kf.pivot[2] += dz;
+        }
+      }
+    }
+    
     commitAction(act, true);
   }
 
