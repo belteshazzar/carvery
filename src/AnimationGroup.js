@@ -1,16 +1,35 @@
+/**
+ * Animation System using DSL format with state guards
+ */
+
+import { Mat4 } from './math.js';
+
 // Example DSL format:
 /*
-group door [0, 0, 0] to [2, 4, 1]
-group platform [4, 0, 4] to [8, 1, 8]
+group door {
+  min [0, 0, 0]
+  max [2, 4, 1]
+  state closed
+}
+
+group platform {
+  min [4, 0, 4]
+  max [8, 1, 8]
+  state lowered
+}
 
 anim door_open {
   group door
-  rotate 90 for 2 pivot [0, 0, 0] axis [0, 1, 0]
+  guard closed
+  rotate 0 to 90 for 2 pivot [0, 0, 0] axis [0, 1, 0]
+  state open
 }
 
 anim door_close {
   group door
-  rotate -90 for 2
+  guard open
+  rotate 90 to 0 for 2 pivot [0, 0, 0] axis [0, 1, 0]
+  state closed
 }
 
 anim updown loop {
@@ -28,6 +47,8 @@ export class AnimationGroup {
     this.max = [0, 0, 0];
     this.voxels = new Set();
     this.transform = null; // Current transform matrix for this group
+    this.state = null; // Current state of the group
+    this.initialState = null; // Initial state to reset to
   }
 
   toJSON() {

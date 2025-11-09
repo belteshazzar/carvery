@@ -9,14 +9,19 @@ export class Animation {
     this.loop = false;
     this.time = 0;
     this.playing = false;
+    this.guard = null; // Required state to run this animation
+    this.endState = null; // State to set when animation completes
   }
 
-  setGroup(group) {
-    this.group = group;
-    this.groupName = group.name;
+  _canPlay() {
+    // If no guard is specified, animation can always play
+    if (this.guard === null) return true;
+    
+    // Check if group's current state matches the required guard
+    return this.group && this.group.state === this.guard;
   }
 
-  updateGroupTransform() {
+  _updateGroupTransform() {
     if (!this.group) return;
 
     let matrix = Mat4.identity();
@@ -35,7 +40,8 @@ export class Animation {
 
       switch(kf.type) {
         case 'rotate': {
-          const angle = kf.delta * t;
+          // Interpolate from start angle to end angle
+          const angle = kf.from + (kf.to - kf.from) * t;
           const pivot = kf.pivot || [0, 0, 0];
           const axis = kf.axis || [0, 1, 0];
           const rotMat = Mat4.rotate(angle * Math.PI / 180, ...axis);
@@ -80,31 +86,32 @@ export class Animation {
     } else if (!this.loop && duration > 0 && this.time >= duration) {
       // Clamp to exactly the duration, don't reset
       this.time = duration;
+      if (this.endState && this.group) {
+        this.group.state = this.endState;
+        console.log(`Animation ${this.name} ended, setting group ${this.group.name} state to ${this.endState}`);
+      }
       this.playing = false;
     }
 
     // Update the group's transform
-    this.updateGroupTransform();
+    this._updateGroupTransform();
   }
 
   play() {
+    if (!this._canPlay()) {
+      console.log(`Animation ${this.name} cannot play, guard state not met.`);
+      return;
+    }
     this.playing = true;
-    // Update transform immediately when starting
-    this.updateGroupTransform();
   }
 
   stop() {
     this.playing = false;
-    // Keep transform at current position
   }
 
   reset() {
     this.time = 0;
     this.playing = false;
-    // Reset group transform to identity
-    if (this.group) {
-      this.group.transform = Mat4.identity();
-    }
   }
 
   getTotalDuration() {
@@ -115,6 +122,8 @@ export class Animation {
     return {
       groupName: this.groupName,
       loop: this.loop,
+      guard: this.guard,
+      endState: this.endState,
       keyframes: this.keyframes.map(kf => ({...kf}))
     };
   }
@@ -123,6 +132,8 @@ export class Animation {
     const anim = new Animation(name);
     anim.groupName = json.groupName;
     anim.loop = json.loop || false;
+    anim.guard = json.guard;
+    anim.endState = json.endState;
     anim.keyframes = json.keyframes.map(kf => ({...kf}));
     return anim;
   }

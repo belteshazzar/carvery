@@ -76,20 +76,34 @@
     <button id="btnCloseAnimations" class="close-btn">&times;</button>
   </div>
   
-  <textarea id="animationDSL" rows="15" cols="40" placeholder="Enter animation DSL here...">group door [0, 0, 0] to [2, 4, 1]
-group platform [4, 0, 4] to [8, 1, 8]
+  <textarea id="animationDSL" rows="15" cols="40" placeholder="Enter animation DSL here...">group door {
+  min [0, 0, 0]
+  max [2, 4, 1]
+  state closed
+}
+
+group platform {
+  min [4, 0, 4]
+  max [8, 1, 8]
+  state lowered
+}
 
 anim door_open {
   group door
-  rotate 90 for 2 pivot [0, 0, 0] axis [0, 1, 0]
+  guard closed
+  rotate 0 to 90 for 2 pivot [0, 0, 0] axis [0, 1, 0]
+  state open
 }
 
 anim door_close {
   group door
-  rotate -90 for 2 pivot [0, 0, 0] axis [0, 1, 0]
+  guard open
+  rotate 90 to 0 for 2 pivot [0, 0, 0] axis [0, 1, 0]
+  state closed
 }
 
-anim updown loop {
+anim updown {
+  loop
   group platform
   move y 4 for 1
   wait 0.5
