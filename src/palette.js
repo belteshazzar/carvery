@@ -96,13 +96,16 @@ export class PaletteUI {
       const picker = document.createElement('input');
       picker.type = 'color';
       picker.value = hex;
-      picker.disabled = true;
+      picker.style.position = 'absolute';
+      picker.style.opacity = '0';
+      picker.style.pointerEvents = 'none';
       this.pickers.set(i, picker);
 
       // Handle color picker opening
       const openColorPicker = (e) => {
         e.preventDefault();
-        let lastHex = hex;
+        e.stopPropagation();
+        const lastHex = picker.value;
         
         const onPickerChange = () => {
           const newHex = picker.value;
@@ -112,19 +115,21 @@ export class PaletteUI {
           
           if (newHex !== lastHex) {
             this.onColorChange(i, lastHex, newHex);
-            lastHex = newHex;
           }
+        };
 
-          picker.disabled = true;
+        const onPickerClose = () => {
+          picker.removeEventListener('input', onPickerChange);
+          picker.removeEventListener('change', onPickerClose);
         };
 
         picker.addEventListener('input', onPickerChange);
-        picker.addEventListener('change', () => {
-          picker.removeEventListener('input', onPickerChange);
-        }, { once: true });
+        picker.addEventListener('change', onPickerClose);
         
-        picker.disabled = false;
+        // Trigger the picker - use click() as it's more reliable than showPicker()
+        //picker.click();
         picker.showPicker();
+        console.log('Opened color picker for swatch', i);
       };
 
       // Left click to select brush

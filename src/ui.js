@@ -58,6 +58,7 @@ export function initializeUI(state) {
     clearHistory,
     undo,
     redo,
+    shiftVoxels,
     exportToJSON,
     importFromJSON,
     decodePickAt,
@@ -213,6 +214,14 @@ export function initializeUI(state) {
     buildAllMeshes();
     clearHistory();
   });
+
+  // Shift buttons
+  document.getElementById('btnShiftXPos').addEventListener('click', () => shiftVoxels(1, 0, 0));
+  document.getElementById('btnShiftXNeg').addEventListener('click', () => shiftVoxels(-1, 0, 0));
+  document.getElementById('btnShiftYPos').addEventListener('click', () => shiftVoxels(0, 1, 0));
+  document.getElementById('btnShiftYNeg').addEventListener('click', () => shiftVoxels(0, -1, 0));
+  document.getElementById('btnShiftZPos').addEventListener('click', () => shiftVoxels(0, 0, 1));
+  document.getElementById('btnShiftZNeg').addEventListener('click', () => shiftVoxels(0, 0, -1));
 
   // Undo/Redo buttons
   undoBtn.addEventListener('click', undo);

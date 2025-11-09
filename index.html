@@ -61,6 +61,20 @@
     <!-- Reset -->
     <button id="resetSolid">Reset</button>
 
+    <div class="sep"></div>
+
+    <!-- Shift controls -->
+    <div class="undo-group">
+      <button id="btnShiftXPos" title="Shift all voxels +1 in X axis">+X</button>
+      <button id="btnShiftXNeg" title="Shift all voxels -1 in X axis">-X</button>
+      <button id="btnShiftYPos" title="Shift all voxels +1 in Y axis">+Y</button>
+      <button id="btnShiftYNeg" title="Shift all voxels -1 in Y axis">-Y</button>
+      <button id="btnShiftZPos" title="Shift all voxels +1 in Z axis">+Z</button>
+      <button id="btnShiftZNeg" title="Shift all voxels -1 in Z axis">-Z</button>
+    </div>
+
+    <div class="sep"></div>
+
     <!-- Animation panel toggle -->
     <button id="btnToggleAnimations">Animations</button>
   </div>
@@ -76,39 +90,60 @@
     <button id="btnCloseAnimations" class="close-btn">&times;</button>
   </div>
   
-  <textarea id="animationDSL" rows="15" cols="40" placeholder="Enter animation DSL here...">group door {
-  min [0, 0, 0]
-  max [2, 4, 1]
-  state closed
+  <textarea id="animationDSL" rows="15" cols="40" placeholder="Enter animation DSL here...">
+    
+    
+group left-wing {
+  min [0, 2, 0]
+  max [0, 3, 6]
 }
 
-group platform {
-  min [4, 0, 4]
-  max [8, 1, 8]
-  state lowered
+group right-wing {
+  min [4, 2, 0]
+  max [4, 3, 6]
 }
 
-anim door_open {
-  group door
-  guard closed
-  rotate 0 to 90 for 2 pivot [0, 0, 0] axis [0, 1, 0]
-  state open
-}
-
-anim door_close {
-  group door
-  guard open
-  rotate 90 to 0 for 2 pivot [0, 0, 0] axis [0, 1, 0]
-  state closed
-}
-
-anim updown {
+anim flap-left {
+  group left-wing
   loop
-  group platform
-  move y 4 for 1
-  wait 0.5
-  move y -4 for 1
-}</textarea>
+  rotate 0 to -60 for 0.2 pivot [1, 4, 0] axis [0, 0, 1]
+  rotate 0 to 60 for 0.2 pivot [1, 4, 0] axis [0, 0, 1]
+}
+
+anim flap-right {
+  group right-wing
+  loop
+  rotate 0 to 60 for 0.2 pivot [4, 4, 0] axis [0, 0, 1]
+  rotate 0 to -60 for 0.2 pivot [4, 4, 0] axis [0, 0, 1]
+}
+
+group left-leg {
+  min [1, 0, 3]
+  max [1, 1, 5]
+}
+
+group right-leg {
+  min [3, 0, 3]
+  max [3, 1, 5]
+}
+
+anim walk-left {
+  group left-leg
+  loop
+  rotate 0 to -20 for 0.2 pivot [1, 2, 4.5] axis [1, 0, 0]
+  rotate 0 to 40 for 0.4 pivot [1, 2, 4.5] axis [1, 0, 0]
+  rotate 0 to -20 for 0.2 pivot [1, 2, 4.5] axis [1, 0, 0]
+}
+
+anim walk-right {
+  group right-leg
+  loop
+  rotate 0 to 20 for 0.2 pivot [1, 2, 4.5] axis [1, 0, 0]
+  rotate 0 to -40 for 0.4 pivot [1, 2, 4.5] axis [1, 0, 0]
+  rotate 0 to 20 for 0.2 pivot [1, 2, 4.5] axis [1, 0, 0]
+}
+
+</textarea>
   
   <div class="animation-controls">
     <button id="btnCompile">Compile</button>
