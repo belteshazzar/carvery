@@ -69,7 +69,10 @@ export function initializeUI(state) {
     beginVoxelAction,
     recordVoxelChange,
     commitAction,
-    updateGroupPanel,
+    getSelectedGroupName,
+    setSelectedGroupName,
+    getGroupOverlaysVisible,
+    setGroupOverlaysVisible,
     
     // Constants
     FACE_DIRS
@@ -518,6 +521,154 @@ export function initializeUI(state) {
     }
   }
 
+  // Update the group list UI
+  function updateGroupPanel() {
+    const container = document.getElementById('groupList');
+    if (!container) return;
+    
+    container.innerHTML = '';
+    
+    if (state.animSystem.groups.size === 0) {
+      container.innerHTML = '<p style="color: #888; font-size: 12px; margin: 8px 0;">No groups defined</p>';
+      return;
+    }
+    
+    const groupOverlays = state.getGroupOverlaysVisible();
+    const selectedGroup = state.getSelectedGroupName();
+    
+    for (const [name, group] of state.animSystem.groups.entries()) {
+      const item = document.createElement('div');
+      item.className = 'group-item';
+      if (selectedGroup === name) {
+        item.classList.add('selected');
+      }
+      
+      // Header with name and toggle
+      const header = document.createElement('div');
+      header.className = 'group-header';
+      
+      const nameLabel = document.createElement('span');
+      nameLabel.className = 'group-name';
+      nameLabel.textContent = name;
+      
+      const toggle = document.createElement('div');
+      toggle.className = 'group-toggle';
+      
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.id = `group-vis-${name}`;
+      checkbox.checked = groupOverlays.get(name) || false;
+      checkbox.addEventListener('change', (e) => {
+        groupOverlays.set(name, e.target.checked);
+        if (e.target.checked) {
+          state.setSelectedGroupName(name);
+          updateGroupPanel();
+        }
+      });
+      
+      const checkboxLabel = document.createElement('label');
+      checkboxLabel.htmlFor = `group-vis-${name}`;
+      checkboxLabel.textContent = 'Show';
+      
+      toggle.appendChild(checkbox);
+      toggle.appendChild(checkboxLabel);
+      
+      header.appendChild(nameLabel);
+      header.appendChild(toggle);
+      
+      // Bounds inputs
+      const boundsContainer = document.createElement('div');
+      boundsContainer.className = 'group-bounds';
+      
+      // Min column
+      const minCol = document.createElement('div');
+      minCol.className = 'bounds-col';
+      
+      const minLabel = document.createElement('div');
+      minLabel.className = 'bounds-label';
+      minLabel.textContent = 'Min';
+      minCol.appendChild(minLabel);
+      
+      ['x', 'y', 'z'].forEach((axis, idx) => {
+        const row = document.createElement('div');
+        row.className = 'bounds-row';
+        
+        const label = document.createElement('label');
+        label.textContent = axis.toUpperCase();
+        
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.min = '0';
+        input.max = '15';
+        input.value = group.min[idx];
+        input.addEventListener('change', (e) => {
+          const val = Math.max(0, Math.min(15, parseInt(e.target.value) || 0));
+          group.min[idx] = val;
+          e.target.value = val;
+          
+          // Update chunk groups and rebuild meshes
+          state.chunk.clearGroups();
+          state.animSystem.groups.forEach((g, n) => {
+            state.chunk.addGroup(n, g.min, g.max);
+          });
+          state.animSystem.assignVoxelsToGroups(state.chunk);
+          state.buildAllMeshes();
+        });
+        
+        row.appendChild(label);
+        row.appendChild(input);
+        minCol.appendChild(row);
+      });
+      
+      // Max column
+      const maxCol = document.createElement('div');
+      maxCol.className = 'bounds-col';
+      
+      const maxLabel = document.createElement('div');
+      maxLabel.className = 'bounds-label';
+      maxLabel.textContent = 'Max';
+      maxCol.appendChild(maxLabel);
+      
+      ['x', 'y', 'z'].forEach((axis, idx) => {
+        const row = document.createElement('div');
+        row.className = 'bounds-row';
+        
+        const label = document.createElement('label');
+        label.textContent = axis.toUpperCase();
+        
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.min = '0';
+        input.max = '15';
+        input.value = group.max[idx];
+        input.addEventListener('change', (e) => {
+          const val = Math.max(0, Math.min(15, parseInt(e.target.value) || 0));
+          group.max[idx] = val;
+          e.target.value = val;
+          
+          // Update chunk groups and rebuild meshes
+          state.chunk.clearGroups();
+          state.animSystem.groups.forEach((g, n) => {
+            state.chunk.addGroup(n, g.min, g.max);
+          });
+          state.animSystem.assignVoxelsToGroups(state.chunk);
+          state.buildAllMeshes();
+        });
+        
+        row.appendChild(label);
+        row.appendChild(input);
+        maxCol.appendChild(row);
+      });
+      
+      boundsContainer.appendChild(minCol);
+      boundsContainer.appendChild(maxCol);
+      
+      item.appendChild(header);
+      item.appendChild(boundsContainer);
+      container.appendChild(item);
+    }
+  }
+
   // Compile button
   document.getElementById('btnCompile')?.addEventListener('click', () => {
     const dsl = document.getElementById('animationDSL').value;
@@ -532,7 +683,7 @@ export function initializeUI(state) {
       state.buildAllMeshes();
 
       updateAnimationList();
-      // updateGroupPanel();
+      updateGroupPanel();
     } catch(e) {
       console.error('Animation compile error:', e);
       alert('Animation compile error: ' + e.message);
