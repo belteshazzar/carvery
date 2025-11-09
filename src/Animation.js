@@ -1,4 +1,5 @@
 import { Mat4 } from './math.js';
+import { applyEasing } from './easing.js';
 
 export class Animation {
   constructor(name) {
@@ -36,7 +37,12 @@ export class Animation {
 
     for (const kf of this.keyframes) {
       const localTime = Math.max(0, Math.min(kf.duration, time - totalTime));
-      const t = kf.duration > 0 ? localTime / kf.duration : 1;
+      let t = kf.duration > 0 ? localTime / kf.duration : 1;
+      
+      // Apply easing function if specified
+      if (kf.easing) {
+        t = applyEasing(kf.easing, t, kf.steps);
+      }
 
       switch(kf.type) {
         case 'rotate': {

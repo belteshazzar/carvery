@@ -106,15 +106,15 @@ group right-wing {
 anim flap-left {
   group left-wing
   loop
-  rotate 0 to -60 for 0.2 pivot [1, 4, 0] axis [0, 0, 1]
-  rotate 0 to 60 for 0.2 pivot [1, 4, 0] axis [0, 0, 1]
+  rotate 0 to -60 for 0.2 pivot [1, 4, 0] axis [0, 0, 1] easing ease-in-out
+  rotate 0 to 60 for 0.2 pivot [1, 4, 0] axis [0, 0, 1] easing ease-in-out
 }
 
 anim flap-right {
   group right-wing
   loop
-  rotate 0 to 60 for 0.2 pivot [4, 4, 0] axis [0, 0, 1]
-  rotate 0 to -60 for 0.2 pivot [4, 4, 0] axis [0, 0, 1]
+  rotate 0 to 60 for 0.2 pivot [4, 4, 0] axis [0, 0, 1] easing ease-in-out
+  rotate 0 to -60 for 0.2 pivot [4, 4, 0] axis [0, 0, 1] easing ease-in-out
 }
 
 group left-leg {
@@ -130,17 +130,17 @@ group right-leg {
 anim walk-left {
   group left-leg
   loop
-  rotate 0 to -20 for 0.2 pivot [1, 2, 4.5] axis [1, 0, 0]
-  rotate 0 to 40 for 0.4 pivot [1, 2, 4.5] axis [1, 0, 0]
-  rotate 0 to -20 for 0.2 pivot [1, 2, 4.5] axis [1, 0, 0]
+  rotate 0 to -20 for 0.2 pivot [1, 2, 4.5] axis [1, 0, 0] easing ease-in
+  rotate 0 to 40 for 0.4 pivot [1, 2, 4.5] axis [1, 0, 0] easing ease-out
+  rotate 0 to -20 for 0.2 pivot [1, 2, 4.5] axis [1, 0, 0] easing ease-in
 }
 
 anim walk-right {
   group right-leg
   loop
-  rotate 0 to 20 for 0.2 pivot [1, 2, 4.5] axis [1, 0, 0]
-  rotate 0 to -40 for 0.4 pivot [1, 2, 4.5] axis [1, 0, 0]
-  rotate 0 to 20 for 0.2 pivot [1, 2, 4.5] axis [1, 0, 0]
+  rotate 0 to 20 for 0.2 pivot [1, 2, 4.5] axis [1, 0, 0] easing ease-in
+  rotate 0 to -40 for 0.4 pivot [1, 2, 4.5] axis [1, 0, 0] easing ease-out
+  rotate 0 to 20 for 0.2 pivot [1, 2, 4.5] axis [1, 0, 0] easing ease-in
 }
 
 </textarea>

@@ -96,7 +96,7 @@ export class AnimationSystem {
             break;
 
           case 'rotate': {
-            // rotate 0 to 90 for 2 pivot [0, 0, 0] axis [0, 1, 0]
+            // rotate 0 to 90 for 2 pivot [0, 0, 0] axis [0, 1, 0] easing ease-in-out
             const toIdx = tokens.indexOf('to');
             const forIdx = tokens.indexOf('for');
             
@@ -138,21 +138,51 @@ export class AnimationSystem {
               }
             }
 
+            // Parse optional easing
+            const easingIdx = tokens.indexOf('easing');
+            if (easingIdx > 0 && easingIdx + 1 < tokens.length) {
+              kf.easing = tokens[easingIdx + 1];
+              
+              // Parse optional steps parameter for 'steps' easing
+              if (kf.easing === 'steps' && easingIdx + 2 < tokens.length) {
+                const stepsVal = parseInt(tokens[easingIdx + 2], 10);
+                if (!isNaN(stepsVal)) {
+                  kf.steps = stepsVal;
+                }
+              }
+            }
+
             currentAnim.keyframes.push(kf);
             break;
           }
 
           case 'move':
-            // move y 4 for 1
+            // move y 4 for 1 easing ease-out
             const moveAxis = tokens[1];
             const moveDelta = parseFloat(tokens[2]);
             const moveDuration = parseFloat(tokens[4]);
-            currentAnim.keyframes.push({
+            const moveKf = {
               type: 'move',
               axis: moveAxis,
               delta: moveDelta,
               duration: moveDuration
-            });
+            };
+            
+            // Parse optional easing
+            const moveEasingIdx = tokens.indexOf('easing');
+            if (moveEasingIdx > 0 && moveEasingIdx + 1 < tokens.length) {
+              moveKf.easing = tokens[moveEasingIdx + 1];
+              
+              // Parse optional steps parameter for 'steps' easing
+              if (moveKf.easing === 'steps' && moveEasingIdx + 2 < tokens.length) {
+                const stepsVal = parseInt(tokens[moveEasingIdx + 2], 10);
+                if (!isNaN(stepsVal)) {
+                  moveKf.steps = stepsVal;
+                }
+              }
+            }
+            
+            currentAnim.keyframes.push(moveKf);
             break;
 
           case 'wait':
