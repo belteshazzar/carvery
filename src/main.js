@@ -1,6 +1,6 @@
 import './style.css'
 import { Mat4, Vec3, toRadians } from './math.js';
-import { makeCubeEdges, makeAxisGizmo, OrbitCamera } from './3d.js';
+import { makeCubeEdges, makeAxisGizmo, makeParticleCube, OrbitCamera } from './3d.js';
 import { createProgram } from './webgl.js';
 import lambertFrag from './lambert.frag';
 import lambertVert from './lambert.vert';
@@ -10,6 +10,8 @@ import pickFrag from './pick.frag';
 import pickVert from './pick.vert';
 import axisFrag from './axis.frag';
 import axisVert from './axis.vert';
+import particleFrag from './particle.frag';
+import particleVert from './particle.vert';
 import {
   hexToRgbF,
   rgbToHexF,
@@ -39,6 +41,7 @@ function main() {
   const pickProg = createProgram(gl, pickVert, pickFrag);
   const wireProg = createProgram(gl, wireframeVert, wireframeFrag);
   const axisProg = createProgram(gl, axisVert, axisFrag);
+  const particleProg = createProgram(gl, particleVert, particleFrag);
 
   // Wireframe mesh
 
@@ -72,6 +75,36 @@ function main() {
   gl.enableVertexAttribArray(axisProg.aColor.location);
   gl.vertexAttribPointer(axisProg.aColor.location, 3, gl.FLOAT, false, 0, 0);
 
+  gl.bindVertexArray(null);
+
+  // Particle cube mesh for instanced rendering
+  const particleCube = makeParticleCube();
+  
+  gl.bindVertexArray(particleProg.vao);
+  
+  // Position buffer
+  gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+  gl.bufferData(gl.ARRAY_BUFFER, particleCube.positions, gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(particleProg.aPosition.location);
+  gl.vertexAttribPointer(particleProg.aPosition.location, 3, gl.FLOAT, false, 0, 0);
+  
+  // Normal buffer
+  gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+  gl.bufferData(gl.ARRAY_BUFFER, particleCube.normals, gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(particleProg.aNormal.location);
+  gl.vertexAttribPointer(particleProg.aNormal.location, 3, gl.FLOAT, false, 0, 0);
+  
+  // Material ID buffer (single value per vertex, all 0 since we'll use uniforms)
+  const particleMatIds = new Uint8Array(particleCube.positions.length / 3);
+  gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+  gl.bufferData(gl.ARRAY_BUFFER, particleMatIds, gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(particleProg.aMatId.location);
+  gl.vertexAttribIPointer(particleProg.aMatId.location, 1, gl.UNSIGNED_BYTE, 0, 0);
+  
+  // Index buffer
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.createBuffer());
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, particleCube.indices, gl.STATIC_DRAW);
+  
   gl.bindVertexArray(null);
 
   // Add inside main()
@@ -722,6 +755,51 @@ function main() {
     gl.bindVertexArray(axisProg.vao);
     gl.drawArrays(gl.LINES, 0, gizmo.count);
     gl.bindVertexArray(null);
+
+    // Render particles
+    const particles = animSystem.getAllParticles();
+    if (particles.length > 0) {
+      // Enable blending for transparent particles
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+      
+      gl.useProgram(particleProg.program);
+      particleProg.uPalette.set(palette.colors);
+      particleProg.uView.set(camera.view());
+      particleProg.uProj.set(proj);
+      particleProg.uLightDirWS.set(new Float32Array([0.7 / 1.7, -1.2 / 1.7, 0.9 / 1.7]));
+      particleProg.uAmbient.set(ambient);
+      
+      // Prepare particle data
+      const maxParticles = 1000;
+      const positions = new Float32Array(maxParticles * 3);
+      const sizes = new Float32Array(maxParticles);
+      const colors = new Uint32Array(maxParticles);
+      const alphas = new Float32Array(maxParticles);
+      
+      const count = Math.min(particles.length, maxParticles);
+      for (let i = 0; i < count; i++) {
+        const p = particles[i];
+        positions[i * 3 + 0] = p.position[0];
+        positions[i * 3 + 1] = p.position[1];
+        positions[i * 3 + 2] = p.position[2];
+        sizes[i] = p.size;
+        colors[i] = p.color;
+        alphas[i] = p.getAlpha();
+      }
+      
+      particleProg.uParticleCount.set(count);
+      particleProg.uParticlePositions.set(positions);
+      particleProg.uParticleSizes.set(sizes);
+      particleProg.uParticleColors.set(colors);
+      particleProg.uParticleAlphas.set(alphas);
+      
+      gl.bindVertexArray(particleProg.vao);
+      gl.drawElementsInstanced(gl.TRIANGLES, particleCube.count, gl.UNSIGNED_SHORT, 0, count);
+      gl.bindVertexArray(null);
+      
+      gl.disable(gl.BLEND);
+    }
 
     updateHover();
 
