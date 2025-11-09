@@ -2,152 +2,9 @@
  * Animation System using DSL format
  */
 
+import { Animation } from './Animation.js';
+import { AnimationGroup } from './AnimationGroup.js';
 import { Mat4 } from './math.js';
-
-// Example DSL format:
-/*
-group door [0, 0, 0] to [2, 4, 1]
-group platform [4, 0, 4] to [8, 1, 8]
-
-anim door_open {
-  group door
-  rotate 90 for 2 pivot [0, 0, 0] axis [0, 1, 0]
-}
-
-anim door_close {
-  group door
-  rotate -90 for 2
-}
-
-anim updown loop {
-  group platform
-  move y 4 for 1
-  wait 0.5
-  move y -4 for 1
-}
-*/
-
-export class AnimationGroup {
-  constructor(name) {
-    this.name = name;
-    this.min = [0, 0, 0];
-    this.max = [0, 0, 0];
-    this.voxels = new Set();
-  }
-
-  toJSON() {
-    return {
-      min: [...this.min],
-      max: [...this.max]
-    };
-  }
-
-  static fromJSON(name, json) {
-    const group = new AnimationGroup(name);
-    group.min = [...json.min];
-    group.max = [...json.max];
-    return group;
-  }
-}
-
-export class Animation {
-  constructor(name) {
-    this.name = name;
-    this.groupName = null;
-    this.keyframes = [];
-    this.loop = false;
-    this.time = 0;
-    this.playing = false;
-  }
-
-  getTransform() {
-    let matrix = Mat4.identity();
-    let totalTime = 0;
-    const time = this.time;
-
-    for (const kf of this.keyframes) {
-      const localTime = Math.max(0, Math.min(kf.duration, time - totalTime));
-      const t = kf.duration > 0 ? localTime / kf.duration : 1;
-
-      switch(kf.type) {
-        case 'rotate': {
-          const angle = kf.delta * t;
-          const pivot = kf.pivot || [0, 0, 0];
-          const axis = kf.axis || [0, 1, 0];
-          const rotMat = Mat4.rotate(angle * Math.PI / 180, ...axis);
-          const toOrigin = Mat4.translate(-pivot[0], -pivot[1], -pivot[2]);
-          const fromOrigin = Mat4.translate(...pivot);
-          matrix = Mat4.multiply(matrix, fromOrigin, rotMat, toOrigin);
-          break;
-        }
-
-        case 'move': {
-          const currentDist = kf.delta * t;
-          const translation = kf.axis === 'x' ? [currentDist, 0, 0] :
-                            kf.axis === 'y' ? [0, currentDist, 0] : 
-                            [0, 0, currentDist];
-          matrix = Mat4.multiply(matrix, Mat4.translate(...translation));
-          break;
-        }
-
-        case 'wait':
-          break;
-      }
-
-      totalTime += kf.duration;
-      
-      if (time < totalTime) {
-        break;
-      }
-    }
-
-    return matrix;
-  }
-
-  update(dt) {
-    if (!this.playing) return;
-    this.time += dt;
-    
-    const duration = this.getTotalDuration();
-    if (this.loop && duration > 0 && this.time > duration) {
-      this.time = this.time % duration;
-    } else if (!this.loop && duration > 0 && this.time >= duration) {
-      this.playing = false;
-    }
-  }
-
-  play() {
-    this.playing = true;
-  }
-
-  stop() {
-    this.playing = false;
-  }
-
-  reset() {
-    this.time = 0;
-  }
-
-  getTotalDuration() {
-    return this.keyframes.reduce((sum, kf) => sum + kf.duration, 0);
-  }
-
-  toJSON() {
-    return {
-      groupName: this.groupName,
-      loop: this.loop,
-      keyframes: this.keyframes.map(kf => ({...kf}))
-    };
-  }
-
-  static fromJSON(name, json) {
-    const anim = new Animation(name);
-    anim.groupName = json.groupName;
-    anim.loop = json.loop || false;
-    anim.keyframes = json.keyframes.map(kf => ({...kf}));
-    return anim;
-  }
-}
 
 export class AnimationSystem {
   constructor() {
@@ -198,7 +55,12 @@ export class AnimationSystem {
       switch(cmd) {
         case 'group':
           // Set the group for this animation
-          currentAnim.groupName = tokens[1];
+          const groupName = tokens[1];
+          currentAnim.groupName = groupName;
+          // Set group reference if group exists
+          if (this.groups.has(groupName)) {
+            currentAnim.setGroup(this.groups.get(groupName));
+          }
           break;
 
         case 'rotate': {
@@ -262,6 +124,17 @@ export class AnimationSystem {
           break;
       }
     }
+
+    // Link animations to groups after parsing
+    this.linkAnimationsToGroups();
+  }
+
+  linkAnimationsToGroups() {
+    for (const anim of this.animations.values()) {
+      if (anim.groupName && this.groups.has(anim.groupName)) {
+        anim.setGroup(this.groups.get(anim.groupName));
+      }
+    }
   }
 
   parseGroupDefinition(line) {
@@ -319,6 +192,9 @@ export class AnimationSystem {
         this.animations.set(name, anim);
       }
     }
+
+    // Link animations to groups
+    this.linkAnimationsToGroups();
   }
 
   toJSON() {
@@ -366,6 +242,14 @@ export class AnimationSystem {
   playAnimation(animName) {
     const anim = this.animations.get(animName);
     if (anim) {
+      // Stop any other animations on the same group
+      if (anim.groupName) {
+        for (const otherAnim of this.animations.values()) {
+          if (otherAnim !== anim && otherAnim.groupName === anim.groupName && otherAnim.playing) {
+            otherAnim.stop();
+          }
+        }
+      }
       anim.reset();
       anim.play();
     } else {
@@ -402,16 +286,8 @@ export class AnimationSystem {
     const group = this.groups.get(groupName);
     if (!group) return Mat4.identity();
     
-    // Combine transforms from all playing animations for this group
-    let combinedTransform = Mat4.identity();
-    for (const anim of this.animations.values()) {
-      if (anim.groupName === groupName && anim.playing) {
-        const animTransform = anim.getTransform(group);
-        combinedTransform = Mat4.multiply(combinedTransform, animTransform);
-      }
-    }
-    
-    return combinedTransform;
+    // Return the group's transform, or identity if not set
+    return group.transform || Mat4.identity();
   }
 
   getAnimationsForGroup(groupName) {

@@ -15,7 +15,7 @@ import {
   rgbToHexF,
   PaletteUI
 } from './palette.js';
-import { AnimationSystem } from './animation.js';
+import { AnimationSystem } from './AnimationSystem.js';
 import { VoxelChunk } from './voxel-chunk.js';
 import { initializeUI } from './ui.js';
 
