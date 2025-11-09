@@ -421,3 +421,126 @@ input[type="color"] {
 .animation-btn:active {
   background: rgba(255, 255, 255, 0.05);
 }
+
+/* Group list container */
+.group-list-container {
+  margin-top: 16px;
+}
+
+.group-list-container h4 {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  color: #cfd3dc;
+  font-weight: 500;
+}
+
+#groupList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.group-item {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  padding: 10px;
+}
+
+.group-item.selected {
+  border-color: #007acc;
+  background: rgba(0, 122, 204, 0.1);
+}
+
+.group-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.group-name {
+  font-size: 13px;
+  color: #cfd3dc;
+  font-weight: 500;
+}
+
+.group-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.group-toggle label {
+  font-size: 11px;
+  color: #888;
+  cursor: pointer;
+  user-select: none;
+}
+
+.group-toggle input[type="checkbox"] {
+  cursor: pointer;
+}
+
+.group-bounds {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.bounds-col {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bounds-label {
+  font-size: 11px;
+  color: #888;
+  font-weight: 600;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+
+.bounds-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.bounds-row label {
+  font-size: 11px;
+  color: #cfd3dc;
+  width: 12px;
+  font-weight: 500;
+}
+
+.bounds-row input[type="number"] {
+  flex: 1;
+  background: rgba(0, 0, 0, 0.4);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  padding: 4px 6px;
+  font-size: 12px;
+  font-family: 'Monaco', 'Menlo', monospace;
+  width: 100%;
+}
+
+.bounds-row input[type="number"]:focus {
+  outline: none;
+  border-color: #007acc;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+/* Remove spinner from number inputs */
+.bounds-row input[type="number"]::-webkit-inner-spin-button,
+.bounds-row input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.bounds-row input[type="number"] {
+  -moz-appearance: textfield;
+}

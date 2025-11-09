@@ -79,6 +79,10 @@ function main() {
   let animationTransforms = new Map();
   let lastTime = 0;
 
+  // Group visualization state
+  let selectedGroupName = null;  // Currently selected group for visualization
+  let groupOverlaysVisible = new Map(); // groupName -> boolean (whether overlay is visible)
+
   /*** ---- World State ---- ***/
   let N = 16;
   const chunk = new VoxelChunk(N);
@@ -761,6 +765,17 @@ function main() {
         }
       }
     }
+
+    // Render group overlays
+    for (const [groupName, group] of animSystem.groups.entries()) {
+      if (groupOverlaysVisible.get(groupName)) {
+        const [minX, minY, minZ] = group.min;
+        const [maxX, maxY, maxZ] = group.max;
+        const color = selectedGroupName === groupName ? [0.2, 0.6, 1.0] : [0.6, 0.8, 0.3];
+        drawWireAABB(minX, minY, minZ, maxX, maxY, maxZ, color, 1.01);
+      }
+    }
+
     requestAnimationFrame(render);
   }
 
@@ -807,6 +822,10 @@ function main() {
     setPlaneHoverSurf: (val) => { planeHoverSurf = val; },
     getPlaneHoverAdd: () => planeHoverAdd,
     setPlaneHoverAdd: (val) => { planeHoverAdd = val; },
+    getSelectedGroupName: () => selectedGroupName,
+    setSelectedGroupName: (val) => { selectedGroupName = val; },
+    getGroupOverlaysVisible: () => groupOverlaysVisible,
+    setGroupOverlaysVisible: (val) => { groupOverlaysVisible = val; },
 
     // Functions
     buildAllMeshes,
