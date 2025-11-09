@@ -82,71 +82,80 @@ export function initializeUI(state) {
   const redoBtn = document.getElementById('btnRedo');
   const fileInput = document.getElementById('fileInput');
 
-  // Animation UI handlers
-  document.getElementById('btnCompile').addEventListener('click', () => {
-    const dsl = document.getElementById('animationDSL').value;
-    try {
-      animSystem.parse(dsl);
+  // Add panel toggle handlers
+  const animPanel = document.querySelector('.animation-panel');
+  const btnToggleAnimations = document.getElementById('btnToggleAnimations');
+  const btnCloseAnimations = document.getElementById('btnCloseAnimations');
 
-      console.log('Parsed animation:', animSystem);
-      for (const [name, group] of animSystem.groups) {
-        console.log(`Group: ${name}`, group);
-        chunk.addGroup(name, group.bounds.min, group.bounds.max);
-      }
-      buildAllMeshes();
-updateTriggerSelect();
-//      state.setGroupNames(["main", ...Array.from(animSystem.groups.keys())]);
-//      updateGroupPanel();
+  btnToggleAnimations.addEventListener('click', () => {
+    animPanel.classList.toggle('open');
+  });
 
-    } catch(e) {
-      console.error('Animation compile error:', e);
+  btnCloseAnimations.addEventListener('click', () => {
+    animPanel.classList.remove('open');
+  });
+
+  // Optional: Close on escape key
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && animPanel.classList.contains('open')) {
+      animPanel.classList.remove('open');
     }
   });
 
-  // Add function to update the trigger select dropdown
-function updateTriggerSelect() {
-  const select = document.getElementById('triggerSelect');
-  select.innerHTML = '<option value="">Select group to trigger...</option>';
-  
-  for (const [name, group] of animSystem.groups.entries()) {
-    if (!group.loop) { // Only show non-looping groups
-      const option = document.createElement('option');
-      option.value = name;
-      option.textContent = name;
-      select.appendChild(option);
-    }
-  }
-}
+  // // Animation UI handlers
+  // document.getElementById('btnCompile').addEventListener('click', () => {
+  //   const dsl = document.getElementById('animationDSL').value;
+  //   try {
 
-  document.getElementById('btnPlay').addEventListener('click', () => {
-    animSystem.playing = true;
-    setLastTime(performance.now());
-  });
+  //     animSystem.parse(dsl);
 
-  document.getElementById('btnPause').addEventListener('click', () => {
-    animSystem.playing = false;
-  });
+  //     chunk.clearGroups();
+  //     animSystem.groups.forEach((group,name) => {
+  //       chunk.addGroup(name, group.min, group.max);
+  //     });
+  //     buildAllMeshes();
+  //     updateTriggerSelect();
 
-  // document.getElementById('btnReset').addEventListener('click', () => {
-  //   animSystem.time = 0;
-  //   animSystem.playing = false;
-  //   animationTransforms.clear();
-  //   buildAllMeshes();
+  //   } catch(e) {
+  //     console.error('Animation compile error:', e);
+  //   }
   // });
 
+  // // Update the trigger select dropdown to show animations instead of groups
+  // function updateTriggerSelect() {
+  //   const select = document.getElementById('triggerSelect');
+  //   select.innerHTML = '<option value="">Trigger animation...</option>';
+    
+  //   for (const [name, anim] of animSystem.animations.entries()) {
+  //     const option = document.createElement('option');
+  //     option.value = name;
+  //     option.textContent = `${name} (${anim.groupName || 'no group'})`;
+  //     select.appendChild(option);
+  //   }
+  // }
 
-// Handle dropdown selection to trigger individual groups
-document.getElementById('triggerSelect').addEventListener('change', (e) => {
-  const groupName = e.target.value;
-  if (groupName) {
-    animSystem.triggerGroup(groupName);
-    e.target.value = ''; // Reset dropdown
-  }
-});
+  // document.getElementById('btnPlay').addEventListener('click', () => {
+  //   animSystem.playing = true;
+  //   setLastTime(performance.now());
+  // });
 
-  document.getElementById('btnReset').addEventListener('click', () => {
-    animSystem.reset();
-  });
+  // document.getElementById('btnPause').addEventListener('click', () => {
+  //   animSystem.playing = false;
+  // });
+
+  // // Handle dropdown selection to trigger individual animations
+  // document.getElementById('triggerSelect').addEventListener('change', (e) => {
+  //   const animName = e.target.value;
+  //   if (animName) {
+  //     animSystem.playAnimation(animName);
+  //     e.target.value = ''; // Reset dropdown
+  //   }
+  // });
+
+  // document.getElementById('btnReset').addEventListener('click', () => {
+  //   animSystem.reset();
+  // });
+
 
   // Mode selection
   document.querySelectorAll('input[name="modeSelect"]').forEach(radio => {
@@ -425,4 +434,120 @@ document.getElementById('triggerSelect').addEventListener('change', (e) => {
     camera.radius *= z;
     camera.clamp();
   }, { passive: false });
+
+  // Update the animation list UI
+  function updateAnimationList() {
+    const container = document.getElementById('animationList');
+    if (!container) return;
+    
+    container.innerHTML = '';
+    
+    if (state.animSystem.animations.size === 0) {
+      container.innerHTML = '<p style="color: #888; font-size: 12px; margin: 8px 0;">No animations defined</p>';
+      return;
+    }
+    
+    for (const [name, anim] of state.animSystem.animations.entries()) {
+      const item = document.createElement('div');
+      item.className = 'animation-item';
+      
+      const info = document.createElement('div');
+      info.className = 'animation-info';
+      
+      const nameLabel = document.createElement('span');
+      nameLabel.className = 'animation-name';
+      nameLabel.textContent = name;
+      
+      const groupLabel = document.createElement('span');
+      groupLabel.className = 'animation-group';
+      groupLabel.textContent = anim.groupName || 'no group';
+      
+      if (anim.loop) {
+        const loopBadge = document.createElement('span');
+        loopBadge.className = 'animation-badge';
+        loopBadge.textContent = 'loop';
+        info.appendChild(loopBadge);
+      }
+      
+      info.appendChild(nameLabel);
+      info.appendChild(groupLabel);
+      
+      const controls = document.createElement('div');
+      controls.className = 'animation-controls-inline';
+      
+      const playBtn = document.createElement('button');
+      playBtn.textContent = '▶';
+      playBtn.title = 'Play';
+      playBtn.className = 'animation-btn';
+      playBtn.addEventListener('click', () => {
+        state.animSystem.playAnimation(name);
+      });
+      
+      const stopBtn = document.createElement('button');
+      stopBtn.textContent = '⏹';
+      stopBtn.title = 'Stop';
+      stopBtn.className = 'animation-btn';
+      stopBtn.addEventListener('click', () => {
+        state.animSystem.stopAnimation(name);
+      });
+      
+      const resetBtn = document.createElement('button');
+      resetBtn.textContent = '⏮';
+      resetBtn.title = 'Reset';
+      resetBtn.className = 'animation-btn';
+      resetBtn.addEventListener('click', () => {
+        state.animSystem.resetAnimation(name);
+      });
+      
+      controls.appendChild(playBtn);
+      controls.appendChild(stopBtn);
+      controls.appendChild(resetBtn);
+      
+      item.appendChild(info);
+      item.appendChild(controls);
+      container.appendChild(item);
+    }
+  }
+
+  // Compile button
+  document.getElementById('btnCompile')?.addEventListener('click', () => {
+    const dsl = document.getElementById('animationDSL').value;
+    try {
+      state.animSystem.parse(dsl);
+      state.animSystem.assignVoxelsToGroups(state.chunk);
+
+      state.chunk.clearGroups();
+      state.animSystem.groups.forEach((group,name) => {
+        state.chunk.addGroup(name, group.min, group.max);
+      });
+      state.buildAllMeshes();
+
+      updateAnimationList();
+      // updateGroupPanel();
+    } catch(e) {
+      console.error('Animation compile error:', e);
+      alert('Animation compile error: ' + e.message);
+    }
+  });
+
+  // Play all looping animations
+  document.getElementById('btnPlay')?.addEventListener('click', () => {
+    for (const [name, anim] of state.animSystem.animations.entries()) {
+      if (anim.loop) {
+        state.animSystem.playAnimation(name);
+      }
+    }
+  });
+
+  // Pause all animations
+  document.getElementById('btnPause')?.addEventListener('click', () => {
+    for (const anim of state.animSystem.animations.values()) {
+      anim.stop();
+    }
+  });
+
+  // Reset all animations
+  document.getElementById('btnResetAll')?.addEventListener('click', () => {
+    state.animSystem.resetAll();
+  });
 }

@@ -1,114 +1,127 @@
 /**
- * Animation System using JSON format
+ * Animation System using DSL format
  */
 
 import { Mat4 } from './math.js';
 
-// Example JSON format:
+// Example DSL format:
 /*
-{
-  "groups": [
-    {
-      "name": "door",
-      "bounds": { "min": [0, 0, 0], "max": [2, 4, 1] },
-      "pivot": [0, 0, 0],
-      "axis": [0, 1, 0],
-      "loop": true,
-      "keyframes": [
-        { "type": "rotate", "start": 0, "end": 90, "duration": 2 }
-      ]
-    },
-    {
-      "name": "platform",
-      "bounds": { "min": [4, 0, 4], "max": [8, 1, 8] },
-      "loop": false,
-      "keyframes": [
-        { "type": "move", "axis": "y", "start": 0, "end": 4, "duration": 1 },
-        { "type": "wait", "duration": 0.5 },
-        { "type": "move", "axis": "y", "start": 4, "end": 0, "duration": 1 }
-      ]
-    }
-  ]
+group door [0, 0, 0] to [2, 4, 1]
+group platform [4, 0, 4] to [8, 1, 8]
+
+anim door_open {
+  group door
+  rotate 90 for 2 pivot [0, 0, 0] axis [0, 1, 0]
+}
+
+anim door_close {
+  group door
+  rotate -90 for 2
+}
+
+anim updown loop {
+  group platform
+  move y 4 for 1
+  wait 0.5
+  move y -4 for 1
 }
 */
 
 export class AnimationGroup {
   constructor(name) {
     this.name = name;
-    this.bounds = {min: [0,0,0], max: [0,0,0]};
-    this.pivot = [0,0,0];
-    this.axis = [0,1,0];
-    this.keyframes = [];
+    this.min = [0, 0, 0];
+    this.max = [0, 0, 0];
     this.voxels = new Set();
+  }
+
+  toJSON() {
+    return {
+      min: [...this.min],
+      max: [...this.max]
+    };
+  }
+
+  static fromJSON(name, json) {
+    const group = new AnimationGroup(name);
+    group.min = [...json.min];
+    group.max = [...json.max];
+    return group;
+  }
+}
+
+export class Animation {
+  constructor(name) {
+    this.name = name;
+    this.groupName = null;
+    this.keyframes = [];
     this.loop = false;
     this.time = 0;
+    this.playing = false;
   }
 
   getTransform() {
-    let groupMatrix = Mat4.identity();
+    let matrix = Mat4.identity();
     let totalTime = 0;
     const time = this.time;
 
-    // Calculate current transform based on keyframes and time
     for (const kf of this.keyframes) {
       const localTime = Math.max(0, Math.min(kf.duration, time - totalTime));
       const t = kf.duration > 0 ? localTime / kf.duration : 1;
 
       switch(kf.type) {
         case 'rotate': {
-          const angle = kf.start + (kf.end - kf.start) * t;
-          const rotMat = Mat4.rotate(angle * Math.PI / 180, ...this.axis);
-          const toOrigin = Mat4.translate(-this.pivot[0], -this.pivot[1], -this.pivot[2]);
-          const fromOrigin = Mat4.translate(...this.pivot);
-          groupMatrix = Mat4.multiply(groupMatrix, fromOrigin, rotMat, toOrigin);
+          const angle = kf.delta * t;
+          const pivot = kf.pivot || [0, 0, 0];
+          const axis = kf.axis || [0, 1, 0];
+          const rotMat = Mat4.rotate(angle * Math.PI / 180, ...axis);
+          const toOrigin = Mat4.translate(-pivot[0], -pivot[1], -pivot[2]);
+          const fromOrigin = Mat4.translate(...pivot);
+          matrix = Mat4.multiply(matrix, fromOrigin, rotMat, toOrigin);
           break;
         }
 
         case 'move': {
-          // Calculate the delta for THIS keyframe
-          const currentPos = kf.start + (kf.end - kf.start) * t;
-          const delta = kf.axis === 'x' ? [currentPos - kf.start, 0, 0] :
-                        kf.axis === 'y' ? [0, currentPos - kf.start, 0] : 
-                        [0, 0, currentPos - kf.start];
-          
-          // If this keyframe is complete, use the full delta
-          if (time >= totalTime + kf.duration) {
-            const fullDelta = kf.axis === 'x' ? [kf.end - kf.start, 0, 0] :
-                             kf.axis === 'y' ? [0, kf.end - kf.start, 0] : 
-                             [0, 0, kf.end - kf.start];
-            groupMatrix = Mat4.multiply(groupMatrix, Mat4.translate(...fullDelta));
-          } else {
-            // Otherwise use the interpolated delta
-            groupMatrix = Mat4.multiply(groupMatrix, Mat4.translate(...delta));
-          }
+          const currentDist = kf.delta * t;
+          const translation = kf.axis === 'x' ? [currentDist, 0, 0] :
+                            kf.axis === 'y' ? [0, currentDist, 0] : 
+                            [0, 0, currentDist];
+          matrix = Mat4.multiply(matrix, Mat4.translate(...translation));
           break;
         }
 
         case 'wait':
-          // No transform, just advance time
           break;
       }
 
       totalTime += kf.duration;
       
-      // Don't break early - we need to accumulate all completed transforms
       if (time < totalTime) {
-        // Current keyframe is still playing, no need to continue
         break;
       }
     }
 
-    return groupMatrix;
+    return matrix;
   }
 
   update(dt) {
+    if (!this.playing) return;
     this.time += dt;
     
-    // Handle per-group looping
     const duration = this.getTotalDuration();
     if (this.loop && duration > 0 && this.time > duration) {
       this.time = this.time % duration;
+    } else if (!this.loop && duration > 0 && this.time >= duration) {
+      this.playing = false;
     }
+  }
+
+  play() {
+    this.playing = true;
+  }
+
+  stop() {
+    this.playing = false;
   }
 
   reset() {
@@ -121,75 +134,215 @@ export class AnimationGroup {
 
   toJSON() {
     return {
-      name: this.name,
-      bounds: {
-        min: [...this.bounds.min],
-        max: [...this.bounds.max]
-      },
-      pivot: [...this.pivot],
-      axis: [...this.axis],
+      groupName: this.groupName,
       loop: this.loop,
       keyframes: this.keyframes.map(kf => ({...kf}))
     };
   }
 
-  static fromJSON(json) {
-    const group = new AnimationGroup(json.name);
-    group.bounds = {
-      min: [...json.bounds.min],
-      max: [...json.bounds.max]
-    };
-    group.pivot = json.pivot ? [...json.pivot] : [0, 0, 0];
-    group.axis = json.axis ? [...json.axis] : [0, 1, 0];
-    group.loop = json.loop || false;
-    group.keyframes = json.keyframes.map(kf => ({...kf}));
-    return group;
+  static fromJSON(name, json) {
+    const anim = new Animation(name);
+    anim.groupName = json.groupName;
+    anim.loop = json.loop || false;
+    anim.keyframes = json.keyframes.map(kf => ({...kf}));
+    return anim;
   }
 }
 
 export class AnimationSystem {
   constructor() {
-    this.groups = new Map();
-    this.playing = false;
+    this.groups = new Map(); // groupName -> AnimationGroup
+    this.animations = new Map(); // animName -> Animation
   }
 
-  parse(jsonString) {
-    try {
-      const data = typeof jsonString === 'string' ? JSON.parse(jsonString) : jsonString;
-      this.fromJSON(data);
-    } catch (e) {
-      console.error('Failed to parse animation JSON:', e);
-      throw e;
+  parse(dsl) {
+    this.groups.clear();
+    this.animations.clear();
+    
+    const lines = dsl.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('//'));
+    let currentAnim = null;
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+
+      // Check if this is a group definition
+      // only allowed outside of an animation
+      if (currentAnim == null && line.startsWith('group ')) {
+        this.parseGroupDefinition(line);
+        continue;
+      }
+
+      // Check if this is an animation declaration (ends with {)
+      if (line.startsWith('anim ') && line.endsWith('{')) {
+        const parts = line.slice(5, -1).trim().split(/\s+/);
+        const animName = parts[0];
+        const loop = parts.includes('loop');
+        
+        currentAnim = new Animation(animName);
+        currentAnim.loop = loop;
+        this.animations.set(animName, currentAnim);
+        continue;
+      }
+
+      // Check if this is the end of an animation
+      if (line === '}') {
+        currentAnim = null;
+        continue;
+      }
+
+      if (!currentAnim) continue;
+
+      const tokens = line.split(/\s+/);
+      const cmd = tokens[0];
+
+      switch(cmd) {
+        case 'group':
+          // Set the group for this animation
+          currentAnim.groupName = tokens[1];
+          break;
+
+        case 'rotate': {
+          // rotate 90 for 2 pivot [0, 0, 0] axis [0, 1, 0]
+          const rotDelta = parseFloat(tokens[1]);
+          const forIdx = tokens.indexOf('for');
+          const rotDuration = forIdx > 0 ? parseFloat(tokens[forIdx + 1]) : 1;
+          
+          const kf = {
+            type: 'rotate',
+            delta: rotDelta,
+            duration: rotDuration
+          };
+
+          // Parse optional pivot
+          const pivotIdx = tokens.indexOf('pivot');
+          if (pivotIdx > 0) {
+            const pivotStart = line.indexOf('[', line.indexOf('pivot'));
+            const pivotEnd = line.indexOf(']', pivotStart);
+            if (pivotStart >= 0 && pivotEnd > pivotStart) {
+              const pivotStr = line.substring(pivotStart + 1, pivotEnd);
+              kf.pivot = pivotStr.split(',').map(s => parseFloat(s.trim()));
+            }
+          }
+
+          // Parse optional axis
+          const axisIdx = tokens.indexOf('axis');
+          if (axisIdx > 0) {
+            const axisStart = line.indexOf('[', line.indexOf('axis'));
+            const axisEnd = line.indexOf(']', axisStart);
+            if (axisStart >= 0 && axisEnd > axisStart) {
+              const axisStr = line.substring(axisStart + 1, axisEnd);
+              kf.axis = axisStr.split(',').map(s => parseFloat(s.trim()));
+            }
+          }
+
+          currentAnim.keyframes.push(kf);
+          break;
+        }
+
+        case 'move':
+          // move y 4 for 1
+          const moveAxis = tokens[1];
+          const moveDelta = parseFloat(tokens[2]);
+          const moveDuration = parseFloat(tokens[4]);
+          currentAnim.keyframes.push({
+            type: 'move',
+            axis: moveAxis,
+            delta: moveDelta,
+            duration: moveDuration
+          });
+          break;
+
+        case 'wait':
+          // wait 0.5
+          const waitDuration = parseFloat(tokens[1]);
+          currentAnim.keyframes.push({
+            type: 'wait',
+            duration: waitDuration
+          });
+          break;
+      }
     }
+  }
+
+  parseGroupDefinition(line) {
+    // group platform [4, 0, 4] to [8, 1, 8]
+    const tokens = line.split(/\s+/);
+    const groupName = tokens[1];
+    
+    const group = new AnimationGroup(groupName);
+    
+    // Find 'to' keyword to split min/max
+    const toIndex = tokens.indexOf('to');
+    if (toIndex > 0) {
+      // Parse min array
+      const minStart = line.indexOf('[');
+      const minEnd = line.indexOf(']', minStart);
+      if (minStart >= 0 && minEnd > minStart) {
+        const minStr = line.substring(minStart + 1, minEnd);
+        group.min = minStr.split(',').map(s => parseFloat(s.trim()));
+      }
+      
+      // Parse max array
+      const maxStart = line.indexOf('[', minEnd);
+      const maxEnd = line.indexOf(']', maxStart);
+      if (maxStart >= 0 && maxEnd > maxStart) {
+        const maxStr = line.substring(maxStart + 1, maxEnd);
+        group.max = maxStr.split(',').map(s => parseFloat(s.trim()));
+      }
+    }
+    
+    this.groups.set(groupName, group);
+  }
+
+  parseArray(line) {
+    const match = line.match(/\[(.*?)\]/);
+    if (match) {
+      return match[1].split(',').map(s => parseFloat(s.trim()));
+    }
+    return [0, 0, 0];
   }
 
   fromJSON(data) {
     this.groups.clear();
+    this.animations.clear();
     
-    if (data.groups && Array.isArray(data.groups)) {
-      for (const groupData of data.groups) {
-        const group = AnimationGroup.fromJSON(groupData);
-        this.groups.set(group.name, group);
+    if (data.groups && typeof data.groups === 'object') {
+      for (const [name, groupData] of Object.entries(data.groups)) {
+        const group = AnimationGroup.fromJSON(name, groupData);
+        this.groups.set(name, group);
+      }
+    }
+    
+    if (data.animations && typeof data.animations === 'object') {
+      for (const [name, animData] of Object.entries(data.animations)) {
+        const anim = Animation.fromJSON(name, animData);
+        this.animations.set(name, anim);
       }
     }
   }
 
   toJSON() {
-    return {
-      groups: Array.from(this.groups.values()).map(g => g.toJSON())
-    };
+    const groups = {};
+    for (const [name, group] of this.groups.entries()) {
+      groups[name] = group.toJSON();
+    }
+    
+    const animations = {};
+    for (const [name, anim] of this.animations.entries()) {
+      animations[name] = anim.toJSON();
+    }
+    
+    return { groups, animations };
   }
 
   assignVoxelsToGroups(chunk) {
-    // Clear existing assignments
     for (const group of this.groups.values()) {
       group.voxels.clear();
     }
 
-    // Assign voxels to groups based on bounds
     for (const group of this.groups.values()) {
-      const [minX, minY, minZ] = group.bounds.min;
-      const [maxX, maxY, maxZ] = group.bounds.max;
+      const [minX, minY, minZ] = group.min;
+      const [maxX, maxY, maxZ] = group.max;
 
       for(let z = minZ; z <= maxZ; z++) {
         for(let y = minY; y <= maxY; y++) {
@@ -205,42 +358,64 @@ export class AnimationSystem {
   }
 
   update(dt) {
-    if (!this.playing) return;
-    
-    // Update each group independently
-    for (const group of this.groups.values()) {
-      group.update(dt);
+    for (const anim of this.animations.values()) {
+      anim.update(dt);
     }
   }
 
-  triggerGroup(groupName) {
-    const group = this.groups.get(groupName);
-    if (group && !group.loop) {
-      group.reset();
-      this.playing = true;
+  playAnimation(animName) {
+    const anim = this.animations.get(animName);
+    if (anim) {
+      anim.reset();
+      anim.play();
+    } else {
+      console.warn('Animation not found:', animName);
     }
   }
 
-  trigger() {
-    // Reset and play all non-looping animations
-    for (const group of this.groups.values()) {
-      if (!group.loop) {
-        group.reset();
-      }
+  stopAnimation(animName) {
+    const anim = this.animations.get(animName);
+    if (anim) {
+      anim.stop();
+    } else {
+      console.warn('Animation not found:', animName);
     }
-    this.playing = true;
   }
 
-  reset() {
-    this.playing = false;
-    for (const group of this.groups.values()) {
-      group.reset();
+  resetAnimation(animName) {
+    const anim = this.animations.get(animName);
+    if (anim) {
+      anim.reset();
+    } else {
+      console.warn('Animation not found:', animName);
+    }
+  }
+
+  resetAll() {
+    for (const anim of this.animations.values()) {
+      anim.stop();
+      anim.reset();
     }
   }
 
   getGroupTransform(groupName) {
     const group = this.groups.get(groupName);
     if (!group) return Mat4.identity();
-    return group.getTransform();
+    
+    // Combine transforms from all playing animations for this group
+    let combinedTransform = Mat4.identity();
+    for (const anim of this.animations.values()) {
+      if (anim.groupName === groupName && anim.playing) {
+        const animTransform = anim.getTransform(group);
+        combinedTransform = Mat4.multiply(combinedTransform, animTransform);
+      }
+    }
+    
+    return combinedTransform;
+  }
+
+  getAnimationsForGroup(groupName) {
+    return Array.from(this.animations.values())
+      .filter(anim => anim.groupName === groupName);
   }
 }

@@ -199,72 +199,221 @@ input[type="color"] {
 }
 
 .animation-panel {
-  position: absolute;
-  right: 12px;
-  top: 12px;
-  background: rgba(0, 0, 0, 0.75);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  padding: 12px;
+  position: fixed;
+  right: -420px; /* Hidden by default */
+  top: 0;
+  bottom: 0;
+  width: 400px;
+  background: rgba(15, 19, 26, 0.95);
+  backdrop-filter: blur(12px);
+  border-left: 1px solid rgba(42, 53, 80, 0.5);
+  padding: 20px;
+  z-index: 100;
+  transition: right 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+}
+
+.animation-panel.open {
+  right: 0;
+}
+
+.animation-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.animation-panel-header h3 {
+  margin: 0;
+  font-size: 18px;
+  color: #cfd3dc;
+  font-weight: 500;
+}
+
+.close-btn {
+  background: transparent;
+  border: none;
+  color: #cfd3dc;
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+}
+
+.close-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .animation-panel textarea {
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.3);
   color: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 4px;
-  padding: 8px;
-  font-family: monospace;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  padding: 12px;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 12px;
+  line-height: 1.5;
   resize: vertical;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.animation-panel textarea:focus {
+  outline: none;
+  border-color: #007acc;
+  background: rgba(0, 0, 0, 0.4);
 }
 
 .animation-controls {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
+}
+
+.animation-controls button,
+.animation-controls select {
+  flex: 0 0 auto;
+}
+
+.animation-controls select {
+  flex: 1 1 auto;
+  min-width: 150px;
+}
+
+/* Group panel inline (inside animation panel) */
+.group-panel-inline {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  padding: 12px;
   margin-top: 8px;
 }
 
-.group-panel {
-  position: absolute;
-  top: 60px;
-  right: 12px;
-  background: rgba(0,0,0,0.7);
-  border-radius: 8px;
-  padding: 10px 16px;
-  z-index: 20;
-  color: #cfd3dc;
+.group-panel-inline h4 {
+  margin: 0 0 8px 0;
   font-size: 14px;
-  min-width: 120px;
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(255,255,255,0.1);
+  color: #cfd3dc;
+  font-weight: 500;
 }
-.group-panel label {
+
+.group-panel-inline label {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin-bottom: 4px;
+  gap: 8px;
+  margin-bottom: 6px;
   cursor: pointer;
-}
-
-/* Add styling for the select dropdown */
-.animation-controls select {
-  background: #1a2233;
   color: #cfd3dc;
-  border: 1px solid #2a3550;
-  border-radius: 6px;
-  padding: 6px 12px;
-  font-family: system-ui, Segoe UI, Roboto, Arial, sans-serif;
   font-size: 14px;
+}
+
+.group-panel-inline input[type="checkbox"] {
   cursor: pointer;
-  min-width: 200px;
 }
 
-.animation-controls select:hover {
-  background: #202a3f;
+/* Optional: Add overlay when panel is open */
+.animation-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.3);
+  z-index: 99;
+  display: none;
 }
 
-.animation-controls select:focus {
-  outline: none;
-  border-color: #007acc;
+.animation-overlay.open {
+  display: block;
+}
+
+/* Add these new styles */
+
+.animation-list-container {
+  margin-top: 16px;
+}
+
+.animation-list-container h4 {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  color: #cfd3dc;
+  font-weight: 500;
+}
+
+#animationList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.animation-item {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  padding: 8px 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.animation-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.animation-name {
+  font-size: 13px;
+  color: #cfd3dc;
+  font-weight: 500;
+}
+
+.animation-group {
+  font-size: 11px;
+  color: #888;
+}
+
+.animation-badge {
+  background: rgba(0, 122, 204, 0.3);
+  border: 1px solid rgba(0, 122, 204, 0.5);
+  color: #4da6ff;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.animation-controls-inline {
+  display: flex;
+  gap: 4px;
+}
+
+.animation-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #cfd3dc;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  transition: background 0.15s;
+}
+
+.animation-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.animation-btn:active {
+  background: rgba(255, 255, 255, 0.05);
 }

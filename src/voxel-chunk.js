@@ -33,6 +33,10 @@ export class VoxelChunk {
     this._groups = new Map();
   }
 
+  clearGroups() {
+    this._groups.clear();
+  }
+
   addGroup(name,min,max) {
     const group = new Group(this, min, max);
     this._groups.set(name, group);
@@ -129,12 +133,8 @@ export class VoxelChunk {
   }
 
   _buildGreedyRenderMesh(gl, renderProg, vao, isSolid) {
-    console.log('Building greedy mesh...', vao);
     const positions = [], normals = [], matIds = [], indices = [];
-
     let indexBase = 0;
-
-  //  const visCount = () => { let vis = 0; for (let z = 0; z < this._size; z++)for (let y = 0; y < this._size; y++)for (let x = 0; x < this._size; x++) { if (!this.isSolid(this.idx3(x, y, z))) continue; if (this.faceExposed(x, y, z, 0) || this.faceExposed(x, y, z, 1) || this.faceExposed(x, y, z, 2) || this.faceExposed(x, y, z, 3) || this.faceExposed(x, y, z, 4) || this.faceExposed(x, y, z, 5)) vis++; } return vis; };
 
     for (let axis = 0; axis < 3; axis++) {
       const u = (axis + 1) % 3, v = (axis + 2) % 3, dims = [this._size, this._size, this._size];
@@ -147,7 +147,6 @@ export class VoxelChunk {
             if (!this.within(c[0], c[1], c[2])) continue;
             const idx = this.idx3(c[0], c[1], c[2]);
             if (!isSolid(idx)) continue;
-            //if (animatedVoxels.has(idx)) continue;
             const neigh = [c[0] + n[0], c[1] + n[1], c[2] + n[2]];
             if (this.within(neigh[0], neigh[1], neigh[2]) && isSolid(this.idx3(neigh[0], neigh[1], neigh[2]))) continue;
             mask[i + dims[u] * j] = this.material(idx);
@@ -233,12 +232,7 @@ export class VoxelChunk {
    
     gl.bindVertexArray(null);
 
-    let indexCount = indices.length;
-//    document.getElementById('quads').textContent = (indexCount / 6).toString();
-//    document.getElementById('tris').textContent = indexCount.toString();
-//    document.getElementById('vis').textContent = visCount().toString();
-console.log('Built mesh: ', { indexCount, quads: indexCount / 6 });
-    return indexCount;
+    return indices.length;
   }
 
 
@@ -377,8 +371,5 @@ console.log('Built mesh: ', { indexCount, quads: indexCount / 6 });
     pickProg.meta.pickVoxelCount = voxelIndices.length;
     pickProg.meta.pickGroundCount = groundIndices.length;
 
-    console.log('Built pick faces: ', { voxelFaces: voxelIndices.length / 3, groundFaces: groundIndices.length / 3 });  
   }
-
-
 }

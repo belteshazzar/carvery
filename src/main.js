@@ -606,13 +606,12 @@ function main() {
   const COLOR_ADD = [0.27, 0.95, 0.42];
 
   /*** ======= Grouping Meshes ======= ***/
-  const meshData = {};
-  let groupNames = [];
 
   function buildAllMeshes() {
 
-    console.log('Rebuilding all meshes...');
     renderProg.meta.renderIndexCount = chunk.buildGreedyRenderMeshMain(gl, renderProg, renderProg.vao);
+    // TODO: build pick for groups and when animated
+    chunk.buildPickFaces(gl, pickProg);
 
     renderProg.meta.groups = {};
     for (const [name, group] of animSystem.groups.entries()) {
@@ -622,31 +621,9 @@ function main() {
       renderProg.meta.groups[name].visible = true;
       renderProg.meta.groups[name].indexCount = chunk.buildGreedyRenderMeshGroup(gl, renderProg, renderProg.meta.groups[name].vao, name);
     }
-
-    chunk.buildPickFaces(gl, pickProg);
-
-    updateGroupPanel();
   }
 
   buildAllMeshes();
-
-  function updateGroupPanel() {
-    const panel = document.getElementById('groupPanel');
-    panel.innerHTML = '';
-    ["main", ...Object.keys(renderProg.meta.groups)].forEach(name => {
-      const group = name == "main" ? renderProg.meta : renderProg.meta.groups[name];
-      const label = document.createElement('label');
-      const cb = document.createElement('input');
-      cb.type = 'checkbox';
-      cb.checked = group.visible;
-      cb.addEventListener('change', () => {
-        group.visible = cb.checked;
-      });
-      label.appendChild(cb);
-      label.appendChild(document.createTextNode(name === "main" ? "Main" : name));
-      panel.appendChild(label);
-    });
-  }
 
   // Add call to updateAxisLabels in render loop
   function render() {
@@ -783,8 +760,6 @@ function main() {
     setPlaneHoverSurf: (val) => { planeHoverSurf = val; },
     getPlaneHoverAdd: () => planeHoverAdd,
     setPlaneHoverAdd: (val) => { planeHoverAdd = val; },
-    getGroupNames: () => groupNames,
-    setGroupNames: (val) => { groupNames = val; },
 
     // Functions
     buildAllMeshes,
@@ -801,7 +776,6 @@ function main() {
     beginVoxelAction,
     recordVoxelChange,
     commitAction,
-    updateGroupPanel,
 
     // Constants
     FACE_DIRS
@@ -811,6 +785,7 @@ function main() {
 
   // Get updateHoverUI function after initialization
   updateHoverUI = uiState.updateHoverUI;
+
 }
 
 document.addEventListener('DOMContentLoaded', main);
