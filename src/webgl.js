@@ -119,6 +119,31 @@ export function createProgram(gl, vsSrc, fsSrc) {
         res[nameOf(uniformInfo.name)].set = function(value) {
           gl.uniform1f(location, value);
         };
+      } else if (uniformInfo.type === gl.INT) {
+        res[nameOf(uniformInfo.name)].set = function(value) {
+          gl.uniform1i(location, value);
+        };
+      } else if (uniformInfo.type === gl.UNSIGNED_INT) {
+        res[nameOf(uniformInfo.name)].set = function(value) {
+          gl.uniform1ui(location, value);
+        };
+      }
+      // Handle array types by checking size
+      if (uniformInfo.size > 1) {
+        const baseName = nameOf(uniformInfo.name);
+        if (uniformInfo.type === gl.FLOAT_VEC3) {
+          res[baseName].set = function(value) {
+            gl.uniform3fv(location, value);
+          };
+        } else if (uniformInfo.type === gl.FLOAT) {
+          res[baseName].set = function(value) {
+            gl.uniform1fv(location, value);
+          };
+        } else if (uniformInfo.type === gl.UNSIGNED_INT) {
+          res[baseName].set = function(value) {
+            gl.uniform1uiv(location, value);
+          };
+        }
       }
   }
 

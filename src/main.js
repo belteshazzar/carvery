@@ -83,23 +83,29 @@ function main() {
   gl.bindVertexArray(particleProg.vao);
   
   // Position buffer
-  gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
-  gl.bufferData(gl.ARRAY_BUFFER, particleCube.positions, gl.STATIC_DRAW);
-  gl.enableVertexAttribArray(particleProg.aPosition.location);
-  gl.vertexAttribPointer(particleProg.aPosition.location, 3, gl.FLOAT, false, 0, 0);
+  if (particleProg.aPosition) {
+    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+    gl.bufferData(gl.ARRAY_BUFFER, particleCube.positions, gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(particleProg.aPosition.location);
+    gl.vertexAttribPointer(particleProg.aPosition.location, 3, gl.FLOAT, false, 0, 0);
+  }
   
   // Normal buffer
-  gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
-  gl.bufferData(gl.ARRAY_BUFFER, particleCube.normals, gl.STATIC_DRAW);
-  gl.enableVertexAttribArray(particleProg.aNormal.location);
-  gl.vertexAttribPointer(particleProg.aNormal.location, 3, gl.FLOAT, false, 0, 0);
+  if (particleProg.aNormal) {
+    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+    gl.bufferData(gl.ARRAY_BUFFER, particleCube.normals, gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(particleProg.aNormal.location);
+    gl.vertexAttribPointer(particleProg.aNormal.location, 3, gl.FLOAT, false, 0, 0);
+  }
   
   // Material ID buffer (single value per vertex, all 0 since we'll use uniforms)
-  const particleMatIds = new Uint8Array(particleCube.positions.length / 3);
-  gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
-  gl.bufferData(gl.ARRAY_BUFFER, particleMatIds, gl.STATIC_DRAW);
-  gl.enableVertexAttribArray(particleProg.aMatId.location);
-  gl.vertexAttribIPointer(particleProg.aMatId.location, 1, gl.UNSIGNED_BYTE, 0, 0);
+  if (particleProg.aMatId) {
+    const particleMatIds = new Uint8Array(particleCube.positions.length / 3);
+    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+    gl.bufferData(gl.ARRAY_BUFFER, particleMatIds, gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(particleProg.aMatId.location);
+    gl.vertexAttribIPointer(particleProg.aMatId.location, 1, gl.UNSIGNED_BYTE, 0, 0);
+  }
   
   // Index buffer
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.createBuffer());
@@ -764,11 +770,11 @@ function main() {
       gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
       
       gl.useProgram(particleProg.program);
-      particleProg.uPalette.set(palette.colors);
-      particleProg.uView.set(camera.view());
-      particleProg.uProj.set(proj);
-      particleProg.uLightDirWS.set(new Float32Array([0.7 / 1.7, -1.2 / 1.7, 0.9 / 1.7]));
-      particleProg.uAmbient.set(ambient);
+      if (particleProg.uPalette) particleProg.uPalette.set(palette.colors);
+      if (particleProg.uView) particleProg.uView.set(camera.view());
+      if (particleProg.uProj) particleProg.uProj.set(proj);
+      if (particleProg.uLightDirWS) particleProg.uLightDirWS.set(new Float32Array([0.7 / 1.7, -1.2 / 1.7, 0.9 / 1.7]));
+      if (particleProg.uAmbient) particleProg.uAmbient.set(ambient);
       
       // Prepare particle data
       const maxParticles = 1000;
@@ -788,11 +794,11 @@ function main() {
         alphas[i] = p.getAlpha();
       }
       
-      particleProg.uParticleCount.set(count);
-      particleProg.uParticlePositions.set(positions);
-      particleProg.uParticleSizes.set(sizes);
-      particleProg.uParticleColors.set(colors);
-      particleProg.uParticleAlphas.set(alphas);
+      if (particleProg.uParticleCount) particleProg.uParticleCount.set(count);
+      if (particleProg.uParticlePositions) particleProg.uParticlePositions.set(positions);
+      if (particleProg.uParticleSizes) particleProg.uParticleSizes.set(sizes);
+      if (particleProg.uParticleColors) particleProg.uParticleColors.set(colors);
+      if (particleProg.uParticleAlphas) particleProg.uParticleAlphas.set(alphas);
       
       gl.bindVertexArray(particleProg.vao);
       gl.drawElementsInstanced(gl.TRIANGLES, particleCube.count, gl.UNSIGNED_SHORT, 0, count);
