@@ -1,6 +1,6 @@
 import './style.css'
 import { Mat4, Vec3, toRadians } from './math.js';
-import { makeCubeEdges, makeAxisGizmo, OrbitCamera } from './3d.js';
+import { makeCubeEdges, makeAxisGizmo, makeParticleCube, OrbitCamera } from './3d.js';
 import { createProgram } from './webgl.js';
 import lambertFrag from './lambert.frag';
 import lambertVert from './lambert.vert';
@@ -10,6 +10,8 @@ import pickFrag from './pick.frag';
 import pickVert from './pick.vert';
 import axisFrag from './axis.frag';
 import axisVert from './axis.vert';
+import particleFrag from './particle.frag';
+import particleVert from './particle.vert';
 import {
   hexToRgbF,
   rgbToHexF,
@@ -39,6 +41,7 @@ function main() {
   const pickProg = createProgram(gl, pickVert, pickFrag);
   const wireProg = createProgram(gl, wireframeVert, wireframeFrag);
   const axisProg = createProgram(gl, axisVert, axisFrag);
+  const particleProg = createProgram(gl, particleVert, particleFrag);
 
   // Wireframe mesh
 
@@ -72,6 +75,42 @@ function main() {
   gl.enableVertexAttribArray(axisProg.aColor.location);
   gl.vertexAttribPointer(axisProg.aColor.location, 3, gl.FLOAT, false, 0, 0);
 
+  gl.bindVertexArray(null);
+
+  // Particle cube mesh for instanced rendering
+  const particleCube = makeParticleCube();
+  
+  gl.bindVertexArray(particleProg.vao);
+  
+  // Position buffer
+  if (particleProg.aPosition) {
+    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+    gl.bufferData(gl.ARRAY_BUFFER, particleCube.positions, gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(particleProg.aPosition.location);
+    gl.vertexAttribPointer(particleProg.aPosition.location, 3, gl.FLOAT, false, 0, 0);
+  }
+  
+  // Normal buffer
+  if (particleProg.aNormal) {
+    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+    gl.bufferData(gl.ARRAY_BUFFER, particleCube.normals, gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(particleProg.aNormal.location);
+    gl.vertexAttribPointer(particleProg.aNormal.location, 3, gl.FLOAT, false, 0, 0);
+  }
+  
+  // Material ID buffer (single value per vertex, all 0 since we'll use uniforms)
+  if (particleProg.aMatId) {
+    const particleMatIds = new Uint8Array(particleCube.positions.length / 3);
+    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+    gl.bufferData(gl.ARRAY_BUFFER, particleMatIds, gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(particleProg.aMatId.location);
+    gl.vertexAttribIPointer(particleProg.aMatId.location, 1, gl.UNSIGNED_BYTE, 0, 0);
+  }
+  
+  // Index buffer
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.createBuffer());
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, particleCube.indices, gl.STATIC_DRAW);
+  
   gl.bindVertexArray(null);
 
   // Add inside main()
@@ -698,7 +737,64 @@ function main() {
 
   buildAllMeshes();
 
-  // Add call to updateAxisLabels in render loop
+  // Create particle data texture (do this once during initialization)
+  const maxParticles = 1000;
+  const pixelsPerParticle = 2;  // 2 pixels per particle
+  const textureWidth = 64;  // Power of 2, adjust based on maxParticles
+  const textureHeight = Math.ceil((maxParticles * pixelsPerParticle) / textureWidth);
+
+  const particleDataTexture = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, particleDataTexture);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, textureWidth, textureHeight, 0, gl.RGBA, gl.FLOAT, null);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  
+  const texError = gl.getError();
+  if (texError !== gl.NO_ERROR) {
+    console.error('Texture creation error:', texError);
+  }
+
+  // Update particle data each frame
+  function updateParticleTexture(particles) {
+    const data = new Float32Array(textureWidth * textureHeight * 4);
+    
+    for (let i = 0; i < particles.length; i++) {
+      const p = particles[i];
+      
+      // Calculate pixel positions for this particle (2 pixels per particle)
+      const pixel0Index = i * 2;
+      const pixel1Index = i * 2 + 1;
+      
+      // Convert pixel index to x,y coordinates
+      const x0 = pixel0Index % textureWidth;
+      const y0 = Math.floor(pixel0Index / textureWidth);
+      const x1 = pixel1Index % textureWidth;
+      const y1 = Math.floor(pixel1Index / textureWidth);
+      
+      // Calculate linear index in the data array (row-major order)
+      const baseIdx0 = (y0 * textureWidth + x0) * 4;
+      const baseIdx1 = (y1 * textureWidth + x1) * 4;
+      
+      // Pixel 0: position (RGB) + size (A)
+      data[baseIdx0 + 0] = p.position[0];
+      data[baseIdx0 + 1] = p.position[1];
+      data[baseIdx0 + 2] = p.position[2];
+      data[baseIdx0 + 3] = p.size;
+      
+      // Pixel 1: color (R) + alpha (G)
+      data[baseIdx1 + 0] = p.color / 255.0;  // Normalize color to 0-1
+      data[baseIdx1 + 1] = p.getAlpha();
+      data[baseIdx1 + 2] = 0;  // Unused
+      data[baseIdx1 + 3] = 0;  // Unused
+    }
+    
+    gl.bindTexture(gl.TEXTURE_2D, particleDataTexture);
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, textureWidth, textureHeight, gl.RGBA, gl.FLOAT, data);
+  }
+
+
   function render() {
     // Update animation time
     const now = performance.now();
@@ -748,6 +844,48 @@ function main() {
     gl.bindVertexArray(axisProg.vao);
     gl.drawArrays(gl.LINES, 0, gizmo.count);
     gl.bindVertexArray(null);
+
+    // Render particles
+    const particles = animSystem.getAllParticles();
+    if (particles.length > 0) {
+
+      // Enable blending for transparent particles
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+      
+      gl.useProgram(particleProg.program);
+      particleProg.uPalette.set(palette.colors);
+      particleProg.uView.set(camera.view());
+      particleProg.uProj.set(proj);
+      particleProg.uLightDirWS.set(new Float32Array([0.7 / 1.7, -1.2 / 1.7, 0.9 / 1.7]));
+      particleProg.uAmbient.set(ambient);
+      
+updateParticleTexture(particles);
+      
+      // if (particleProg.uParticleCount) particleProg.uParticleCount.set(count);
+      // if (particleProg.uParticlePositions) particleProg.uParticlePositions.set(positions);
+      // if (particleProg.uParticleSizes) particleProg.uParticleSizes.set(sizes);
+      // if (particleProg.uParticleColors) particleProg.uParticleColors.set(colors);
+      // if (particleProg.uParticleAlphas) particleProg.uParticleAlphas.set(alphas);
+      
+
+      // console.log('Updating particle texture with', particleProg);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, particleDataTexture);
+      particleProg.uParticleData.set(0);  // Texture unit 0
+      particleProg.uTextureWidth.set(textureWidth);
+      // particleProg.uParticleCount.set(activeParticleCount);
+
+      gl.bindVertexArray(particleProg.vao);
+      gl.drawElementsInstanced(gl.TRIANGLES, particleCube.count, gl.UNSIGNED_SHORT, 0, particles.length);
+      const drawError = gl.getError();
+      if (drawError !== gl.NO_ERROR) {
+        console.error('Draw error:', drawError, 'hex:', drawError.toString(16));
+      }
+      gl.bindVertexArray(null);
+      
+      gl.disable(gl.BLEND);
+    }
 
     updateHover();
 

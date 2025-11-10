@@ -454,9 +454,17 @@ export function initializeUI(state) {
     
     container.innerHTML = '';
     
-    if (state.animSystem.animations.size === 0) {
-      container.innerHTML = '<p style="color: #888; font-size: 12px; margin: 8px 0;">No animations defined</p>';
+    // Animations section
+    if (state.animSystem.animations.size === 0 && state.animSystem.emitters.size === 0) {
+      container.innerHTML = '<p style="color: #888; font-size: 12px; margin: 8px 0;">No animations or emitters defined</p>';
       return;
+    }
+    
+    if (state.animSystem.animations.size > 0) {
+      const animHeader = document.createElement('h5');
+      animHeader.textContent = 'Animations';
+      animHeader.style.margin = '8px 0 4px 0';
+      container.appendChild(animHeader);
     }
     
     for (const [name, anim] of state.animSystem.animations.entries()) {
@@ -504,7 +512,7 @@ export function initializeUI(state) {
       });
       
       const resetBtn = document.createElement('button');
-      resetBtn.textContent = '⏮';
+      resetBtn.textContent = '↺';
       resetBtn.title = 'Reset';
       resetBtn.className = 'animation-btn';
       resetBtn.addEventListener('click', () => {
@@ -518,6 +526,73 @@ export function initializeUI(state) {
       item.appendChild(info);
       item.appendChild(controls);
       container.appendChild(item);
+    }
+    
+    // Emitters section
+    if (state.animSystem.emitters.size > 0) {
+      const emitterHeader = document.createElement('h5');
+      emitterHeader.textContent = 'Emitters';
+      emitterHeader.style.margin = '12px 0 4px 0';
+      container.appendChild(emitterHeader);
+      
+      for (const [name, emitter] of state.animSystem.emitters.entries()) {
+        const item = document.createElement('div');
+        item.className = 'animation-item';
+        
+        const info = document.createElement('div');
+        info.className = 'animation-info';
+        
+        const nameLabel = document.createElement('span');
+        nameLabel.className = 'animation-name';
+        nameLabel.textContent = name;
+        
+        const statusLabel = document.createElement('span');
+        statusLabel.className = 'animation-group';
+        statusLabel.textContent = emitter.enabled ? 'active' : 'stopped';
+        
+        const particleCount = document.createElement('span');
+        particleCount.className = 'animation-badge';
+        particleCount.textContent = `${emitter.particles.length} particles`;
+        
+        info.appendChild(nameLabel);
+        info.appendChild(particleCount);
+        info.appendChild(statusLabel);
+        
+        const controls = document.createElement('div');
+        controls.className = 'animation-controls-inline';
+        
+        const startBtn = document.createElement('button');
+        startBtn.textContent = '▶';
+        startBtn.title = 'Start';
+        startBtn.className = 'animation-btn';
+        startBtn.addEventListener('click', () => {
+          state.animSystem.startEmitter(name);
+        });
+        
+        const stopBtn = document.createElement('button');
+        stopBtn.textContent = '⏹';
+        stopBtn.title = 'Stop';
+        stopBtn.className = 'animation-btn';
+        stopBtn.addEventListener('click', () => {
+          state.animSystem.stopEmitter(name);
+        });
+        
+        const clearBtn = document.createElement('button');
+        clearBtn.textContent = '✕';
+        clearBtn.title = 'Clear particles';
+        clearBtn.className = 'animation-btn';
+        clearBtn.addEventListener('click', () => {
+          state.animSystem.clearEmitter(name);
+        });
+        
+        controls.appendChild(startBtn);
+        controls.appendChild(stopBtn);
+        controls.appendChild(clearBtn);
+        
+        item.appendChild(info);
+        item.appendChild(controls);
+        container.appendChild(item);
+      }
     }
   }
 
@@ -690,19 +765,25 @@ export function initializeUI(state) {
     }
   });
 
-  // Play all looping animations
+  // Play all looping animations and start all emitters
   document.getElementById('btnPlay')?.addEventListener('click', () => {
     for (const [name, anim] of state.animSystem.animations.entries()) {
       if (anim.loop) {
         state.animSystem.playAnimation(name);
       }
     }
+    for (const [name, emitter] of state.animSystem.emitters.entries()) {
+      state.animSystem.startEmitter(name);
+    }
   });
 
-  // Pause all animations
+  // Pause all animations and stop all emitters
   document.getElementById('btnPause')?.addEventListener('click', () => {
     for (const anim of state.animSystem.animations.values()) {
       anim.stop();
+    }
+    for (const emitter of state.animSystem.emitters.values()) {
+      emitter.stop();
     }
   });
 

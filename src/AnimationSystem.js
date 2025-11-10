@@ -4,28 +4,32 @@
 
 import { Animation } from './Animation.js';
 import { AnimationGroup } from './AnimationGroup.js';
+import { Emitter } from './Emitter.js';
 import { Mat4 } from './math.js';
 
 export class AnimationSystem {
   constructor() {
     this.groups = new Map(); // groupName -> AnimationGroup
     this.animations = new Map(); // animName -> Animation
+    this.emitters = new Map(); // emitterName -> Emitter
   }
 
   parse(dsl) {
     this.groups.clear();
     this.animations.clear();
+    this.emitters.clear();
     
     const lines = dsl.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('//'));
     let currentGroup = null;
     let currentAnim = null;
+    let currentEmitter = null;
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       
       // Check if this is a group definition
       // only allowed outside of an animation
-      if (currentAnim == null && currentGroup == null && line.startsWith('group ') && line.endsWith('{')) {
+      if (currentAnim == null && currentGroup == null && currentEmitter == null && line.startsWith('group ') && line.endsWith('{')) {
         const groupName = line.slice(6, -1).trim();
         currentGroup = new AnimationGroup(groupName);
         this.groups.set(groupName, currentGroup);
@@ -33,17 +37,26 @@ export class AnimationSystem {
       }
 
       // Check if this is an animation declaration (ends with {)
-      if (currentAnim == null && currentGroup == null && line.startsWith('anim ') && line.endsWith('{')) {
+      if (currentAnim == null && currentGroup == null && currentEmitter == null && line.startsWith('anim ') && line.endsWith('{')) {
         const animName = line.slice(5, -1).trim();
         currentAnim = new Animation(animName);
         this.animations.set(animName, currentAnim);
         continue;
       }
 
-      // Check if this is the end of an animation
+      // Check if this is an emitter declaration (ends with {)
+      if (currentAnim == null && currentGroup == null && currentEmitter == null && line.startsWith('emitter ') && line.endsWith('{')) {
+        const emitterName = line.slice(8, -1).trim();
+        currentEmitter = new Emitter(emitterName);
+        this.emitters.set(emitterName, currentEmitter);
+        continue;
+      }
+
+      // Check if this is the end of a block
       if (line === '}') {
         if (currentGroup) currentGroup = null;
         if (currentAnim) currentAnim = null;
+        if (currentEmitter) currentEmitter = null;
         continue;
       }
 
@@ -71,7 +84,7 @@ export class AnimationSystem {
       }
 
       // Handle animation-level commands
-      if (! currentGroup && currentAnim) {
+      if (! currentGroup && currentAnim && !currentEmitter) {
         switch(cmd) {
           case 'loop':
             currentAnim.loop = true;
@@ -195,6 +208,51 @@ export class AnimationSystem {
             break;
         }
       }
+
+      // Handle emitter-level commands
+      if (!currentGroup && !currentAnim && currentEmitter) {
+        switch(cmd) {
+          case 'position':
+          case 'pos':
+            currentEmitter.position = this.parseArray(line);
+            break;
+
+          case 'rate':
+            currentEmitter.rate = parseFloat(tokens[1]);
+            break;
+
+          case 'lifetime':
+            currentEmitter.particleLifetime = parseFloat(tokens[1]);
+            break;
+
+          case 'size':
+            currentEmitter.particleSize = parseFloat(tokens[1]);
+            break;
+
+          case 'velocity':
+          case 'vel':
+            currentEmitter.velocityBase = this.parseArray(line);
+            break;
+
+          case 'spread':
+            currentEmitter.velocitySpread = this.parseArray(line);
+            break;
+
+          case 'colors':
+          case 'color':
+            // Parse array of color indices: colors [1, 2, 3]
+            currentEmitter.colorIds = this.parseArray(line).map(v => Math.floor(v));
+            break;
+
+          case 'gravity':
+            currentEmitter.gravity = this.parseArray(line);
+            break;
+
+          case 'max':
+            currentEmitter.maxParticles = parseInt(tokens[1]);
+            break;
+        }
+      }
     }
 
     // Link animations to groups after parsing
@@ -223,6 +281,7 @@ export class AnimationSystem {
   fromJSON(data) {
     this.groups.clear();
     this.animations.clear();
+    this.emitters.clear();
     
     if (data.groups && typeof data.groups === 'object') {
       for (const [name, groupData] of Object.entries(data.groups)) {
@@ -235,6 +294,13 @@ export class AnimationSystem {
       for (const [name, animData] of Object.entries(data.animations)) {
         const anim = Animation.fromJSON(name, animData);
         this.animations.set(name, anim);
+      }
+    }
+
+    if (data.emitters && typeof data.emitters === 'object') {
+      for (const [name, emitterData] of Object.entries(data.emitters)) {
+        const emitter = Emitter.fromJSON(name, emitterData);
+        this.emitters.set(name, emitter);
       }
     }
 
@@ -253,7 +319,12 @@ export class AnimationSystem {
       animations[name] = anim.toJSON();
     }
     
-    return { groups, animations };
+    const emitters = {};
+    for (const [name, emitter] of this.emitters.entries()) {
+      emitters[name] = emitter.toJSON();
+    }
+    
+    return { groups, animations, emitters };
   }
 
   assignVoxelsToGroups(chunk) {
@@ -281,6 +352,9 @@ export class AnimationSystem {
   update(dt) {
     for (const anim of this.animations.values()) {
       anim.update(dt);
+    }
+    for (const emitter of this.emitters.values()) {
+      emitter.update(dt);
     }
   }
 
@@ -325,6 +399,44 @@ export class AnimationSystem {
       anim.stop();
       anim.reset();
     }
+    for (const emitter of this.emitters.values()) {
+      emitter.reset();
+    }
+  }
+
+  startEmitter(emitterName) {
+    const emitter = this.emitters.get(emitterName);
+    if (emitter) {
+      emitter.start();
+    } else {
+      console.warn('Emitter not found:', emitterName);
+    }
+  }
+
+  stopEmitter(emitterName) {
+    const emitter = this.emitters.get(emitterName);
+    if (emitter) {
+      emitter.stop();
+    } else {
+      console.warn('Emitter not found:', emitterName);
+    }
+  }
+
+  clearEmitter(emitterName) {
+    const emitter = this.emitters.get(emitterName);
+    if (emitter) {
+      emitter.clear();
+    } else {
+      console.warn('Emitter not found:', emitterName);
+    }
+  }
+
+  getAllParticles() {
+    const allParticles = [];
+    for (const emitter of this.emitters.values()) {
+      allParticles.push(...emitter.particles);
+    }
+    return allParticles;
   }
 
   getGroupTransform(groupName) {
