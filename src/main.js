@@ -711,7 +711,64 @@ function main() {
 
   buildAllMeshes();
 
-  // Add call to updateAxisLabels in render loop
+  // Create particle data texture (do this once during initialization)
+  const maxParticles = 1000;
+  const pixelsPerParticle = 2;  // 2 pixels per particle
+  const textureWidth = 64;  // Power of 2, adjust based on maxParticles
+  const textureHeight = Math.ceil((maxParticles * pixelsPerParticle) / textureWidth);
+
+  const particleDataTexture = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, particleDataTexture);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, textureWidth, textureHeight, 0, gl.RGBA, gl.FLOAT, null);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  
+  const texError = gl.getError();
+  if (texError !== gl.NO_ERROR) {
+    console.error('Texture creation error:', texError);
+  }
+
+  // Update particle data each frame
+  function updateParticleTexture(particles) {
+    const data = new Float32Array(textureWidth * textureHeight * 4);
+    
+    for (let i = 0; i < particles.length; i++) {
+      const p = particles[i];
+      
+      // Calculate pixel positions for this particle (2 pixels per particle)
+      const pixel0Index = i * 2;
+      const pixel1Index = i * 2 + 1;
+      
+      // Convert pixel index to x,y coordinates
+      const x0 = pixel0Index % textureWidth;
+      const y0 = Math.floor(pixel0Index / textureWidth);
+      const x1 = pixel1Index % textureWidth;
+      const y1 = Math.floor(pixel1Index / textureWidth);
+      
+      // Calculate linear index in the data array (row-major order)
+      const baseIdx0 = (y0 * textureWidth + x0) * 4;
+      const baseIdx1 = (y1 * textureWidth + x1) * 4;
+      
+      // Pixel 0: position (RGB) + size (A)
+      data[baseIdx0 + 0] = p.position[0];
+      data[baseIdx0 + 1] = p.position[1];
+      data[baseIdx0 + 2] = p.position[2];
+      data[baseIdx0 + 3] = p.size;
+      
+      // Pixel 1: color (R) + alpha (G)
+      data[baseIdx1 + 0] = p.color / 255.0;  // Normalize color to 0-1
+      data[baseIdx1 + 1] = p.getAlpha();
+      data[baseIdx1 + 2] = 0;  // Unused
+      data[baseIdx1 + 3] = 0;  // Unused
+    }
+    
+    gl.bindTexture(gl.TEXTURE_2D, particleDataTexture);
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, textureWidth, textureHeight, gl.RGBA, gl.FLOAT, data);
+  }
+
+
   function render() {
     // Update animation time
     const now = performance.now();
@@ -765,43 +822,40 @@ function main() {
     // Render particles
     const particles = animSystem.getAllParticles();
     if (particles.length > 0) {
+
       // Enable blending for transparent particles
       gl.enable(gl.BLEND);
       gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
       
       gl.useProgram(particleProg.program);
-      if (particleProg.uPalette) particleProg.uPalette.set(palette.colors);
-      if (particleProg.uView) particleProg.uView.set(camera.view());
-      if (particleProg.uProj) particleProg.uProj.set(proj);
-      if (particleProg.uLightDirWS) particleProg.uLightDirWS.set(new Float32Array([0.7 / 1.7, -1.2 / 1.7, 0.9 / 1.7]));
-      if (particleProg.uAmbient) particleProg.uAmbient.set(ambient);
+      particleProg.uPalette.set(palette.colors);
+      particleProg.uView.set(camera.view());
+      particleProg.uProj.set(proj);
+      particleProg.uLightDirWS.set(new Float32Array([0.7 / 1.7, -1.2 / 1.7, 0.9 / 1.7]));
+      particleProg.uAmbient.set(ambient);
       
-      // Prepare particle data
-      const maxParticles = 1000;
-      const positions = new Float32Array(maxParticles * 3);
-      const sizes = new Float32Array(maxParticles);
-      const colors = new Uint32Array(maxParticles);
-      const alphas = new Float32Array(maxParticles);
+updateParticleTexture(particles);
       
-      const count = Math.min(particles.length, maxParticles);
-      for (let i = 0; i < count; i++) {
-        const p = particles[i];
-        positions[i * 3 + 0] = p.position[0];
-        positions[i * 3 + 1] = p.position[1];
-        positions[i * 3 + 2] = p.position[2];
-        sizes[i] = p.size;
-        colors[i] = p.color;
-        alphas[i] = p.getAlpha();
-      }
+      // if (particleProg.uParticleCount) particleProg.uParticleCount.set(count);
+      // if (particleProg.uParticlePositions) particleProg.uParticlePositions.set(positions);
+      // if (particleProg.uParticleSizes) particleProg.uParticleSizes.set(sizes);
+      // if (particleProg.uParticleColors) particleProg.uParticleColors.set(colors);
+      // if (particleProg.uParticleAlphas) particleProg.uParticleAlphas.set(alphas);
       
-      if (particleProg.uParticleCount) particleProg.uParticleCount.set(count);
-      if (particleProg.uParticlePositions) particleProg.uParticlePositions.set(positions);
-      if (particleProg.uParticleSizes) particleProg.uParticleSizes.set(sizes);
-      if (particleProg.uParticleColors) particleProg.uParticleColors.set(colors);
-      if (particleProg.uParticleAlphas) particleProg.uParticleAlphas.set(alphas);
-      
+
+      // console.log('Updating particle texture with', particleProg);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, particleDataTexture);
+      particleProg.uParticleData.set(0);  // Texture unit 0
+      particleProg.uTextureWidth.set(textureWidth);
+      // particleProg.uParticleCount.set(activeParticleCount);
+
       gl.bindVertexArray(particleProg.vao);
-      gl.drawElementsInstanced(gl.TRIANGLES, particleCube.count, gl.UNSIGNED_SHORT, 0, count);
+      gl.drawElementsInstanced(gl.TRIANGLES, particleCube.count, gl.UNSIGNED_SHORT, 0, particles.length);
+      const drawError = gl.getError();
+      if (drawError !== gl.NO_ERROR) {
+        console.error('Draw error:', drawError, 'hex:', drawError.toString(16));
+      }
       gl.bindVertexArray(null);
       
       gl.disable(gl.BLEND);

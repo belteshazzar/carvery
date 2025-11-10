@@ -87,6 +87,7 @@ export function createProgram(gl, vsSrc, fsSrc) {
 
   for (let i = 0; i < numUniforms; i++) {
       const uniformInfo = gl.getActiveUniform(p, i);
+      
       // uniformInfo contains:
       // - name: The name of the uniform (e.g., "u_matrix")
       // - type: The GLSL type of the uniform (e.g., gl.FLOAT_MAT4)
@@ -127,6 +128,16 @@ export function createProgram(gl, vsSrc, fsSrc) {
         res[nameOf(uniformInfo.name)].set = function(value) {
           gl.uniform1ui(location, value);
         };
+      } else if (uniformInfo.type === gl.SAMPLER_2D) {
+        res[nameOf(uniformInfo.name)].set = function(value) {
+          gl.uniform1i(location, value);
+        };
+      } else if (uniformInfo.type === gl.SAMPLER_CUBE) {
+        res[nameOf(uniformInfo.name)].set = function(value) {
+          gl.uniform1i(location, value);
+        };
+      } else {
+        console.warn('Unhandled uniform type:', GL_TYPES.get(uniformInfo.type), 'for uniform', uniformInfo.name);
       }
       // Handle array types by checking size
       if (uniformInfo.size > 1) {
