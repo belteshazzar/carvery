@@ -5,6 +5,7 @@
 import { Animation } from './Animation.js';
 import { AnimationGroup } from './AnimationGroup.js';
 import { Emitter } from './Emitter.js';
+import { AnimationSequence } from './AnimationSequence.js';
 import { Mat4 } from './math.js';
 
 export class AnimationSystem {
@@ -12,24 +13,27 @@ export class AnimationSystem {
     this.groups = new Map(); // groupName -> AnimationGroup
     this.animations = new Map(); // animName -> Animation
     this.emitters = new Map(); // emitterName -> Emitter
+    this.sequences = new Map(); // sequenceName -> AnimationSequence
   }
 
   parse(dsl) {
     this.groups.clear();
     this.animations.clear();
     this.emitters.clear();
+    this.sequences.clear();
     
     const lines = dsl.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('//'));
     let currentGroup = null;
     let currentAnim = null;
     let currentEmitter = null;
+    let currentSequence = null;
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       
       // Check if this is a group definition
       // only allowed outside of an animation
-      if (currentAnim == null && currentGroup == null && currentEmitter == null && line.startsWith('group ') && line.endsWith('{')) {
+      if (currentAnim == null && currentGroup == null && currentEmitter == null && currentSequence == null && line.startsWith('group ') && line.endsWith('{')) {
         const groupName = line.slice(6, -1).trim();
         currentGroup = new AnimationGroup(groupName);
         this.groups.set(groupName, currentGroup);
@@ -37,7 +41,7 @@ export class AnimationSystem {
       }
 
       // Check if this is an animation declaration (ends with {)
-      if (currentAnim == null && currentGroup == null && currentEmitter == null && line.startsWith('anim ') && line.endsWith('{')) {
+      if (currentAnim == null && currentGroup == null && currentEmitter == null && currentSequence == null && line.startsWith('anim ') && line.endsWith('{')) {
         const animName = line.slice(5, -1).trim();
         currentAnim = new Animation(animName);
         this.animations.set(animName, currentAnim);
@@ -45,10 +49,18 @@ export class AnimationSystem {
       }
 
       // Check if this is an emitter declaration (ends with {)
-      if (currentAnim == null && currentGroup == null && currentEmitter == null && line.startsWith('emitter ') && line.endsWith('{')) {
+      if (currentAnim == null && currentGroup == null && currentEmitter == null && currentSequence == null && line.startsWith('emitter ') && line.endsWith('{')) {
         const emitterName = line.slice(8, -1).trim();
         currentEmitter = new Emitter(emitterName);
         this.emitters.set(emitterName, currentEmitter);
+        continue;
+      }
+
+      // Check if this is a sequence declaration (ends with {)
+      if (currentAnim == null && currentGroup == null && currentEmitter == null && currentSequence == null && line.startsWith('anims ') && line.endsWith('{')) {
+        const sequenceName = line.slice(6, -1).trim();
+        currentSequence = new AnimationSequence(sequenceName);
+        this.sequences.set(sequenceName, currentSequence);
         continue;
       }
 
@@ -57,6 +69,7 @@ export class AnimationSystem {
         if (currentGroup) currentGroup = null;
         if (currentAnim) currentAnim = null;
         if (currentEmitter) currentEmitter = null;
+        if (currentSequence) currentSequence = null;
         continue;
       }
 
@@ -253,6 +266,23 @@ export class AnimationSystem {
             break;
         }
       }
+
+      // Handle sequence-level commands
+      if (!currentGroup && !currentAnim && !currentEmitter && currentSequence) {
+        switch(cmd) {
+          case 'anim':
+            // Add animation to sequence: anim walk-left
+            const animName = tokens[1];
+            currentSequence.addAnimation(animName);
+            break;
+
+          case 'emitter':
+            // Add emitter to sequence: emitter fountain
+            const emitterName = tokens[1];
+            currentSequence.addEmitter(emitterName);
+            break;
+        }
+      }
     }
 
     // Link animations to groups after parsing
@@ -282,6 +312,7 @@ export class AnimationSystem {
     this.groups.clear();
     this.animations.clear();
     this.emitters.clear();
+    this.sequences.clear();
     
     if (data.groups && typeof data.groups === 'object') {
       for (const [name, groupData] of Object.entries(data.groups)) {
@@ -301,6 +332,13 @@ export class AnimationSystem {
       for (const [name, emitterData] of Object.entries(data.emitters)) {
         const emitter = Emitter.fromJSON(name, emitterData);
         this.emitters.set(name, emitter);
+      }
+    }
+
+    if (data.sequences && typeof data.sequences === 'object') {
+      for (const [name, sequenceData] of Object.entries(data.sequences)) {
+        const sequence = AnimationSequence.fromJSON(name, sequenceData);
+        this.sequences.set(name, sequence);
       }
     }
 
@@ -324,7 +362,12 @@ export class AnimationSystem {
       emitters[name] = emitter.toJSON();
     }
     
-    return { groups, animations, emitters };
+    const sequences = {};
+    for (const [name, sequence] of this.sequences.entries()) {
+      sequences[name] = sequence.toJSON();
+    }
+    
+    return { groups, animations, emitters, sequences };
   }
 
   assignVoxelsToGroups(chunk) {
@@ -428,6 +471,60 @@ export class AnimationSystem {
       emitter.clear();
     } else {
       console.warn('Emitter not found:', emitterName);
+    }
+  }
+
+  playSequence(sequenceName) {
+    const sequence = this.sequences.get(sequenceName);
+    if (!sequence) {
+      console.warn('Sequence not found:', sequenceName);
+      return;
+    }
+
+    // Play all animations in the sequence
+    for (const animName of sequence.animationNames) {
+      this.playAnimation(animName);
+    }
+
+    // Start all emitters in the sequence
+    for (const emitterName of sequence.emitterNames) {
+      this.startEmitter(emitterName);
+    }
+  }
+
+  stopSequence(sequenceName) {
+    const sequence = this.sequences.get(sequenceName);
+    if (!sequence) {
+      console.warn('Sequence not found:', sequenceName);
+      return;
+    }
+
+    // Stop all animations in the sequence
+    for (const animName of sequence.animationNames) {
+      this.stopAnimation(animName);
+    }
+
+    // Stop all emitters in the sequence
+    for (const emitterName of sequence.emitterNames) {
+      this.stopEmitter(emitterName);
+    }
+  }
+
+  resetSequence(sequenceName) {
+    const sequence = this.sequences.get(sequenceName);
+    if (!sequence) {
+      console.warn('Sequence not found:', sequenceName);
+      return;
+    }
+
+    // Reset all animations in the sequence
+    for (const animName of sequence.animationNames) {
+      this.resetAnimation(animName);
+    }
+
+    // Clear all emitters in the sequence
+    for (const emitterName of sequence.emitterNames) {
+      this.clearEmitter(emitterName);
     }
   }
 

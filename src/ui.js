@@ -455,8 +455,8 @@ export function initializeUI(state) {
     container.innerHTML = '';
     
     // Animations section
-    if (state.animSystem.animations.size === 0 && state.animSystem.emitters.size === 0) {
-      container.innerHTML = '<p style="color: #888; font-size: 12px; margin: 8px 0;">No animations or emitters defined</p>';
+    if (state.animSystem.animations.size === 0 && state.animSystem.emitters.size === 0 && state.animSystem.sequences.size === 0) {
+      container.innerHTML = '<p style="color: #888; font-size: 12px; margin: 8px 0;">No animations, emitters, or sequences defined</p>';
       return;
     }
     
@@ -588,6 +588,81 @@ export function initializeUI(state) {
         controls.appendChild(startBtn);
         controls.appendChild(stopBtn);
         controls.appendChild(clearBtn);
+        
+        item.appendChild(info);
+        item.appendChild(controls);
+        container.appendChild(item);
+      }
+    }
+
+    // Sequences section
+    if (state.animSystem.sequences.size > 0) {
+      const sequenceHeader = document.createElement('h5');
+      sequenceHeader.textContent = 'Sequences';
+      sequenceHeader.style.margin = '12px 0 4px 0';
+      container.appendChild(sequenceHeader);
+      
+      for (const [name, sequence] of state.animSystem.sequences.entries()) {
+        const item = document.createElement('div');
+        item.className = 'animation-item';
+        
+        const info = document.createElement('div');
+        info.className = 'animation-info';
+        
+        const nameLabel = document.createElement('span');
+        nameLabel.className = 'animation-name';
+        nameLabel.textContent = name;
+        
+        const countBadge = document.createElement('span');
+        countBadge.className = 'animation-badge';
+        const totalCount = sequence.animationNames.length + sequence.emitterNames.length;
+        countBadge.textContent = `${totalCount} items`;
+        
+        const detailsLabel = document.createElement('span');
+        detailsLabel.className = 'animation-group';
+        const details = [];
+        if (sequence.animationNames.length > 0) {
+          details.push(`${sequence.animationNames.length} anim${sequence.animationNames.length !== 1 ? 's' : ''}`);
+        }
+        if (sequence.emitterNames.length > 0) {
+          details.push(`${sequence.emitterNames.length} emitter${sequence.emitterNames.length !== 1 ? 's' : ''}`);
+        }
+        detailsLabel.textContent = details.join(', ');
+        
+        info.appendChild(nameLabel);
+        info.appendChild(countBadge);
+        info.appendChild(detailsLabel);
+        
+        const controls = document.createElement('div');
+        controls.className = 'animation-controls-inline';
+        
+        const playBtn = document.createElement('button');
+        playBtn.textContent = '▶';
+        playBtn.title = 'Play sequence';
+        playBtn.className = 'animation-btn';
+        playBtn.addEventListener('click', () => {
+          state.animSystem.playSequence(name);
+        });
+        
+        const stopBtn = document.createElement('button');
+        stopBtn.textContent = '⏹';
+        stopBtn.title = 'Stop sequence';
+        stopBtn.className = 'animation-btn';
+        stopBtn.addEventListener('click', () => {
+          state.animSystem.stopSequence(name);
+        });
+        
+        const resetBtn = document.createElement('button');
+        resetBtn.textContent = '↺';
+        resetBtn.title = 'Reset sequence';
+        resetBtn.className = 'animation-btn';
+        resetBtn.addEventListener('click', () => {
+          state.animSystem.resetSequence(name);
+        });
+        
+        controls.appendChild(playBtn);
+        controls.appendChild(stopBtn);
+        controls.appendChild(resetBtn);
         
         item.appendChild(info);
         item.appendChild(controls);
@@ -787,7 +862,7 @@ export function initializeUI(state) {
     }
   });
 
-  // Reset all animations
+  // Reset all animations, emitters, and sequences
   document.getElementById('btnResetAll')?.addEventListener('click', () => {
     state.animSystem.resetAll();
   });

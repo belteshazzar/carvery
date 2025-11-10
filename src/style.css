@@ -146,6 +146,73 @@ button:hover {
   background: #202a3f;
 }
 
+/* Shift controls - 3-part button groups */
+.shift-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.shift-button-group {
+  display: flex;
+  align-items: stretch;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid #2a3550;
+  background: #1a2233;
+}
+
+.shift-btn {
+  background: #1a2233;
+  color: #cfd3dc;
+  border: none;
+  padding: 6px 10px;
+  font-size: 14px;
+  cursor: pointer;
+  border-radius: 0;
+  min-width: 28px;
+  transition: background 0.15s;
+}
+
+.shift-btn:hover {
+  background: #202a3f;
+}
+
+.shift-btn:active {
+  background: #2a3550;
+}
+
+.shift-minus {
+  border-right: 1px solid #2a3550;
+}
+
+.shift-plus {
+  border-left: 1px solid #2a3550;
+}
+
+.shift-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 12px;
+  font-weight: 600;
+  font-size: 13px;
+  min-width: 24px;
+  user-select: none;
+}
+
+.shift-x {
+  color: #ff6b6b;
+}
+
+.shift-y {
+  color: #6bcb77;
+}
+
+.shift-z {
+  color: #4d96ff;
+}
+
 /* Ensure proper border colors when hovering/selecting middle items */
 .radio-toolbar input[type="radio"]:checked + label + input[type="radio"] + label {
   border-left: none;

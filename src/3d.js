@@ -100,11 +100,12 @@ export function makeAxisGizmo() {
   // }
 
   // XZ plane grid (back)
-  for (let i = 0; i <= 16; i++) {
-    // Vertical lines
+  // Skip i=0 to avoid overlap with axis lines
+  for (let i = 1; i <= 16; i++) {
+    // Vertical lines (parallel to Z axis)
     positions.push(i,-0.01,0, i,-0.01,16);
     colors.push(...gridColor, ...gridColor);
-    // Horizontal lines
+    // Horizontal lines (parallel to X axis)
     positions.push(0,-0.01,i, 16,-0.01,i);
     colors.push(...gridColor, ...gridColor);
   }

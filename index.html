@@ -64,13 +64,22 @@
     <div class="sep"></div>
 
     <!-- Shift controls -->
-    <div class="undo-group">
-      <button id="btnShiftXPos" title="Shift all voxels +1 in X axis">+X</button>
-      <button id="btnShiftXNeg" title="Shift all voxels -1 in X axis">-X</button>
-      <button id="btnShiftYPos" title="Shift all voxels +1 in Y axis">+Y</button>
-      <button id="btnShiftYNeg" title="Shift all voxels -1 in Y axis">-Y</button>
-      <button id="btnShiftZPos" title="Shift all voxels +1 in Z axis">+Z</button>
-      <button id="btnShiftZNeg" title="Shift all voxels -1 in Z axis">-Z</button>
+    <div class="shift-controls">
+      <div class="shift-button-group">
+        <button id="btnShiftXNeg" class="shift-btn shift-minus" title="Shift all voxels -1 in X axis">−</button>
+        <span class="shift-label shift-x">X</span>
+        <button id="btnShiftXPos" class="shift-btn shift-plus" title="Shift all voxels +1 in X axis">+</button>
+      </div>
+      <div class="shift-button-group">
+        <button id="btnShiftYNeg" class="shift-btn shift-minus" title="Shift all voxels -1 in Y axis">−</button>
+        <span class="shift-label shift-y">Y</span>
+        <button id="btnShiftYPos" class="shift-btn shift-plus" title="Shift all voxels +1 in Y axis">+</button>
+      </div>
+      <div class="shift-button-group">
+        <button id="btnShiftZNeg" class="shift-btn shift-minus" title="Shift all voxels -1 in Z axis">−</button>
+        <span class="shift-label shift-z">Z</span>
+        <button id="btnShiftZPos" class="shift-btn shift-plus" title="Shift all voxels +1 in Z axis">+</button>
+      </div>
     </div>
 
     <div class="sep"></div>
@@ -141,6 +150,15 @@ anim walk-right {
   rotate 0 to 20 for 0.2 pivot [1, 2, 4.5] axis [1, 0, 0] easing ease-in
   rotate 0 to -40 for 0.4 pivot [1, 2, 4.5] axis [1, 0, 0] easing ease-out
   rotate 0 to 20 for 0.2 pivot [1, 2, 4.5] axis [1, 0, 0] easing ease-in
+}
+
+// Animation sequence - combine multiple animations and emitters
+anims flying-walk {
+  anim walk-left
+  anim walk-right
+  anim flap-left
+  anim flap-right
+  emitter fountain
 }
 
 // Example emitters - uncomment to use
