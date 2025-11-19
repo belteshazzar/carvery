@@ -292,6 +292,12 @@ function main() {
     return '0';
   }
 
+  function intToHex2(i) {
+    // Convert integer (0-255) to 2-character hex string
+    const val = Math.max(0, Math.min(255, i));
+    return val.toString(16).padStart(2, '0');
+  }
+
   function exportToJSON() {
     const palHex = [];
 
@@ -299,17 +305,19 @@ function main() {
 
     const voxels = [];
     const maxSize = Math.max(chunk.sizeX, chunk.sizeY, chunk.sizeZ);
-    const useHexFormat = maxSize <= 16; // Use compact hex format for small chunks
+    const use4CharFormat = maxSize <= 16; // Use 4-char format for <=16, 7-char for >16
     
     for (let z = 0; z < chunk.sizeZ; z++) {
       for (let y = 0; y < chunk.sizeY; y++) {
         for (let x = 0; x < chunk.sizeX; x++) {
           const id = chunk.idx3(x, y, z);
           if (chunk.isSolid(id)) {
-            if (useHexFormat) {
+            if (use4CharFormat) {
+              // 4-char format: "xyzm" (single hex digit each, 0-15)
               voxels.push(`${intToHexChar(x)}${intToHexChar(y)}${intToHexChar(z)}${intToHexChar(chunk.material(id))}`);
             } else {
-              voxels.push([x, y, z, chunk.material(id)]);
+              // 7-char format: "xxyyzzm" (2 hex digits for x,y,z, 1 for material, 0-255 for coords)
+              voxels.push(`${intToHex2(x)}${intToHex2(y)}${intToHex2(z)}${intToHexChar(chunk.material(id))}`);
             }
           }
         }
@@ -335,6 +343,11 @@ function main() {
       return 10 + (c.charCodeAt(0) - 'a'.charCodeAt(0));
     }
     return 0; // Invalid hex character
+  }
+
+  function hex2ToInt(hex) {
+    // Convert a 2-character hex string to integer (0-255)
+    return parseInt(hex, 16) || 0;
   }
 
   function importFromJSON(obj) {
@@ -396,13 +409,23 @@ function main() {
       
       let x, y, z, m;
       if (typeof v === 'string') {
-        // Old hex format: "xyzm" where each is a hex digit (0-15)
-        x = hexCharToInt(v[0]);
-        y = hexCharToInt(v[1]);
-        z = hexCharToInt(v[2]);
-        m = (hexCharToInt(v[3]) | 0) & 15;
+        if (v.length === 4) {
+          // 4-char format: "xyzm" (single hex digit each, 0-15)
+          x = hexCharToInt(v[0]);
+          y = hexCharToInt(v[1]);
+          z = hexCharToInt(v[2]);
+          m = (hexCharToInt(v[3]) | 0) & 15;
+        } else if (v.length === 7) {
+          // 7-char format: "xxyyzzm" (2 hex digits for x,y,z, 1 for material, 0-255)
+          x = hex2ToInt(v.substring(0, 2));
+          y = hex2ToInt(v.substring(2, 4));
+          z = hex2ToInt(v.substring(4, 6));
+          m = (hexCharToInt(v[6]) | 0) & 15;
+        } else {
+          continue; // Skip invalid format
+        }
       } else if (Array.isArray(v) && v.length >= 4) {
-        // New array format: [x, y, z, m] for larger chunks
+        // Array format: [x, y, z, m] (for backward compatibility)
         [x, y, z, m] = v;
       } else {
         continue; // Skip invalid entries
