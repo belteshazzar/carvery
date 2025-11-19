@@ -3,10 +3,13 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Carvery</title>
+  <title>Carvery - Editor</title>
 </head>
 <body>
 <div id="app">
+
+  <!-- Menu button (top-right) -->
+  <button id="btnToggleMenu" class="menu-btn" title="Toggle menu">☰</button>
 
   <div id="glwrap">
     <canvas id="gl" tabindex="0"></canvas>
@@ -27,8 +30,6 @@
       <label for="modeAdd">Add (s)</label>
     </div>
 
-    <div class="sep"></div>
-
     <!-- Option selection -->
     <div class="radio-toolbar">
       <input type="radio" id="optionVoxel" name="optionSelect" value="voxel" checked>
@@ -38,231 +39,112 @@
       <input type="radio" id="optionPlane" name="optionSelect" value="plane">
       <label for="optionPlane">Plane (p)</label>
     </div>
+  </div>
+</div>
 
-    <div class="sep"></div>
+<!-- Palette panel (left side) -->
+<div class="palette-container">
+  <div id="palette"></div>
+</div>
 
-    <!-- Undo/Redo controls -->
-    <div class="undo-group">
-      <button id="btnUndo" title="Undo (Ctrl+Z / ⌘Z)" disabled>Undo</button>
-      <button id="btnRedo" title="Redo (Ctrl+Y / Ctrl+Shift+Z / ⌘Shift+Z)" disabled>Redo</button>
+<!-- Side panel -->
+<div class="side-panel">
+  <div class="side-panel-header">
+    <h3>&nbsp;</h3>
+    <button id="btnCloseMenu" class="close-btn">&times;</button>
+  </div>
+
+  <div class="side-panel-content">
+    <!-- Undo/Redo -->
+    <div class="panel-section">
+      <div class="panel-buttons">
+        <button id="btnUndo" class="panel-btn" title="Undo (Ctrl+Z / ⌘Z)" disabled>Undo</button>
+        <button id="btnRedo" class="panel-btn" title="Redo (Ctrl+Y / Ctrl+Shift+Z / ⌘Shift+Z)" disabled>Redo</button>
+      </div>
     </div>
-
-    <div class="sep"></div>
-
-    <!-- Import/Export -->
-    <input id="fileInput" type="file" accept="application/json" style="display: none;" />
-    <div class="undo-group">
-      <button id="btnImport">Import</button>
-      <button id="btnExport">Export</button>
-    </div>
-
-    <div class="sep"></div>
-
-    <!-- Reset -->
-    <button id="resetSolid">Reset</button>
-
-    <div class="sep"></div>
 
     <!-- Shift controls -->
-    <div class="shift-controls">
-      <div class="shift-button-group">
-        <button id="btnShiftXNeg" class="shift-btn shift-minus" title="Shift all voxels -1 in X axis">−</button>
-        <span class="shift-label shift-x">X</span>
-        <button id="btnShiftXPos" class="shift-btn shift-plus" title="Shift all voxels +1 in X axis">+</button>
-      </div>
-      <div class="shift-button-group">
-        <button id="btnShiftYNeg" class="shift-btn shift-minus" title="Shift all voxels -1 in Y axis">−</button>
-        <span class="shift-label shift-y">Y</span>
-        <button id="btnShiftYPos" class="shift-btn shift-plus" title="Shift all voxels +1 in Y axis">+</button>
-      </div>
-      <div class="shift-button-group">
-        <button id="btnShiftZNeg" class="shift-btn shift-minus" title="Shift all voxels -1 in Z axis">−</button>
-        <span class="shift-label shift-z">Z</span>
-        <button id="btnShiftZPos" class="shift-btn shift-plus" title="Shift all voxels +1 in Z axis">+</button>
+    <div class="panel-section">
+      <h4>Move Voxels</h4>
+      <div class="shift-controls">
+        <div class="shift-button-group">
+          <button id="btnShiftXNeg" class="shift-btn shift-minus" title="Shift all voxels -1 in X axis">−</button>
+          <span class="shift-label shift-x">X</span>
+          <button id="btnShiftXPos" class="shift-btn shift-plus" title="Shift all voxels +1 in X axis">+</button>
+        </div>
+        <div class="shift-button-group">
+          <button id="btnShiftYNeg" class="shift-btn shift-minus" title="Shift all voxels -1 in Y axis">−</button>
+          <span class="shift-label shift-y">Y</span>
+          <button id="btnShiftYPos" class="shift-btn shift-plus" title="Shift all voxels +1 in Y axis">+</button>
+        </div>
+        <div class="shift-button-group">
+          <button id="btnShiftZNeg" class="shift-btn shift-minus" title="Shift all voxels -1 in Z axis">−</button>
+          <span class="shift-label shift-z">Z</span>
+          <button id="btnShiftZPos" class="shift-btn shift-plus" title="Shift all voxels +1 in Z axis">+</button>
+        </div>
       </div>
     </div>
-
-    <div class="sep"></div>
 
     <!-- Resize chunk controls -->
-    <div class="shift-controls">
-      <div class="shift-button-group">
-        <button id="btnShrinkX" class="shift-btn shift-minus" title="Shrink chunk size in X axis by 1 (min 1)">−</button>
-        <span id="sizeX" class="shift-label shift-size shift-x" title="Current X dimension">16</span>
-        <button id="btnExpandX" class="shift-btn shift-plus" title="Expand chunk size in X axis by 1">+</button>
-      </div>
-      <div class="shift-button-group">
-        <button id="btnShrinkY" class="shift-btn shift-minus" title="Shrink chunk size in Y axis by 1 (min 1)">−</button>
-        <span id="sizeY" class="shift-label shift-size shift-y" title="Current Y dimension">16</span>
-        <button id="btnExpandY" class="shift-btn shift-plus" title="Expand chunk size in Y axis by 1">+</button>
-      </div>
-      <div class="shift-button-group">
-        <button id="btnShrinkZ" class="shift-btn shift-minus" title="Shrink chunk size in Z axis by 1 (min 1)">−</button>
-        <span id="sizeZ" class="shift-label shift-size shift-z" title="Current Z dimension">16</span>
-        <button id="btnExpandZ" class="shift-btn shift-plus" title="Expand chunk size in Z axis by 1">+</button>
+    <div class="panel-section">
+      <h4>Chunk Size</h4>
+      <div class="shift-controls">
+        <div class="shift-button-group">
+          <button id="btnShrinkX" class="shift-btn shift-minus" title="Shrink chunk size in X axis by 1 (min 1)">−</button>
+          <span id="sizeX" class="shift-label shift-size shift-x" title="Current X dimension">16</span>
+          <button id="btnExpandX" class="shift-btn shift-plus" title="Expand chunk size in X axis by 1">+</button>
+        </div>
+        <div class="shift-button-group">
+          <button id="btnShrinkY" class="shift-btn shift-minus" title="Shrink chunk size in Y axis by 1 (min 1)">−</button>
+          <span id="sizeY" class="shift-label shift-size shift-y" title="Current Y dimension">16</span>
+          <button id="btnExpandY" class="shift-btn shift-plus" title="Expand chunk size in Y axis by 1">+</button>
+        </div>
+        <div class="shift-button-group">
+          <button id="btnShrinkZ" class="shift-btn shift-minus" title="Shrink chunk size in Z axis by 1 (min 1)">−</button>
+          <span id="sizeZ" class="shift-label shift-size shift-z" title="Current Z dimension">16</span>
+          <button id="btnExpandZ" class="shift-btn shift-plus" title="Expand chunk size in Z axis by 1">+</button>
+        </div>
       </div>
     </div>
-
-    <div class="sep"></div>
 
     <!-- Camera target controls -->
-    <div class="shift-controls">
-      <div class="shift-button-group">
-        <button id="btnCameraXMinus" class="shift-btn shift-minus" title="Move camera target -1 in X axis">−</button>
-        <span id="cameraX" class="shift-label shift-size shift-x" title="Camera target X position">8</span>
-        <button id="btnCameraXPlus" class="shift-btn shift-plus" title="Move camera target +1 in X axis">+</button>
-      </div>
-      <div class="shift-button-group">
-        <button id="btnCameraYMinus" class="shift-btn shift-minus" title="Move camera target -1 in Y axis">−</button>
-        <span id="cameraY" class="shift-label shift-size shift-y" title="Camera target Y position">8</span>
-        <button id="btnCameraYPlus" class="shift-btn shift-plus" title="Move camera target +1 in Y axis">+</button>
-      </div>
-      <div class="shift-button-group">
-        <button id="btnCameraZMinus" class="shift-btn shift-minus" title="Move camera target -1 in Z axis">−</button>
-        <span id="cameraZ" class="shift-label shift-size shift-z" title="Camera target Z position">8</span>
-        <button id="btnCameraZPlus" class="shift-btn shift-plus" title="Move camera target +1 in Z axis">+</button>
+    <div class="panel-section">
+      <h4>Camera Target</h4>
+      <div class="shift-controls">
+        <div class="shift-button-group">
+          <button id="btnCameraXMinus" class="shift-btn shift-minus" title="Move camera target -1 in X axis">−</button>
+          <span id="cameraX" class="shift-label shift-size shift-x" title="Camera target X position">8</span>
+          <button id="btnCameraXPlus" class="shift-btn shift-plus" title="Move camera target +1 in X axis">+</button>
+        </div>
+        <div class="shift-button-group">
+          <button id="btnCameraYMinus" class="shift-btn shift-minus" title="Move camera target -1 in Y axis">−</button>
+          <span id="cameraY" class="shift-label shift-size shift-y" title="Camera target Y position">8</span>
+          <button id="btnCameraYPlus" class="shift-btn shift-plus" title="Move camera target +1 in Y axis">+</button>
+        </div>
+        <div class="shift-button-group">
+          <button id="btnCameraZMinus" class="shift-btn shift-minus" title="Move camera target -1 in Z axis">−</button>
+          <span id="cameraZ" class="shift-label shift-size shift-z" title="Camera target Z position">8</span>
+          <button id="btnCameraZPlus" class="shift-btn shift-plus" title="Move camera target +1 in Z axis">+</button>
+        </div>
       </div>
     </div>
 
-    <div class="sep"></div>
+    <!-- Import/Export -->
+    <div class="panel-section">
+      <input id="fileInput" type="file" accept="application/json" style="display: none;" />
+      <div class="panel-buttons">
+        <button id="btnImport" class="panel-btn">Import</button>
+        <button id="btnExport" class="panel-btn">Export</button>
+      </div>
+    </div>
 
-    <!-- Animation panel toggle -->
-    <button id="btnToggleAnimations">Animations</button>
+    <!-- Reset -->
+    <div class="panel-section">
+      <button id="resetSolid" class="panel-btn" style="width: 100%;">Reset</button>
+    </div>
   </div>
-
-  <!-- Palette editor -->
-  <div class="toolbar-row" id="palette"></div>
 </div>
 
-<!-- Update animation panel -->
-<div class="animation-panel">
-  <div class="animation-panel-header">
-    <h3>Animations</h3>
-    <button id="btnCloseAnimations" class="close-btn">&times;</button>
-  </div>
-  
-  <textarea id="animationDSL" rows="15" cols="40" placeholder="Enter animation DSL here...">
-    
-    
-group left-wing {
-  min [0, 2, 0]
-  max [0, 3, 6]
-}
-
-group right-wing {
-  min [4, 2, 0]
-  max [4, 3, 6]
-}
-
-anim flap-left {
-  group left-wing
-  loop
-  rotate 0 to -60 for 0.2 pivot [1, 4, 0] axis [0, 0, 1] easing ease-in-out
-  rotate 0 to 60 for 0.2 pivot [1, 4, 0] axis [0, 0, 1] easing ease-in-out
-}
-
-anim flap-right {
-  group right-wing
-  loop
-  rotate 0 to 60 for 0.2 pivot [4, 4, 0] axis [0, 0, 1] easing ease-in-out
-  rotate 0 to -60 for 0.2 pivot [4, 4, 0] axis [0, 0, 1] easing ease-in-out
-}
-
-group left-leg {
-  min [1, 0, 3]
-  max [1, 1, 5]
-}
-
-group right-leg {
-  min [3, 0, 3]
-  max [3, 1, 5]
-}
-
-anim walk-left {
-  group left-leg
-  loop
-  rotate 0 to -20 for 0.2 pivot [1, 2, 4.5] axis [1, 0, 0] easing ease-in
-  rotate 0 to 40 for 0.4 pivot [1, 2, 4.5] axis [1, 0, 0] easing ease-out
-  rotate 0 to -20 for 0.2 pivot [1, 2, 4.5] axis [1, 0, 0] easing ease-in
-}
-
-anim walk-right {
-  group right-leg
-  loop
-  rotate 0 to 20 for 0.2 pivot [1, 2, 4.5] axis [1, 0, 0] easing ease-in
-  rotate 0 to -40 for 0.4 pivot [1, 2, 4.5] axis [1, 0, 0] easing ease-out
-  rotate 0 to 20 for 0.2 pivot [1, 2, 4.5] axis [1, 0, 0] easing ease-in
-}
-
-// Animation sequence - combine multiple animations and emitters
-anims flying-walk {
-  anim walk-left
-  anim walk-right
-  anim flap-left
-  anim flap-right
-  emitter fountain
-}
-
-// Example emitters - uncomment to use
-
-// Water fountain
-emitter fountain {
-  pos [8, 0, 8]
-  rate 50
-  lifetime 2.5
-  size 0.15
-  velocity [0, 8, 0]
-  spread [1.5, 0.5, 1.5]
-  colors [9, 10]
-  gravity [0, -9.8, 0]
-}
-
-// Firework
-// emitter firework {
-//   pos [8, 12, 8]
-//   rate 100
-//   lifetime 1.5
-//   size 0.1
-//   velocity [0, 2, 0]
-//   spread [4, 4, 4]
-//   colors [1, 3, 6, 14]
-//   gravity [0, -3, 0]
-// }
-
-// Smoke
-// emitter smoke {
-//   pos [2, 2, 2]
-//   rate 20
-//   lifetime 3.0
-//   size 0.25
-//   velocity [0, 1.5, 0]
-//   spread [0.3, 0.2, 0.3]
-//   colors [7, 8]
-//   gravity [0, 0.5, 0]
-// }
-
-</textarea>
-  
-  <div class="animation-controls">
-    <button id="btnCompile">Compile</button>
-    <button id="btnPlay">Play Loops</button>
-    <button id="btnPause">Pause All</button>
-    <button id="btnResetAll">Reset All</button>
-  </div>
-  
-  <div class="animation-list-container">
-    <h4>Animations</h4>
-    <div id="animationList"></div>
-  </div>
-  
-  <div class="group-list-container">
-    <h4>Groups</h4>
-    <div id="groupList"></div>
-  </div>
-  
-</div>
-
-</div>
 
   <script type="module" src="/src/main.js"></script>
 </body>

@@ -97,23 +97,36 @@ export function initializeUI(state) {
   const redoBtn = document.getElementById('btnRedo');
   const fileInput = document.getElementById('fileInput');
 
-  // Add panel toggle handlers
-  const animPanel = document.querySelector('.animation-panel');
-  const btnToggleAnimations = document.getElementById('btnToggleAnimations');
-  const btnCloseAnimations = document.getElementById('btnCloseAnimations');
+  // Add side panel (menu) toggle handlers
+  const sidePanel = document.querySelector('.side-panel');
+  const btnToggleMenu = document.getElementById('btnToggleMenu');
+  const btnCloseMenu = document.getElementById('btnCloseMenu');
 
-  btnToggleAnimations.addEventListener('click', () => {
-    animPanel.classList.toggle('open');
+  btnToggleMenu.addEventListener('click', () => {
+    sidePanel.classList.toggle('open');
   });
+
+  btnCloseMenu.addEventListener('click', () => {
+    sidePanel.classList.remove('open');
+  });
+
+  // Add animation panel toggle handlers (keep existing)
+  const animPanel = document.querySelector('.animation-panel');
+  const btnCloseAnimations = document.getElementById('btnCloseAnimations');
 
   btnCloseAnimations.addEventListener('click', () => {
     animPanel.classList.remove('open');
   });
 
-  // Optional: Close on escape key
+  // Close panels on escape key
   window.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && animPanel.classList.contains('open')) {
-      animPanel.classList.remove('open');
+    if (e.key === 'Escape') {
+      if (sidePanel.classList.contains('open')) {
+        sidePanel.classList.remove('open');
+      }
+      if (animPanel.classList.contains('open')) {
+        animPanel.classList.remove('open');
+      }
     }
   });
 
