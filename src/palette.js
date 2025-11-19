@@ -150,10 +150,36 @@ export class PaletteUI {
 
   }
 
+  /**
+   * Resets palette to default colors and updates UI elements
+   */
+  reset() {
+    for (let i = 0; i < 16; i++) {
+      const [r, g, b] = hexToRgbF(defaultPaletteHex[i]);
+      this.setPaletteColor(i, [r, g, b]);
+    }
+  }
+
   setPaletteColor(i, rgb) {
     this.colors[i * 3 + 0] = rgb[0];
     this.colors[i * 3 + 1] = rgb[1];
     this.colors[i * 3 + 2] = rgb[2];
+    
+    // Update UI if it exists
+    const hex = rgbToHexF(rgb[0], rgb[1], rgb[2]);
+    const swatches = this.container.querySelectorAll('.swatch');
+    if (swatches[i]) {
+      const colorDiv = swatches[i].querySelector('.color');
+      if (colorDiv) {
+        colorDiv.style.background = hex;
+      }
+    }
+    
+    // Update color picker value if it exists
+    const picker = this.pickers.get(i);
+    if (picker) {
+      picker.value = hex;
+    }
   }
 
   /**

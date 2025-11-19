@@ -215,8 +215,19 @@ export function initializeUI(state) {
 
   // Reset button
   document.getElementById('resetSolid').addEventListener('click', () => {
-    chunk.fill(true);
+    chunk.resetSize();
     chunk.seedMaterials('bands');
+    
+    // Reset palette to default colors
+    palette.reset();
+    
+    // Update camera target to center on reset chunk
+    camera.target = [8, 8, 8];
+    
+    // Rebuild grid and axes for 16×16×16
+    const buildAxisGizmo = state.buildAxisGizmo;
+    if (buildAxisGizmo) buildAxisGizmo();
+    
     buildAllMeshes();
     clearHistory();
   });

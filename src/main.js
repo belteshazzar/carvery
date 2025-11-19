@@ -298,18 +298,31 @@ function main() {
     for (let i = 0; i < 16; i++) palHex.push(rgbToHexF(palette.colors[i * 3 + 0], palette.colors[i * 3 + 1], palette.colors[i * 3 + 2]));
 
     const voxels = [];
-    for (let z = 0; z < N; z++) {
-      for (let y = 0; y < N; y++) {
-        for (let x = 0; x < N; x++) {
+    const maxSize = Math.max(chunk.sizeX, chunk.sizeY, chunk.sizeZ);
+    const useHexFormat = maxSize <= 16; // Use compact hex format for small chunks
+    
+    for (let z = 0; z < chunk.sizeZ; z++) {
+      for (let y = 0; y < chunk.sizeY; y++) {
+        for (let x = 0; x < chunk.sizeX; x++) {
           const id = chunk.idx3(x, y, z);
           if (chunk.isSolid(id)) {
-            voxels.push(`${intToHexChar(x)}${intToHexChar(y)}${intToHexChar(z)}${intToHexChar(chunk.material(id))}`);
+            if (useHexFormat) {
+              voxels.push(`${intToHexChar(x)}${intToHexChar(y)}${intToHexChar(z)}${intToHexChar(chunk.material(id))}`);
+            } else {
+              voxels.push([x, y, z, chunk.material(id)]);
+            }
           }
         }
       }
     }
 
-    return { version: 1, size: N, palette: palHex, voxels, groups: animSystem.toJSON() };
+    return { 
+      version: 1, 
+      size: [chunk.sizeX, chunk.sizeY, chunk.sizeZ], 
+      palette: palHex, 
+      voxels, 
+      groups: animSystem.toJSON() 
+    };
   }
 
   function hexCharToInt(hex) {
@@ -327,7 +340,35 @@ function main() {
   function importFromJSON(obj) {
     if (!obj || typeof obj !== 'object') throw new Error('Root must be object');
     if (!Array.isArray(obj.voxels)) throw new Error('Missing "voxels"');
-    if (obj.size != 16) throw new Error('Invalid "size"');
+    
+    // Handle size as either a number or [x, y, z] array
+    let sizeX, sizeY, sizeZ;
+    if (Array.isArray(obj.size)) {
+      if (obj.size.length !== 3) throw new Error('Size array must have 3 elements [x, y, z]');
+      [sizeX, sizeY, sizeZ] = obj.size;
+    } else if (typeof obj.size === 'number') {
+      // Old format: single number for cubic chunk
+      sizeX = sizeY = sizeZ = obj.size;
+    } else {
+      throw new Error('Invalid "size" field');
+    }
+
+    // Reset chunk to the imported size
+    if (sizeX === 16 && sizeY === 16 && sizeZ === 16) {
+      chunk.resetSize();
+    } else {
+      chunk.resetSize(); // Start from 16x16x16
+      chunk.expandSize(sizeX, sizeY, sizeZ);
+    }
+    
+    // Update N for compatibility
+    N = Math.max(sizeX, sizeY, sizeZ);
+    
+    // Update camera target to center on imported chunk
+    camera.target = [sizeX / 2, sizeY / 2, sizeZ / 2];
+    
+    // Rebuild grid and axes for new size
+    buildAxisGizmo();
 
     if (Array.isArray(obj.palette)) {
       for (let i = 0; i < Math.min(16, obj.palette.length); i++) {
@@ -352,10 +393,21 @@ function main() {
 
     for (const v of obj.voxels) {
       if (!v) continue;
-      const x = hexCharToInt(v[0]);
-      const y = hexCharToInt(v[1]);
-      const z = hexCharToInt(v[2]);
-      const m = (hexCharToInt(v[3]) | 0) & 15;
+      
+      let x, y, z, m;
+      if (typeof v === 'string') {
+        // Old hex format: "xyzm" where each is a hex digit (0-15)
+        x = hexCharToInt(v[0]);
+        y = hexCharToInt(v[1]);
+        z = hexCharToInt(v[2]);
+        m = (hexCharToInt(v[3]) | 0) & 15;
+      } else if (Array.isArray(v) && v.length >= 4) {
+        // New array format: [x, y, z, m] for larger chunks
+        [x, y, z, m] = v;
+      } else {
+        continue; // Skip invalid entries
+      }
+      
       if (chunk.within(x, y, z)) {
         const id = chunk.idx3(x, y, z);
         chunk.setSolid(id, true);
@@ -1030,6 +1082,7 @@ updateParticleTexture(particles);
 
     // Functions
     buildAllMeshes,
+    buildAxisGizmo,
     clearHistory,
     undo,
     redo,

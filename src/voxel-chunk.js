@@ -131,6 +131,20 @@ export class VoxelChunk {
     this._groups.clear();
   }
 
+  /**
+   * Reset the chunk back to the default 16×16×16 size
+   */
+  resetSize() {
+    const defaultSize = 16;
+    this._size = defaultSize;
+    this._sizeX = undefined;
+    this._sizeY = undefined;
+    this._sizeZ = undefined;
+    this._isSolid = new Array(defaultSize * defaultSize * defaultSize).fill(true);
+    this._material = new Uint8Array(defaultSize * defaultSize * defaultSize);
+    this._groups.clear();
+  }
+
   get sizeX() { return this._sizeX || this._size; }
   get sizeY() { return this._sizeY || this._size; }
   get sizeZ() { return this._sizeZ || this._size; }
