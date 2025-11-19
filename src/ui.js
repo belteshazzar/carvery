@@ -111,12 +111,12 @@ export function initializeUI(state) {
   });
 
   // Add animation panel toggle handlers (keep existing)
-  const animPanel = document.querySelector('.animation-panel');
-  const btnCloseAnimations = document.getElementById('btnCloseAnimations');
+  // const animPanel = document.querySelector('.animation-panel');
+  // const btnCloseAnimations = document.getElementById('btnCloseAnimations');
 
-  btnCloseAnimations.addEventListener('click', () => {
-    animPanel.classList.remove('open');
-  });
+  // btnCloseAnimations.addEventListener('click', () => {
+  //   animPanel.classList.remove('open');
+  // });
 
   // Close panels on escape key
   window.addEventListener('keydown', (e) => {
