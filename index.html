@@ -84,17 +84,43 @@
 
     <div class="sep"></div>
 
-    <!-- Expand chunk size controls -->
+    <!-- Resize chunk controls -->
     <div class="shift-controls">
       <div class="shift-button-group">
-        <span class="shift-label">Expand:</span>
-        <button id="btnExpandX" class="shift-btn shift-expand" title="Expand chunk size in X axis by 16">+X</button>
+        <button id="btnShrinkX" class="shift-btn shift-minus" title="Shrink chunk size in X axis by 1 (min 1)">−</button>
+        <span id="sizeX" class="shift-label shift-size shift-x" title="Current X dimension">16</span>
+        <button id="btnExpandX" class="shift-btn shift-plus" title="Expand chunk size in X axis by 1">+</button>
       </div>
       <div class="shift-button-group">
-        <button id="btnExpandY" class="shift-btn shift-expand" title="Expand chunk size in Y axis by 16">+Y</button>
+        <button id="btnShrinkY" class="shift-btn shift-minus" title="Shrink chunk size in Y axis by 1 (min 1)">−</button>
+        <span id="sizeY" class="shift-label shift-size shift-y" title="Current Y dimension">16</span>
+        <button id="btnExpandY" class="shift-btn shift-plus" title="Expand chunk size in Y axis by 1">+</button>
       </div>
       <div class="shift-button-group">
-        <button id="btnExpandZ" class="shift-btn shift-expand" title="Expand chunk size in Z axis by 16">+Z</button>
+        <button id="btnShrinkZ" class="shift-btn shift-minus" title="Shrink chunk size in Z axis by 1 (min 1)">−</button>
+        <span id="sizeZ" class="shift-label shift-size shift-z" title="Current Z dimension">16</span>
+        <button id="btnExpandZ" class="shift-btn shift-plus" title="Expand chunk size in Z axis by 1">+</button>
+      </div>
+    </div>
+
+    <div class="sep"></div>
+
+    <!-- Camera target controls -->
+    <div class="shift-controls">
+      <div class="shift-button-group">
+        <button id="btnCameraXMinus" class="shift-btn shift-minus" title="Move camera target -1 in X axis">−</button>
+        <span id="cameraX" class="shift-label shift-size shift-x" title="Camera target X position">8</span>
+        <button id="btnCameraXPlus" class="shift-btn shift-plus" title="Move camera target +1 in X axis">+</button>
+      </div>
+      <div class="shift-button-group">
+        <button id="btnCameraYMinus" class="shift-btn shift-minus" title="Move camera target -1 in Y axis">−</button>
+        <span id="cameraY" class="shift-label shift-size shift-y" title="Camera target Y position">8</span>
+        <button id="btnCameraYPlus" class="shift-btn shift-plus" title="Move camera target +1 in Y axis">+</button>
+      </div>
+      <div class="shift-button-group">
+        <button id="btnCameraZMinus" class="shift-btn shift-minus" title="Move camera target -1 in Z axis">−</button>
+        <span id="cameraZ" class="shift-label shift-size shift-z" title="Camera target Z position">8</span>
+        <button id="btnCameraZPlus" class="shift-btn shift-plus" title="Move camera target +1 in Z axis">+</button>
       </div>
     </div>
 

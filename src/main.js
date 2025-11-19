@@ -415,6 +415,8 @@ function main() {
       }
     }
     buildAllMeshes();
+    updateChunkSizeUI();
+    updateCameraTargetUI();
 
     if (obj.groups) animSystem.fromJSON(obj.groups);
     clearHistory(); // imported scene becomes baseline
@@ -648,8 +650,36 @@ function main() {
   }
 
   /*** ---- Chunk Size Management ---- ***/
+  function updateChunkSizeUI() {
+    document.getElementById('sizeX').textContent = chunk.sizeX;
+    document.getElementById('sizeY').textContent = chunk.sizeY;
+    document.getElementById('sizeZ').textContent = chunk.sizeZ;
+  }
+
+  /*** ---- Camera Target Management ---- ***/
+  function updateCameraTargetUI() {
+    document.getElementById('cameraX').textContent = Math.round(camera.target[0]);
+    document.getElementById('cameraY').textContent = Math.round(camera.target[1]);
+    document.getElementById('cameraZ').textContent = Math.round(camera.target[2]);
+  }
+
+  function moveCameraTargetX(delta) {
+    camera.target[0] += delta;
+    updateCameraTargetUI();
+  }
+
+  function moveCameraTargetY(delta) {
+    camera.target[1] += delta;
+    updateCameraTargetUI();
+  }
+
+  function moveCameraTargetZ(delta) {
+    camera.target[2] += delta;
+    updateCameraTargetUI();
+  }
+
   function expandChunkX() {
-    const newSize = chunk.sizeX + 16;
+    const newSize = chunk.sizeX + 1;
     chunk.expandSize(newSize, chunk.sizeY, chunk.sizeZ);
     N = Math.max(chunk.sizeX, chunk.sizeY, chunk.sizeZ);
     
@@ -658,22 +688,26 @@ function main() {
     
     buildAxisGizmo(); // Rebuild grid and axes
     buildAllMeshes();
+    updateChunkSizeUI();
+    updateCameraTargetUI();
     clearHistory(); // Clear undo/redo as chunk structure changed
   }
 
   function expandChunkY() {
-    const newSize = chunk.sizeY + 16;
+    const newSize = chunk.sizeY + 1;
     chunk.expandSize(chunk.sizeX, newSize, chunk.sizeZ);
     N = Math.max(chunk.sizeX, chunk.sizeY, chunk.sizeZ);
     
     camera.target = [chunk.sizeX / 2, chunk.sizeY / 2, chunk.sizeZ / 2];
     
     buildAllMeshes();
+    updateChunkSizeUI();
+    updateCameraTargetUI();
     clearHistory();
   }
 
   function expandChunkZ() {
-    const newSize = chunk.sizeZ + 16;
+    const newSize = chunk.sizeZ + 1;
     chunk.expandSize(chunk.sizeX, chunk.sizeY, newSize);
     N = Math.max(chunk.sizeX, chunk.sizeY, chunk.sizeZ);
     
@@ -681,6 +715,52 @@ function main() {
     
     buildAxisGizmo(); // Rebuild grid and axes
     buildAllMeshes();
+    updateChunkSizeUI();
+    updateCameraTargetUI();
+    clearHistory();
+  }
+
+  function shrinkChunkX() {
+    if (chunk.sizeX <= 1) return; // Minimum size is 1
+    const newSize = chunk.sizeX - 1;
+    chunk.expandSize(newSize, chunk.sizeY, chunk.sizeZ);
+    N = Math.max(chunk.sizeX, chunk.sizeY, chunk.sizeZ);
+    
+    camera.target = [chunk.sizeX / 2, chunk.sizeY / 2, chunk.sizeZ / 2];
+    
+    buildAxisGizmo();
+    buildAllMeshes();
+    updateChunkSizeUI();
+    updateCameraTargetUI();
+    clearHistory();
+  }
+
+  function shrinkChunkY() {
+    if (chunk.sizeY <= 1) return;
+    const newSize = chunk.sizeY - 1;
+    chunk.expandSize(chunk.sizeX, newSize, chunk.sizeZ);
+    N = Math.max(chunk.sizeX, chunk.sizeY, chunk.sizeZ);
+    
+    camera.target = [chunk.sizeX / 2, chunk.sizeY / 2, chunk.sizeZ / 2];
+    
+    buildAllMeshes();
+    updateChunkSizeUI();
+    updateCameraTargetUI();
+    clearHistory();
+  }
+
+  function shrinkChunkZ() {
+    if (chunk.sizeZ <= 1) return;
+    const newSize = chunk.sizeZ - 1;
+    chunk.expandSize(chunk.sizeX, chunk.sizeY, newSize);
+    N = Math.max(chunk.sizeX, chunk.sizeY, chunk.sizeZ);
+    
+    camera.target = [chunk.sizeX / 2, chunk.sizeY / 2, chunk.sizeZ / 2];
+    
+    buildAxisGizmo();
+    buildAllMeshes();
+    updateChunkSizeUI();
+    updateCameraTargetUI();
     clearHistory();
   }
 
@@ -1083,6 +1163,11 @@ updateParticleTexture(particles);
     // Functions
     buildAllMeshes,
     buildAxisGizmo,
+    updateChunkSizeUI,
+    updateCameraTargetUI,
+    moveCameraTargetX,
+    moveCameraTargetY,
+    moveCameraTargetZ,
     clearHistory,
     undo,
     redo,
@@ -1090,6 +1175,9 @@ updateParticleTexture(particles);
     expandChunkX,
     expandChunkY,
     expandChunkZ,
+    shrinkChunkX,
+    shrinkChunkY,
+    shrinkChunkZ,
     exportToJSON,
     importFromJSON,
     decodePickAt,

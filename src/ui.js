@@ -55,6 +55,11 @@ export function initializeUI(state) {
     
     // Functions
     buildAllMeshes,
+    updateChunkSizeUI,
+    updateCameraTargetUI,
+    moveCameraTargetX,
+    moveCameraTargetY,
+    moveCameraTargetZ,
     clearHistory,
     undo,
     redo,
@@ -62,6 +67,9 @@ export function initializeUI(state) {
     expandChunkX,
     expandChunkY,
     expandChunkZ,
+    shrinkChunkX,
+    shrinkChunkY,
+    shrinkChunkZ,
     exportToJSON,
     importFromJSON,
     decodePickAt,
@@ -229,6 +237,8 @@ export function initializeUI(state) {
     if (buildAxisGizmo) buildAxisGizmo();
     
     buildAllMeshes();
+    updateChunkSizeUI();
+    updateCameraTargetUI();
     clearHistory();
   });
 
@@ -244,6 +254,19 @@ export function initializeUI(state) {
   document.getElementById('btnExpandX').addEventListener('click', expandChunkX);
   document.getElementById('btnExpandY').addEventListener('click', expandChunkY);
   document.getElementById('btnExpandZ').addEventListener('click', expandChunkZ);
+
+  // Shrink chunk size buttons
+  document.getElementById('btnShrinkX').addEventListener('click', shrinkChunkX);
+  document.getElementById('btnShrinkY').addEventListener('click', shrinkChunkY);
+  document.getElementById('btnShrinkZ').addEventListener('click', shrinkChunkZ);
+
+  // Camera target buttons
+  document.getElementById('btnCameraXMinus').addEventListener('click', () => moveCameraTargetX(-1));
+  document.getElementById('btnCameraXPlus').addEventListener('click', () => moveCameraTargetX(1));
+  document.getElementById('btnCameraYMinus').addEventListener('click', () => moveCameraTargetY(-1));
+  document.getElementById('btnCameraYPlus').addEventListener('click', () => moveCameraTargetY(1));
+  document.getElementById('btnCameraZMinus').addEventListener('click', () => moveCameraTargetZ(-1));
+  document.getElementById('btnCameraZPlus').addEventListener('click', () => moveCameraTargetZ(1));
 
   // Undo/Redo buttons
   undoBtn.addEventListener('click', undo);

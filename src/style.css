@@ -213,6 +213,13 @@ button:hover {
   color: #4d96ff;
 }
 
+.shift-size {
+  min-width: 32px;
+  text-align: center;
+  font-weight: 600;
+  font-family: 'Courier New', monospace;
+}
+
 .shift-expand {
   background: #1e3a2e;
   color: #6bcb77;
@@ -226,6 +233,21 @@ button:hover {
 
 .shift-expand:active {
   background: #2d5a46;
+}
+
+.shift-shrink {
+  background: #3a1e1e;
+  color: #ff6b6b;
+  padding: 6px 12px;
+  font-weight: 600;
+}
+
+.shift-shrink:hover {
+  background: #4a2525;
+}
+
+.shift-shrink:active {
+  background: #5a2d2d;
 }
 
 /* Ensure proper border colors when hovering/selecting middle items */
