@@ -80,7 +80,7 @@ export function makeCubeEdges() {
 }
 
 // Add this new function to create axis gizmo geometry
-export function makeAxisGizmo() {
+export function makeAxisGizmo(sizeX = 16, sizeZ = 16) {
   const positions = [];
   const colors = [];
   
@@ -101,12 +101,15 @@ export function makeAxisGizmo() {
 
   // XZ plane grid (back)
   // Skip i=0 to avoid overlap with axis lines
-  for (let i = 1; i <= 16; i++) {
+  for (let i = 1; i <= sizeX; i++) {
     // Vertical lines (parallel to Z axis)
-    positions.push(i,-0.01,0, i,-0.01,16);
+    positions.push(i,-0.01,0, i,-0.01,sizeZ);
     colors.push(...gridColor, ...gridColor);
+  }
+  
+  for (let i = 1; i <= sizeZ; i++) {
     // Horizontal lines (parallel to X axis)
-    positions.push(0,-0.01,i, 16,-0.01,i);
+    positions.push(0,-0.01,i, sizeX,-0.01,i);
     colors.push(...gridColor, ...gridColor);
   }
 
@@ -120,11 +123,12 @@ export function makeAxisGizmo() {
   //   colors.push(...gridColor, ...gridColor);
   // }
 
-    // Extended main axes (20 units long to extend past grid)
+    // Extended main axes (extend past grid by 4 units)
+  const axisLength = Math.max(sizeX, sizeZ) + 4;
   positions.push(
-    0,0,0, 20,0,0,  // X axis
-    0,0,0, 0,20,0,  // Y axis
-    0,0,0, 0,0,20   // Z axis
+    0,0,0, axisLength,0,0,  // X axis
+    0,0,0, 0,axisLength,0,  // Y axis
+    0,0,0, 0,0,axisLength   // Z axis
   );
   colors.push(
     1,0,0, 1,0,0,  // Red for X

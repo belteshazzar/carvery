@@ -59,6 +59,9 @@ export function initializeUI(state) {
     undo,
     redo,
     shiftVoxels,
+    expandChunkX,
+    expandChunkY,
+    expandChunkZ,
     exportToJSON,
     importFromJSON,
     decodePickAt,
@@ -225,6 +228,11 @@ export function initializeUI(state) {
   document.getElementById('btnShiftYNeg').addEventListener('click', () => shiftVoxels(0, -1, 0));
   document.getElementById('btnShiftZPos').addEventListener('click', () => shiftVoxels(0, 0, 1));
   document.getElementById('btnShiftZNeg').addEventListener('click', () => shiftVoxels(0, 0, -1));
+
+  // Expand chunk size buttons
+  document.getElementById('btnExpandX').addEventListener('click', expandChunkX);
+  document.getElementById('btnExpandY').addEventListener('click', expandChunkY);
+  document.getElementById('btnExpandZ').addEventListener('click', expandChunkZ);
 
   // Undo/Redo buttons
   undoBtn.addEventListener('click', undo);

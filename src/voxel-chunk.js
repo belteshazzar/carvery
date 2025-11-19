@@ -71,20 +71,69 @@ export class VoxelChunk {
   }
 
   idx3(x, y, z) {
-    return x + this._size * (y + this._size * z);
+    const sizeX = this._sizeX || this._size;
+    const sizeY = this._sizeY || this._size;
+    return x + sizeX * (y + sizeY * z);
   }
 
   within(x, y, z) {
-    return x >= 0 && y >= 0 && z >= 0 && x < this._size && y < this._size && z < this._size;
+    const sizeX = this._sizeX || this._size;
+    const sizeY = this._sizeY || this._size;
+    const sizeZ = this._sizeZ || this._size;
+    return x >= 0 && y >= 0 && z >= 0 && x < sizeX && y < sizeY && z < sizeZ;
   }
 
   coordsOf(id) {
-    const z = Math.floor(id / (this._size * this._size));
-    const y = Math.floor((id - z * this._size * this._size) / this._size);
-    const x = id - z * this._size * this._size - y * this._size;
+    const sizeX = this._sizeX || this._size;
+    const sizeY = this._sizeY || this._size;
+    const z = Math.floor(id / (sizeX * sizeY));
+    const y = Math.floor((id - z * sizeX * sizeY) / sizeX);
+    const x = id - z * sizeX * sizeY - y * sizeX;
     return [x, y, z];
   }
 
+  /**
+   * Expand the chunk size in one or more dimensions, preserving existing voxel data
+   * New voxels are initialized as empty (not solid)
+   */
+  expandSize(newSizeX, newSizeY, newSizeZ) {
+    // Get old dimensions (may be different per axis if already expanded)
+    const oldSizeX = this._sizeX || this._size;
+    const oldSizeY = this._sizeY || this._size;
+    const oldSizeZ = this._sizeZ || this._size;
+    const oldIsSolid = this._isSolid;
+    const oldMaterial = this._material;
+
+    // Update size dimensions
+    this._sizeX = newSizeX;
+    this._sizeY = newSizeY;
+    this._sizeZ = newSizeZ;
+    this._size = Math.max(newSizeX, newSizeY, newSizeZ); // Keep _size for compatibility
+
+    // Create new arrays
+    const newLength = newSizeX * newSizeY * newSizeZ;
+    this._isSolid = new Array(newLength).fill(false);
+    this._material = new Uint8Array(newLength);
+
+    // Copy old data with correct old dimensions
+    for (let z = 0; z < oldSizeZ && z < newSizeZ; z++) {
+      for (let y = 0; y < oldSizeY && y < newSizeY; y++) {
+        for (let x = 0; x < oldSizeX && x < newSizeX; x++) {
+          const oldIdx = x + oldSizeX * (y + oldSizeY * z);
+          const newIdx = x + newSizeX * (y + newSizeY * z);
+          this._isSolid[newIdx] = oldIsSolid[oldIdx];
+          this._material[newIdx] = oldMaterial[oldIdx];
+        }
+      }
+    }
+
+    // Clear groups as they would need to be recalculated
+    this._groups.clear();
+  }
+
+  get sizeX() { return this._sizeX || this._size; }
+  get sizeY() { return this._sizeY || this._size; }
+  get sizeZ() { return this._sizeZ || this._size; }
 
   faceExposed(x, y, z, f) {
     const d = FACE_DIRS[f], here = this.isSolid(this.idx3(x, y, z)); 
@@ -94,9 +143,12 @@ export class VoxelChunk {
   }
 
   seedMaterials(mode = "bands") {
-    for (let z = 0; z < this._size; z++) {
-      for (let y = 0; y < this._size; y++) {
-        for (let x = 0; x < this._size; x++) {
+    const sizeX = this._sizeX || this._size;
+    const sizeY = this._sizeY || this._size;
+    const sizeZ = this._sizeZ || this._size;
+    for (let z = 0; z < sizeZ; z++) {
+      for (let y = 0; y < sizeY; y++) {
+        for (let x = 0; x < sizeX; x++) {
           const idx = this.idx3(x, y, z);
           const mat = mode === "random" ? ((Math.random() * 16) | 0) : (((x >> 2) + (y >> 2) + (z >> 2)) % 16);
           this.setMaterial(idx, mat);
@@ -136,8 +188,14 @@ export class VoxelChunk {
     const positions = [], normals = [], matIds = [], indices = [];
     let indexBase = 0;
 
+    const sizeX = this._sizeX || this._size;
+    const sizeY = this._sizeY || this._size;
+    const sizeZ = this._sizeZ || this._size;
+
     for (let axis = 0; axis < 3; axis++) {
-      const u = (axis + 1) % 3, v = (axis + 2) % 3, dims = [this._size, this._size, this._size];
+      const u = (axis + 1) % 3, v = (axis + 2) % 3;
+      const dims = [sizeX, sizeY, sizeZ];
+      
       for (let side = 0; side < 2; side++) {
         const n = [0, 0, 0]; n[axis] = (side === 0 ? 1 : -1);
         for (let k = 0; k <= dims[axis]; k++) {
@@ -256,7 +314,9 @@ export class VoxelChunk {
 
     const groundY = 0; // Y position of ground plane
     // Build ground plane geometry
-    for (let z = 0; z < this._size; z++) for (let x = 0; x < this._size; x++) for (let fid = 2; fid <= 2; fid++) {
+    const sizeX = this._sizeX || this._size;
+    const sizeZ = this._sizeZ || this._size;
+    for (let z = 0; z < sizeZ; z++) for (let x = 0; x < sizeX; x++) for (let fid = 2; fid <= 2; fid++) {
       const vIdx = this.idx3(x, groundY, z);
       const min = [x, groundY, z];
       const f = faces[fid];
@@ -291,7 +351,8 @@ export class VoxelChunk {
       groundBase += 4;
     }
 
-    for (let z = 0; z < this._size; z++) for (let y = 0; y < this._size; y++) for (let x = 0; x < this._size; x++) {
+    const sizeY = this._sizeY || this._size;
+    for (let z = 0; z < sizeZ; z++) for (let y = 0; y < sizeY; y++) for (let x = 0; x < sizeX; x++) {
       const vIdx = this.idx3(x, y, z);
       if (!this.isSolid(vIdx)) continue;
 

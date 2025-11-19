@@ -59,23 +59,26 @@ function main() {
 
   gl.bindVertexArray(null);
 
-  // gizmo
+  // gizmo - create function to rebuild it
+  function buildAxisGizmo() {
+    const gizmo = makeAxisGizmo(chunk.sizeX, chunk.sizeZ);
 
-  const gizmo = makeAxisGizmo();
+    gl.bindVertexArray(axisProg.vao);
 
-  gl.bindVertexArray(axisProg.vao);
+    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+    gl.bufferData(gl.ARRAY_BUFFER, gizmo.positions, gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(axisProg.aPosition.location);
+    gl.vertexAttribPointer(axisProg.aPosition.location, 3, gl.FLOAT, false, 0, 0);
 
-  gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
-  gl.bufferData(gl.ARRAY_BUFFER, gizmo.positions, gl.STATIC_DRAW);
-  gl.enableVertexAttribArray(axisProg.aPosition.location);
-  gl.vertexAttribPointer(axisProg.aPosition.location, 3, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+    gl.bufferData(gl.ARRAY_BUFFER, gizmo.colors, gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(axisProg.aColor.location);
+    gl.vertexAttribPointer(axisProg.aColor.location, 3, gl.FLOAT, false, 0, 0);
 
-  gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
-  gl.bufferData(gl.ARRAY_BUFFER, gizmo.colors, gl.STATIC_DRAW);
-  gl.enableVertexAttribArray(axisProg.aColor.location);
-  gl.vertexAttribPointer(axisProg.aColor.location, 3, gl.FLOAT, false, 0, 0);
-
-  gl.bindVertexArray(null);
+    gl.bindVertexArray(null);
+    
+    axisProg.meta.count = gizmo.count;
+  }
 
   // Particle cube mesh for instanced rendering
   const particleCube = makeParticleCube();
@@ -130,6 +133,7 @@ function main() {
   const FACE_INFO = [{ axis: 0, u: 2, v: 1 }, { axis: 0, u: 2, v: 1 }, { axis: 1, u: 0, v: 2 }, { axis: 1, u: 0, v: 2 }, { axis: 2, u: 0, v: 1 }, { axis: 2, u: 0, v: 1 }];
 
   chunk.seedMaterials("bands");
+  buildAxisGizmo();
 
   const camera = new OrbitCamera({
     target: [8, 8, 8],
@@ -469,8 +473,8 @@ function main() {
 
   function getGroundPlaneVoxels() {
     const out = [];
-    for (let x = 0; x < N; x++) {
-      for (let z = 0; z < N; z++) {
+    for (let x = 0; x < chunk.sizeX; x++) {
+      for (let z = 0; z < chunk.sizeZ; z++) {
         const y = 0;
         out.push(chunk.idx3(x, y, z));
       }
@@ -591,6 +595,43 @@ function main() {
     if (act.type === 'voxels') buildAllMeshes();
   }
 
+  /*** ---- Chunk Size Management ---- ***/
+  function expandChunkX() {
+    const newSize = chunk.sizeX + 16;
+    chunk.expandSize(newSize, chunk.sizeY, chunk.sizeZ);
+    N = Math.max(chunk.sizeX, chunk.sizeY, chunk.sizeZ);
+    
+    // Update camera target to center on expanded chunk
+    camera.target = [chunk.sizeX / 2, chunk.sizeY / 2, chunk.sizeZ / 2];
+    
+    buildAxisGizmo(); // Rebuild grid and axes
+    buildAllMeshes();
+    clearHistory(); // Clear undo/redo as chunk structure changed
+  }
+
+  function expandChunkY() {
+    const newSize = chunk.sizeY + 16;
+    chunk.expandSize(chunk.sizeX, newSize, chunk.sizeZ);
+    N = Math.max(chunk.sizeX, chunk.sizeY, chunk.sizeZ);
+    
+    camera.target = [chunk.sizeX / 2, chunk.sizeY / 2, chunk.sizeZ / 2];
+    
+    buildAllMeshes();
+    clearHistory();
+  }
+
+  function expandChunkZ() {
+    const newSize = chunk.sizeZ + 16;
+    chunk.expandSize(chunk.sizeX, chunk.sizeY, newSize);
+    N = Math.max(chunk.sizeX, chunk.sizeY, chunk.sizeZ);
+    
+    camera.target = [chunk.sizeX / 2, chunk.sizeY / 2, chunk.sizeZ / 2];
+    
+    buildAxisGizmo(); // Rebuild grid and axes
+    buildAllMeshes();
+    clearHistory();
+  }
+
   /*** ---- Shift all voxels ---- ***/
   function shiftVoxels(dx, dy, dz) {
     const act = beginVoxelAction(`Shift ${dx !== 0 ? (dx > 0 ? '+X' : '-X') : dy !== 0 ? (dy > 0 ? '+Y' : '-Y') : (dz > 0 ? '+Z' : '-Z')}`);
@@ -611,9 +652,9 @@ function main() {
     }
     
     // Copy voxels to new positions
-    for (let z = 0; z < N; z++) {
-      for (let y = 0; y < N; y++) {
-        for (let x = 0; x < N; x++) {
+    for (let z = 0; z < chunk.sizeZ; z++) {
+      for (let y = 0; y < chunk.sizeY; y++) {
+        for (let x = 0; x < chunk.sizeX; x++) {
           const oldIdx = chunk.idx3(x, y, z);
           if (!tempSolid[oldIdx]) continue;
           
@@ -842,7 +883,7 @@ function main() {
     axisProg.uView.set(camera.view());
     axisProg.uProj.set(proj);
     gl.bindVertexArray(axisProg.vao);
-    gl.drawArrays(gl.LINES, 0, gizmo.count);
+    gl.drawArrays(gl.LINES, 0, axisProg.meta.count);
     gl.bindVertexArray(null);
 
     // Render particles
@@ -993,6 +1034,9 @@ updateParticleTexture(particles);
     undo,
     redo,
     shiftVoxels,
+    expandChunkX,
+    expandChunkY,
+    expandChunkZ,
     exportToJSON,
     importFromJSON,
     decodePickAt,
