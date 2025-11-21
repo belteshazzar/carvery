@@ -69,7 +69,7 @@ export class PaletteUI {
       this.setPaletteColor(i, [r, g, b]);
     }
 
-    this.container.innerHTML = '';
+    if (this.container) this.container.innerHTML = '';
     this.pickers.clear();
     
     for (let i = 0; i < 16; i++) {
@@ -145,7 +145,7 @@ export class PaletteUI {
       swatch.appendChild(idx);
       swatch.appendChild(picker);
       swatch.appendChild(color);
-      this.container.appendChild(swatch);
+      if (this.container) this.container.appendChild(swatch);
     }
 
   }
@@ -167,8 +167,8 @@ export class PaletteUI {
     
     // Update UI if it exists
     const hex = rgbToHexF(rgb[0], rgb[1], rgb[2]);
-    const swatches = this.container.querySelectorAll('.swatch');
-    if (swatches[i]) {
+    const swatches = this.container?.querySelectorAll('.swatch');
+    if (swatches && swatches[i]) {
       const colorDiv = swatches[i].querySelector('.color');
       if (colorDiv) {
         colorDiv.style.background = hex;
@@ -190,11 +190,11 @@ export class PaletteUI {
   selectBrush(id) {
     this.brushMat = id & 15;
     
-    this.container.querySelectorAll('.swatch').forEach(s => 
+    if (this.container) this.container.querySelectorAll('.swatch').forEach(s => 
       s.classList.remove('active')
     );
     
-    const swatches = this.container.querySelectorAll('.swatch');
+    const swatches = this.container?.querySelectorAll('.swatch');
     if (swatches[this.brushMat]) {
       swatches[this.brushMat].classList.add('active');
     }

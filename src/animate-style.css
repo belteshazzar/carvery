@@ -506,7 +506,7 @@ input[type="color"] {
 
 .animation-panel {
   position: fixed;
-  right: -420px; /* Hidden by default on index.html */
+  right: 0px; /* Hidden by default */
   top: 0;
   bottom: 0;
   width: 400px;
@@ -520,13 +520,6 @@ input[type="color"] {
   flex-direction: column;
   gap: 12px;
   overflow-y: auto;
-}
-
-/* For animate.html, panel is always visible */
-#animate-layout .animation-panel {
-  position: relative;
-  right: auto;
-  transition: none;
 }
 
 .animation-panel.open {
@@ -852,4 +845,27 @@ input[type="color"] {
 
 .bounds-row input[type="number"] {
   -moz-appearance: textfield;
+}
+
+/* Animate page layout: app on left, panel on right */
+#animate-layout {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+}
+
+#animate-layout #app {
+  flex: 1;
+  position: relative;
+  inset: auto;
+}
+
+#animate-layout .animation-panel {
+  position: relative;
+  right: auto;
+  top: auto;
+  bottom: auto;
+  width: 400px;
+  flex-shrink: 0;
+  transition: none;
 }
