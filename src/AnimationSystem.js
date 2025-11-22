@@ -344,6 +344,9 @@ export class AnimationSystem {
 
     // Link animations to groups
     this.linkAnimationsToGroups();
+
+
+    console.log('Loaded Animation System from JSON:', this);
   }
 
   toJSON() {

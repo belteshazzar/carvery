@@ -22,15 +22,8 @@ export function initializeUI(state) {
     animSystem,
     animationTransforms,
     
-    // State getters/setters
-    // getMode,
-    // setMode,
-    // getOption,
-    // setOption,
     getHoverVoxel,
-    setHoverVoxel,
     getHoverFace,
-    setHoverFace,
     setNeedsPick,
     getDragging,
     setDragging,
@@ -38,85 +31,27 @@ export function initializeUI(state) {
     setLastX,
     getLastY,
     setLastY,
-    getMouseX,
     setMouseX,
-    getMouseY,
     setMouseY,
-    getLastTime,
-    setLastTime,
-    getRowHoverSurf,
-    setRowHoverSurf,
-    getRowHoverAdd,
-    setRowHoverAdd,
-    getPlaneHoverSurf,
-    setPlaneHoverSurf,
-    getPlaneHoverAdd,
-    setPlaneHoverAdd,
+
+
+
     
     // Functions
-    buildAllMeshes,
-    updateChunkSizeUI,
-    updateCameraTargetUI,
-    moveCameraTargetX,
-    moveCameraTargetY,
-    moveCameraTargetZ,
-    clearHistory,
-    undo,
-    redo,
-    shiftVoxels,
-    expandChunkX,
-    expandChunkY,
-    expandChunkZ,
-    shrinkChunkX,
-    shrinkChunkY,
-    shrinkChunkZ,
     exportToJSON,
     importFromJSON,
     decodePickAt,
-    getRowSurfaceVoxels,
-    getRowAddTargets,
-    getPlaneSurfaceVoxels,
-    getPlaneAddTargets,
-    beginVoxelAction,
-    recordVoxelChange,
-    commitAction,
-    getSelectedGroupName,
-    setSelectedGroupName,
-    getGroupOverlaysVisible,
-    setGroupOverlaysVisible,
-    
-    // Constants
-    FACE_DIRS
+
   } = state;
 
   // Get DOM elements
   const xEl = document.getElementById('x');
   const yEl = document.getElementById('y');
   const zEl = document.getElementById('z');
-  const undoBtn = document.getElementById('btnUndo');
-  const redoBtn = document.getElementById('btnRedo');
   const fileInput = document.getElementById('fileInput');
 
   // Add side panel (menu) toggle handlers
   const sidePanel = document.querySelector('.side-panel');
-  const btnToggleMenu = document.getElementById('btnToggleMenu');
-  const btnCloseMenu = document.getElementById('btnCloseMenu');
-
-  // btnToggleMenu.addEventListener('click', () => {
-  //   sidePanel.classList.toggle('open');
-  // });
-
-  // btnCloseMenu.addEventListener('click', () => {
-  //   sidePanel.classList.remove('open');
-  // });
-
-  // Add animation panel toggle handlers (keep existing)
-  // const animPanel = document.querySelector('.animation-panel');
-  // const btnCloseAnimations = document.getElementById('btnCloseAnimations');
-
-  // btnCloseAnimations.addEventListener('click', () => {
-  //   animPanel.classList.remove('open');
-  // });
 
   // Close panels on escape key
   window.addEventListener('keydown', (e) => {
@@ -128,79 +63,6 @@ export function initializeUI(state) {
         animPanel.classList.remove('open');
       }
     }
-  });
-
-  // // Animation UI handlers
-  // document.getElementById('btnCompile').addEventListener('click', () => {
-  //   const dsl = document.getElementById('animationDSL').value;
-  //   try {
-
-  //     animSystem.parse(dsl);
-
-  //     chunk.clearGroups();
-  //     animSystem.groups.forEach((group,name) => {
-  //       chunk.addGroup(name, group.min, group.max);
-  //     });
-  //     buildAllMeshes();
-  //     updateTriggerSelect();
-
-  //   } catch(e) {
-  //     console.error('Animation compile error:', e);
-  //   }
-  // });
-
-  // // Update the trigger select dropdown to show animations instead of groups
-  // function updateTriggerSelect() {
-  //   const select = document.getElementById('triggerSelect');
-  //   select.innerHTML = '<option value="">Trigger animation...</option>';
-    
-  //   for (const [name, anim] of animSystem.animations.entries()) {
-  //     const option = document.createElement('option');
-  //     option.value = name;
-  //     option.textContent = `${name} (${anim.groupName || 'no group'})`;
-  //     select.appendChild(option);
-  //   }
-  // }
-
-  // document.getElementById('btnPlay').addEventListener('click', () => {
-  //   animSystem.playing = true;
-  //   setLastTime(performance.now());
-  // });
-
-  // document.getElementById('btnPause').addEventListener('click', () => {
-  //   animSystem.playing = false;
-  // });
-
-  // // Handle dropdown selection to trigger individual animations
-  // document.getElementById('triggerSelect').addEventListener('change', (e) => {
-  //   const animName = e.target.value;
-  //   if (animName) {
-  //     animSystem.playAnimation(animName);
-  //     e.target.value = ''; // Reset dropdown
-  //   }
-  // });
-
-  // document.getElementById('btnReset').addEventListener('click', () => {
-  //   animSystem.reset();
-  // });
-
-
-  // Mode selection
-  document.querySelectorAll('input[name="modeSelect"]').forEach(radio => {
-    radio.addEventListener('change', (e) => {
-      if (e.target.checked) {
-        setMode(e.target.value);
-      }
-    });
-  });
-
-  // Option selection
-  document.querySelectorAll('input[name="optionSelect"]').forEach(radio => {
-    radio.addEventListener('change', (e) => {
-      if (e.target.checked) {
-        setOption(e.target.value);
-      }
-    });
   });
 
   // Import/Export JSON
@@ -224,7 +86,10 @@ export function initializeUI(state) {
     reader.onload = () => {
       try {
         const obj = JSON.parse(reader.result); 
+        console.log('Importing JSON:', obj);
         importFromJSON(obj);
+        updateAnimationList();
+        updateGroupPanel();
       } catch (err) {
         alert('Invalid JSON: ' + err.message);
       } finally {
@@ -233,57 +98,6 @@ export function initializeUI(state) {
     };
     reader.readAsText(file);
   });
-
-  // Reset button
-  // document.getElementById('resetSolid').addEventListener('click', () => {
-  //   chunk.resetSize();
-  //   chunk.seedMaterials('bands');
-    
-  //   // Reset palette to default colors
-  //   palette.reset();
-    
-  //   // Update camera target to center on reset chunk
-  //   camera.target = [8, 8, 8];
-    
-  //   // Rebuild grid and axes for 16×16×16
-  //   const buildAxisGizmo = state.buildAxisGizmo;
-  //   if (buildAxisGizmo) buildAxisGizmo();
-    
-  //   buildAllMeshes();
-  //   updateChunkSizeUI();
-  //   updateCameraTargetUI();
-  //   clearHistory();
-  // });
-
-  // Shift buttons
-  // document.getElementById('btnShiftXPos').addEventListener('click', () => shiftVoxels(1, 0, 0));
-  // document.getElementById('btnShiftXNeg').addEventListener('click', () => shiftVoxels(-1, 0, 0));
-  // document.getElementById('btnShiftYPos').addEventListener('click', () => shiftVoxels(0, 1, 0));
-  // document.getElementById('btnShiftYNeg').addEventListener('click', () => shiftVoxels(0, -1, 0));
-  // document.getElementById('btnShiftZPos').addEventListener('click', () => shiftVoxels(0, 0, 1));
-  // document.getElementById('btnShiftZNeg').addEventListener('click', () => shiftVoxels(0, 0, -1));
-
-  // Expand chunk size buttons
-  // document.getElementById('btnExpandX').addEventListener('click', expandChunkX);
-  // document.getElementById('btnExpandY').addEventListener('click', expandChunkY);
-  // document.getElementById('btnExpandZ').addEventListener('click', expandChunkZ);
-
-  // Shrink chunk size buttons
-  // document.getElementById('btnShrinkX').addEventListener('click', shrinkChunkX);
-  // document.getElementById('btnShrinkY').addEventListener('click', shrinkChunkY);
-  // document.getElementById('btnShrinkZ').addEventListener('click', shrinkChunkZ);
-
-  // Camera target buttons
-  document.getElementById('btnCameraXMinus').addEventListener('click', () => moveCameraTargetX(-1));
-  document.getElementById('btnCameraXPlus').addEventListener('click', () => moveCameraTargetX(1));
-  document.getElementById('btnCameraYMinus').addEventListener('click', () => moveCameraTargetY(-1));
-  document.getElementById('btnCameraYPlus').addEventListener('click', () => moveCameraTargetY(1));
-  document.getElementById('btnCameraZMinus').addEventListener('click', () => moveCameraTargetZ(-1));
-  document.getElementById('btnCameraZPlus').addEventListener('click', () => moveCameraTargetZ(1));
-
-  // Undo/Redo buttons
-  // undoBtn.addEventListener('click', undo);
-  // redoBtn.addEventListener('click', redo);
 
   // Update hover UI
   function updateHoverUI() {
@@ -304,80 +118,12 @@ export function initializeUI(state) {
 
   // Export for use in render loop
   state.updateHoverUI = updateHoverUI;
-
-  // Keyboard event handler
-  window.addEventListener('keydown', (e) => {
-    const k = e.key.toLowerCase();
-
-    // Mode shortcuts
-    if (k === 'q') {
-      document.getElementById('modePaint').checked = true;
-      setMode('paint');
-      return;
-    }
-    
-    if (k === 'w') {
-      document.getElementById('modeCarve').checked = true;
-      setMode('carve');
-      return;
-    }
-    
-    if (k === 's') {
-      document.getElementById('modeAdd').checked = true;
-      setMode('add');
-      return;
-    }
-
-    if (!e.ctrlKey && k === 'v') {
-      document.getElementById('optionVoxel').checked = true;
-      setOption('voxel');
-      return;
-    }
-
-    if (k === 'r') {
-      document.getElementById('optionRow').checked = true;
-      setOption('row');
-      return;
-    }
-
-    if (k === 'p') {
-      document.getElementById('optionPlane').checked = true;
-      setOption('plane');
-      return;
-    }
-
-    // Undo/Redo
-    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && (k === 'z')) {
-      e.preventDefault();
-      undo();
-      return;
-    }
-
-    if ((e.ctrlKey || e.metaKey) && (k === 'y' || (e.shiftKey && (k === 'z')))) {
-      e.preventDefault();
-      redo();
-      return;
-    }
-  
-    // Quick material: 0-9, A-F
-    if (/^[0-9]$/.test(k)) palette.selectBrush(parseInt(k, 10));
-    else if (/^[a-f]$/i.test(k)) palette.selectBrush(10 + parseInt(k, 16) - 10);
-
-    setNeedsPick(true);
-  });
-
-  window.addEventListener('keyup', (e) => {
-    setNeedsPick(true);
-  });
-
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
   // Mouse event handlers
   canvas.addEventListener('mousedown', (e) => {
     canvas.focus();
     const pick = decodePickAt(e.clientX, e.clientY);
-    // const mode = getMode();
-    // const option = getOption();
     
     // If clicking on empty space, auto-start camera rotation
     if (pick.voxel < 0 || pick.face < 0) {
@@ -389,84 +135,6 @@ export function initializeUI(state) {
       return;
     }
 
-    // if (e.button === 0 && mode === 'paint') {
-    //   // Paint
-    //   if (option == 'plane') {
-    //     const arr = getPlaneSurfaceVoxels(pick.voxel, pick.face);
-    //     if (arr.length > 0) {
-    //       const act = beginVoxelAction('Paint plane');
-    //       for (const id of arr) recordVoxelChange(act, id, true, palette.getBrush());
-    //       commitAction(act);
-    //     }
-    //   } else if (option == 'row') {
-    //     const arr = getRowSurfaceVoxels(pick.voxel, pick.face);
-    //     if (arr.length > 0) {
-    //       const act = beginVoxelAction(`Paint row`);
-    //       for (const id of arr) recordVoxelChange(act, id, true, palette.getBrush());
-    //       commitAction(act);
-    //     }
-    //   } else if (pick.voxel >= 0) {
-    //     const id = chunk.idx3(...chunk.coordsOf(pick.voxel));
-    //     if (chunk.isSolid(id)) {
-    //       const act = beginVoxelAction('Paint voxel');
-    //       recordVoxelChange(act, pick.voxel, true, palette.getBrush());
-    //       commitAction(act);
-    //     }
-    //   }
-    // } else if (e.button === 0 && mode === 'add') {
-    //     // Add
-    //     if (option == 'plane') {
-    //       const targets = getPlaneAddTargets(pick.voxel, pick.face);
-    //       if (targets.length > 0) {
-    //         const act = beginVoxelAction('Add plane');
-    //         for (const t of targets) recordVoxelChange(act, t, true, palette.getBrush());
-    //         commitAction(act);
-    //       }
-    //     } else if (option == 'row') {
-    //       const targets = getRowAddTargets(pick.voxel, pick.face);
-    //       if (targets.length > 0) {
-    //         const act = beginVoxelAction(`Add row`);
-    //         for (const t of targets) recordVoxelChange(act, t, true, palette.getBrush());
-    //         commitAction(act);
-    //       }
-    //     } else if (pick.voxel >= 0 && pick.face >= 0) {
-    //         const [x, y, z] = chunk.coordsOf(pick.voxel);
-    //         const d = FACE_DIRS[pick.face];
-    //         const nx = x + d[0];
-    //         const ny = y + d[1];
-    //         const nz = z + d[2];
-    //         if (chunk.within(nx, ny, nz)) {
-    //           const id = chunk.idx3(nx, ny, nz);
-    //           if (!chunk.isSolid(id)) {
-    //             const act = beginVoxelAction('Add voxel');
-    //             recordVoxelChange(act, id, true, palette.getBrush());
-    //             commitAction(act);
-    //           }
-    //         }
-    //     }
-
-    //     setNeedsPick(true);
-
-    //   } else if (e.button === 0 && mode === 'carve') {
-    //     // Remove (or toggle for single)
-    //     if (option == 'plane') {
-    //       const arr = getPlaneSurfaceVoxels(pick.voxel, pick.face);
-    //       const act = beginVoxelAction('Remove plane');
-    //       for (const id of arr) recordVoxelChange(act, id, false, chunk.material(id));
-    //       commitAction(act);
-    //     } else if (option == 'row') {
-    //       const arr = getRowSurfaceVoxels(pick.voxel, pick.face);
-    //       const act = beginVoxelAction(`Remove row`);
-    //       for (const id of arr) recordVoxelChange(act, id, false, chunk.material(id));
-    //       commitAction(act);
-    //     } else if (pick.voxel >= 0 && chunk.isSolid(pick.voxel)) {
-    //         const act = beginVoxelAction('Remove voxel');
-    //         recordVoxelChange(act, pick.voxel, false, chunk.material(pick.voxel)); // keep existing mat on toggle
-    //         commitAction(act);
-    //     }
-
-    //     setNeedsPick(true);
-    // }
   });
 
   window.addEventListener('mouseup', () => { 
@@ -738,6 +406,13 @@ export function initializeUI(state) {
       return;
     }
     
+    if (state.animSystem.animations.size > 0) {
+      const animHeader = document.createElement('h5');
+      animHeader.textContent = 'Groups';
+      animHeader.style.margin = '8px 0 4px 0';
+      container.appendChild(animHeader);
+    }
+
     const groupOverlays = state.getGroupOverlaysVisible();
     const selectedGroup = state.getSelectedGroupName();
     
@@ -873,27 +548,6 @@ export function initializeUI(state) {
       container.appendChild(item);
     }
   }
-
-  // Compile button
-  document.getElementById('btnCompile')?.addEventListener('click', () => {
-    const dsl = document.getElementById('animationDSL').value;
-    try {
-      state.animSystem.parse(dsl);
-      state.animSystem.assignVoxelsToGroups(state.chunk);
-
-      state.chunk.clearGroups();
-      state.animSystem.groups.forEach((group,name) => {
-        state.chunk.addGroup(name, group.min, group.max);
-      });
-      state.buildAllMeshes();
-
-      updateAnimationList();
-      updateGroupPanel();
-    } catch(e) {
-      console.error('Animation compile error:', e);
-      alert('Animation compile error: ' + e.message);
-    }
-  });
 
   // Play all looping animations and start all emitters
   document.getElementById('btnPlay')?.addEventListener('click', () => {

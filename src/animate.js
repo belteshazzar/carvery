@@ -129,9 +129,6 @@ function main() {
   let N = 16;
   const chunk = new VoxelChunk(N);
 
-  const FACE_DIRS = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1], [0, 0, 0]]; // last is for ground plane
-  const FACE_INFO = [{ axis: 0, u: 2, v: 1 }, { axis: 0, u: 2, v: 1 }, { axis: 1, u: 0, v: 2 }, { axis: 1, u: 0, v: 2 }, { axis: 2, u: 0, v: 1 }, { axis: 2, u: 0, v: 1 }];
-
   chunk.seedMaterials("bands");
   buildAxisGizmo();
 
@@ -201,12 +198,6 @@ function main() {
 
     gl.bindVertexArray(pickProg.vao);
     gl.drawElements(gl.TRIANGLES, pickProg.meta.pickVoxelCount, gl.UNSIGNED_INT, 0);
-
-    // Draw ground plane only for add mode
-    // if (mode === 'add') {
-    //   gl.bindVertexArray(pickProg.vaoGround);
-    //   gl.drawElements(gl.TRIANGLES, pickProg.meta.pickGroundCount, gl.UNSIGNED_INT, 0);
-    // }
 
     gl.bindVertexArray(null);
     if (cullWas) gl.enable(gl.CULL_FACE);
@@ -280,9 +271,6 @@ function main() {
       commitAction(act, false);
     }
   );
-
-  // let mode = document.querySelector('input[name="modeSelect"]:checked').value;
-  // let option = document.querySelector('input[name="optionSelect"]:checked').value;
 
   /*** ---- Import/Export JSON ---- ***/
 
@@ -437,420 +425,34 @@ function main() {
         chunk.setMaterial(id, m);
       }
     }
+
+    chunk.clearGroups();
+
+    console.log(obj.groups);
+    if (obj.groups) {
+      animSystem.fromJSON(obj.groups);
+      animSystem.assignVoxelsToGroups(chunk);
+
+      animSystem.groups.forEach((group,name) => {
+        chunk.addGroup(name, group.min, group.max);
+      });
+
+    }
+
     buildAllMeshes();
-    updateChunkSizeUI();
-    updateCameraTargetUI();
-
-    if (obj.groups) animSystem.fromJSON(obj.groups);
-    clearHistory(); // imported scene becomes baseline
+    // clearHistory(); // imported scene becomes baseline
   }
 
-  const FACE_ROW_INFO = [
-    { axis: 0, u: 2, v: 1 }, // +X
-    { axis: 0, u: 2, v: 1 }, // -X
-    { axis: 1, u: 0, v: 2 }, // +Y
-    { axis: 1, u: 0, v: 2 }, // -Y
-    { axis: 2, u: 0, v: 1 }, // +Z
-    { axis: 2, u: 0, v: 1 }, // -Z
-    { axis: 1, u: 0, v: 2 }, // ground plane +Y
-  ];
 
-  function getRowSurfaceVoxels(vIdx, faceId) {
-    if (vIdx < 0 || faceId < 0 || faceId > FACE_ROW_INFO.length) return [];
-    const info = FACE_ROW_INFO[faceId]
-    const [x0, y0, z0] = chunk.coordsOf(vIdx);
-    const U = info.u
-    const V = info.v
-    const AX = info.axis;
-    const fixedU = [x0, y0, z0][U];
-    const fixedV = [x0, y0, z0][V];
-    const out = [];
 
-    for (let t = 0; t < N; t++) {
-      const c = [0, 0, 0];
-      c[U] = fixedU;
-      c[V] = fixedV;
-      c[AX] = t;
-      if (!chunk.within(c[0], c[1], c[2])) continue;
-      if (!chunk.isSolid(chunk.idx3(c[0], c[1], c[2]))) continue;
-      out.push(chunk.idx3(c[0], c[1], c[2]));
-    }
-    return out;
-  }
-
-  const FACE_ROW_ADD_INFO = [
-    { axis: 0, u: 2, v: 1 }, // +X
-    { axis: 0, u: 2, v: 1 }, // -X
-    { axis: 1, u: 0, v: 2 }, // +Y
-    { axis: 1, u: 0, v: 2 }, // -Y
-    { axis: 2, u: 0, v: 1 }, // +Z
-    { axis: 2, u: 0, v: 1 }, // -Z
-    { axis: 1, u: 0, v: 2 }, // ground plane +Y
-  ];
-
-  function getRowAddTargets(vIdx, faceId) {
-    if (vIdx < 0 || faceId < 0) return [];
-
-    const info = FACE_ROW_ADD_INFO[faceId]
-    const [x0, y0, z0] = chunk.coordsOf(vIdx);
-    const U = info.u
-    const V = info.v
-    const AX = info.axis;
-    const fixedU = [x0, y0, z0][U];
-    const fixedV = [x0, y0, z0][V];
-    const out = [];
-
-    for (let t = 0; t < N; t++) {
-      const c = [0, 0, 0];
-      c[U] = fixedU;
-      c[V] = fixedV;
-      c[AX] = t;
-      if (!chunk.within(c[0], c[1], c[2])) continue;
-      if (chunk.isSolid(chunk.idx3(c[0], c[1], c[2]))) continue;
-      out.push(chunk.idx3(c[0], c[1], c[2]));
-    }
-    return out;
-  }
 
   /*** ---- Plane Tool ---- ***/
 
-  function getPlaneSurfaceVoxels(vIdx, faceId) {
-    if (vIdx < 0 || faceId < 0 || faceId >= FACE_INFO.length) return [];
-    const info = FACE_INFO[faceId]
-    const [x0, y0, z0] = chunk.coordsOf(vIdx);
-    const AX = info.axis
-    const U = info.u
-    const V = info.v;
-    const fixedAX = [x0, y0, z0][AX];
-    const out = [];
-
-    for (let u = 0; u < N; u++) {
-      for (let v = 0; v < N; v++) {
-        const c = [0, 0, 0];
-        c[AX] = fixedAX;
-        c[U] = u;
-        c[V] = v;
-
-        if (faceId == 6) {
-          if (!chunk.within(c[0], c[1], c[2])) continue;
-          if (!chunk.isSolid(chunk.idx3(c[0], c[1], c[2]))) continue;
-          out.push(chunk.idx3(c[0], c[1], c[2]));
-          continue;
-        }
-
-        if (!chunk.within(c[0], c[1], c[2])) continue;
-        if (!chunk.isSolid(chunk.idx3(c[0], c[1], c[2]))) continue;
-        if (!chunk.faceExposed(c[0], c[1], c[2], faceId)) continue;
-        out.push(chunk.idx3(c[0], c[1], c[2]));
-      }
-    }
-
-    return out;
-  }
-
-  function getGroundPlaneVoxels() {
-    const out = [];
-    for (let x = 0; x < chunk.sizeX; x++) {
-      for (let z = 0; z < chunk.sizeZ; z++) {
-        const y = 0;
-        out.push(chunk.idx3(x, y, z));
-      }
-    }
-    return out;
-  }
-
-  function getPlaneAddTargets(vIdx, faceId) {
-    const d = FACE_DIRS[faceId]
-    const surf = (faceId === 6) ? getGroundPlaneVoxels() : getPlaneSurfaceVoxels(vIdx, faceId);
-    const tSet = new Set();
-    for (const s of surf) {
-      const [x, y, z] = chunk.coordsOf(s);
-      const nx = x + d[0]
-      const ny = y + d[1]
-      const nz = z + d[2];
-      if (chunk.within(nx, ny, nz) && !chunk.isSolid(chunk.idx3(nx, ny, nz))) tSet.add(chunk.idx3(nx, ny, nz));
-    }
-    const res = [...tSet];
-    return res;
-  }
-
-  /*** ---- UNDO/REDO system ---- ***/
-  const undoStack = [];
-  const redoStack = [];
-
-  function updateUndoUI() {
-    const undoBtn = document.getElementById('btnUndo');
-    const redoBtn = document.getElementById('btnRedo');
-    undoBtn.disabled = undoStack.length === 0;
-    redoBtn.disabled = redoStack.length === 0;
-  }
-
-  function clearHistory() {
-    undoStack.length = 0;
-    redoStack.length = 0;
-    updateUndoUI();
-  }
-
-  function beginVoxelAction(label) {
-    return { type: 'voxels', label, vox: [] };
-  }
-
-  function recordVoxelChange(act, idx, toSolid, toMat = chunk.material(idx)) {
-    const fromS = chunk.isSolid(idx), fromM = chunk.material(idx);
-    if (fromS === toSolid && fromM === toMat) return;
-    act.vox.push({ idx, fromS, fromM, toS: toSolid, toM: toMat });
-    // apply immediately (compose effect)
-    chunk.setSolid(idx, toSolid);
-    chunk.setMaterial(idx, toMat);
-  }
-
-  function applyAction(action, mode /* 'do' | 'undo' */) {
-    if (action.type === 'voxels') {
-      const arr = action.vox;
-      if (mode === 'undo') {
-        for (const c of arr) {
-          chunk.setSolid(c.idx, c.fromS);
-          chunk.setMaterial(c.idx, c.fromM);
-        }
-      } else {
-        for (const c of arr) {
-          chunk.setSolid(c.idx, c.toS);
-          chunk.setMaterial(c.idx, c.toM);
-        }
-      }
-    } else if (action.type === 'palette') {
-      const arr = action.pal;
-      if (mode === 'undo') {
-        for (const p of arr) {
-          palette.setPaletteColor(p.i, p.from);
-        }
-      } else {
-        for (const p of arr) {
-          palette.setPaletteColor(p.i, p.to);
-        }
-      }
-
-    }
-  }
-
-  function commitAction(action, rebuild = true) {
-    if (action.type === 'voxels' && action.vox.length === 0) return;
-    if (action.type === 'palette' && (!action.pal || action.pal.length === 0)) return;
-    undoStack.push(action);
-    redoStack.length = 0;
-    updateUndoUI();
-    if (action.type === 'voxels' && rebuild) buildAllMeshes();
-  }
-
-  function undo() {
-    if (undoStack.length === 0) return;
-    const act = undoStack.pop();
-    applyAction(act, 'undo');
-    redoStack.push(act);
-    updateUndoUI();
-    if (act.type === 'voxels') buildAllMeshes();
-  }
-
-  function redo() {
-    if (redoStack.length === 0) return;
-    const act = redoStack.pop();
-    applyAction(act, 'do');
-    undoStack.push(act);
-    updateUndoUI();
-    if (act.type === 'voxels') buildAllMeshes();
-  }
-
-  /*** ---- Chunk Size Management ---- ***/
-  function updateChunkSizeUI() {
-    document.getElementById('sizeX').textContent = chunk.sizeX;
-    document.getElementById('sizeY').textContent = chunk.sizeY;
-    document.getElementById('sizeZ').textContent = chunk.sizeZ;
-  }
-
-  /*** ---- Camera Target Management ---- ***/
-  function updateCameraTargetUI() {
-    document.getElementById('cameraX').textContent = Math.round(camera.target[0]);
-    document.getElementById('cameraY').textContent = Math.round(camera.target[1]);
-    document.getElementById('cameraZ').textContent = Math.round(camera.target[2]);
-  }
-
-  function moveCameraTargetX(delta) {
-    camera.target[0] += delta;
-    updateCameraTargetUI();
-  }
-
-  function moveCameraTargetY(delta) {
-    camera.target[1] += delta;
-    updateCameraTargetUI();
-  }
-
-  function moveCameraTargetZ(delta) {
-    camera.target[2] += delta;
-    updateCameraTargetUI();
-  }
-
-  function expandChunkX() {
-    const newSize = chunk.sizeX + 1;
-    chunk.expandSize(newSize, chunk.sizeY, chunk.sizeZ);
-    N = Math.max(chunk.sizeX, chunk.sizeY, chunk.sizeZ);
-    
-    // Update camera target to center on expanded chunk
-    camera.target = [chunk.sizeX / 2, chunk.sizeY / 2, chunk.sizeZ / 2];
-    
-    buildAxisGizmo(); // Rebuild grid and axes
-    buildAllMeshes();
-    updateChunkSizeUI();
-    updateCameraTargetUI();
-    clearHistory(); // Clear undo/redo as chunk structure changed
-  }
-
-  function expandChunkY() {
-    const newSize = chunk.sizeY + 1;
-    chunk.expandSize(chunk.sizeX, newSize, chunk.sizeZ);
-    N = Math.max(chunk.sizeX, chunk.sizeY, chunk.sizeZ);
-    
-    camera.target = [chunk.sizeX / 2, chunk.sizeY / 2, chunk.sizeZ / 2];
-    
-    buildAllMeshes();
-    updateChunkSizeUI();
-    updateCameraTargetUI();
-    clearHistory();
-  }
-
-  function expandChunkZ() {
-    const newSize = chunk.sizeZ + 1;
-    chunk.expandSize(chunk.sizeX, chunk.sizeY, newSize);
-    N = Math.max(chunk.sizeX, chunk.sizeY, chunk.sizeZ);
-    
-    camera.target = [chunk.sizeX / 2, chunk.sizeY / 2, chunk.sizeZ / 2];
-    
-    buildAxisGizmo(); // Rebuild grid and axes
-    buildAllMeshes();
-    updateChunkSizeUI();
-    updateCameraTargetUI();
-    clearHistory();
-  }
-
-  function shrinkChunkX() {
-    if (chunk.sizeX <= 1) return; // Minimum size is 1
-    const newSize = chunk.sizeX - 1;
-    chunk.expandSize(newSize, chunk.sizeY, chunk.sizeZ);
-    N = Math.max(chunk.sizeX, chunk.sizeY, chunk.sizeZ);
-    
-    camera.target = [chunk.sizeX / 2, chunk.sizeY / 2, chunk.sizeZ / 2];
-    
-    buildAxisGizmo();
-    buildAllMeshes();
-    updateChunkSizeUI();
-    updateCameraTargetUI();
-    clearHistory();
-  }
-
-  function shrinkChunkY() {
-    if (chunk.sizeY <= 1) return;
-    const newSize = chunk.sizeY - 1;
-    chunk.expandSize(chunk.sizeX, newSize, chunk.sizeZ);
-    N = Math.max(chunk.sizeX, chunk.sizeY, chunk.sizeZ);
-    
-    camera.target = [chunk.sizeX / 2, chunk.sizeY / 2, chunk.sizeZ / 2];
-    
-    buildAllMeshes();
-    updateChunkSizeUI();
-    updateCameraTargetUI();
-    clearHistory();
-  }
-
-  function shrinkChunkZ() {
-    if (chunk.sizeZ <= 1) return;
-    const newSize = chunk.sizeZ - 1;
-    chunk.expandSize(chunk.sizeX, chunk.sizeY, newSize);
-    N = Math.max(chunk.sizeX, chunk.sizeY, chunk.sizeZ);
-    
-    camera.target = [chunk.sizeX / 2, chunk.sizeY / 2, chunk.sizeZ / 2];
-    
-    buildAxisGizmo();
-    buildAllMeshes();
-    updateChunkSizeUI();
-    updateCameraTargetUI();
-    clearHistory();
-  }
-
-  /*** ---- Shift all voxels ---- ***/
-  function shiftVoxels(dx, dy, dz) {
-    const act = beginVoxelAction(`Shift ${dx !== 0 ? (dx > 0 ? '+X' : '-X') : dy !== 0 ? (dy > 0 ? '+Y' : '-Y') : (dz > 0 ? '+Z' : '-Z')}`);
-    
-    // Create temporary copy of voxel data
-    const tempSolid = new Array(chunk.length);
-    const tempMaterial = new Uint8Array(chunk.length);
-    
-    for (let i = 0; i < chunk.length; i++) {
-      tempSolid[i] = chunk.isSolid(i);
-      tempMaterial[i] = chunk.material(i);
-    }
-    
-    // Clear the chunk first
-    for (let i = 0; i < chunk.length; i++) {
-      chunk.setSolid(i, false);
-      chunk.setMaterial(i, 0);
-    }
-    
-    // Copy voxels to new positions
-    for (let z = 0; z < chunk.sizeZ; z++) {
-      for (let y = 0; y < chunk.sizeY; y++) {
-        for (let x = 0; x < chunk.sizeX; x++) {
-          const oldIdx = chunk.idx3(x, y, z);
-          if (!tempSolid[oldIdx]) continue;
-          
-          const newX = x + dx;
-          const newY = y + dy;
-          const newZ = z + dz;
-          
-          // TODO: undo is not working ... fix this
-          
-          // Only copy if new position is within bounds
-          if (chunk.within(newX, newY, newZ)) {
-            const newIdx = chunk.idx3(newX, newY, newZ);
-            recordVoxelChange(act, newIdx, true, tempMaterial[oldIdx]);
-          } else {
-            // Voxel moved out of bounds - record its removal
-            recordVoxelChange(act, oldIdx, false, tempMaterial[oldIdx]);
-          }
-        }
-      }
-    }
-    
-    // Shift animation group bounding boxes
-    for (const group of animSystem.groups.values()) {
-      group.min[0] += dx;
-      group.min[1] += dy;
-      group.min[2] += dz;
-      
-      group.max[0] += dx;
-      group.max[1] += dy;
-      group.max[2] += dz;
-    }
-    
-    // Shift animation keyframe pivot points
-    for (const anim of animSystem.animations.values()) {
-      for (const kf of anim.keyframes) {
-        if (kf.type === 'rotate' && kf.pivot) {
-          kf.pivot[0] += dx;
-          kf.pivot[1] += dy;
-          kf.pivot[2] += dz;
-        }
-      }
-    }
-    
-    commitAction(act, true);
-  }
 
   /*** ---- Input, hover, keyboard ---- ***/
   let dragging = false, lastX = 0, lastY = 0;
   let mouseX = 0, mouseY = 0, needsPick = true, buttons = 0;
   let hoverVoxel = -1, hoverFace = -1;
-
-  // Hover sets
-  let rowHoverSurf = [], rowHoverAdd = [], planeHoverSurf = [], planeHoverAdd = [];
 
   // Will be set by initializeUI
   let updateHoverUI = () => { };
@@ -863,43 +465,8 @@ function main() {
     hoverFace = p.face;
     updateHoverUI();
 
-    // // Compute previews
-    // if (hoverVoxel >= 0 && hoverFace >= 0) {
-    //   // if (mode === 'add' && option === 'row') {
-    //   //   rowHoverAdd = getRowAddTargets(hoverVoxel, hoverFace);
-    //   // } else {
-    //   //   rowHoverAdd = [];
-    //   // }
-
-    //   // if (mode !== 'add' && option === 'row') {
-    //   //   rowHoverSurf = getRowSurfaceVoxels(hoverVoxel, hoverFace);
-    //   // } else {
-    //   //   rowHoverSurf = [];
-    //   // }
-
-    //   if (mode === 'add' && option === 'plane') {
-    //     planeHoverAdd = getPlaneAddTargets(hoverVoxel, hoverFace);
-    //   } else {
-    //     planeHoverAdd = [];
-    //   }
-
-    //   if (mode !== 'add' && option === 'plane') {
-    //     planeHoverSurf = getPlaneSurfaceVoxels(hoverVoxel, hoverFace);
-    //   } else {
-    //     planeHoverSurf = [];
-    //   }
-
-    // } else {
-    //   rowHoverSurf = [];
-    //   rowHoverAdd = [];
-    //   planeHoverSurf = [];
-    //   planeHoverAdd = [];
-    // }
   }
 
-  const COLOR_PAINT = [1.0, 0.60, 0.20];
-  const COLOR_CARVE = [1.0, 0.32, 0.32];
-  const COLOR_ADD = [0.27, 0.95, 0.42];
   const COLOR_SHOW = [0.0, 0.0, 0.0];
   /*** ======= Grouping Meshes ======= ***/
 
@@ -1044,15 +611,8 @@ function main() {
       particleProg.uLightDirWS.set(new Float32Array([0.7 / 1.7, -1.2 / 1.7, 0.9 / 1.7]));
       particleProg.uAmbient.set(ambient);
       
-updateParticleTexture(particles);
+      updateParticleTexture(particles);
       
-      // if (particleProg.uParticleCount) particleProg.uParticleCount.set(count);
-      // if (particleProg.uParticlePositions) particleProg.uParticlePositions.set(positions);
-      // if (particleProg.uParticleSizes) particleProg.uParticleSizes.set(sizes);
-      // if (particleProg.uParticleColors) particleProg.uParticleColors.set(colors);
-      // if (particleProg.uParticleAlphas) particleProg.uParticleAlphas.set(alphas);
-      
-
       // console.log('Updating particle texture with', particleProg);
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, particleDataTexture);
@@ -1073,42 +633,9 @@ updateParticleTexture(particles);
 
     updateHover();
 
-    // if (mode !== 'move' && hoverVoxel >= 0 && hoverFace >= 0) {
-    //   if (option === 'plane') {
-    //     if (mode === 'add') {
-    //       for (const t of planeHoverAdd) drawVoxelWire(t, COLOR_ADD, 1.006);
-    //     } else if (mode === 'carve') {
-    //       for (const id of planeHoverSurf) drawVoxelWire(id, COLOR_CARVE, 1.006);
-    //     } else if (mode === 'paint') {
-    //       for (const id of planeHoverSurf) drawVoxelWire(id, COLOR_PAINT, 1.006);
-    //     }
-    //   } else if (option === 'row') {
-    //     if (mode === 'add') {
-    //       for (const t of rowHoverAdd) drawVoxelWire(t, COLOR_ADD, 1.006);
-    //     } else if (mode === 'carve') {
-    //       for (const id of rowHoverSurf) drawVoxelWire(id, COLOR_CARVE, 1.006);
-    //     } else if (mode === 'paint') {
-    //       for (const id of rowHoverSurf) drawVoxelWire(id, COLOR_PAINT, 1.006);
-    //     }
-    //   } else if (option === 'voxel') {
-    //     if (mode === 'add') {
-    //       const [x, y, z] = chunk.coordsOf(hoverVoxel);
-    //       const d = FACE_DIRS[hoverFace];
-    //       const nx = x + d[0];
-    //       const ny = y + d[1];
-    //       const nz = z + d[2];
-    //       if (chunk.within(nx, ny, nz) && !chunk.isSolid(chunk.idx3(nx, ny, nz))) drawVoxelWire(chunk.idx3(nx, ny, nz), COLOR_ADD, 1.006);
-    //     } else if (mode === 'carve') {
-    //       const [x, y, z] = chunk.coordsOf(hoverVoxel);
-    //       const id = chunk.idx3(x, y, z);
-    //       if (chunk.isSolid(id)) drawVoxelWire(hoverVoxel, COLOR_CARVE, 1.006);
-    //     } else if (mode === 'paint') {
-          const [x, y, z] = chunk.coordsOf(hoverVoxel);
-          const id = chunk.idx3(x, y, z);
-          if (chunk.isSolid(id)) drawVoxelWire(hoverVoxel, COLOR_SHOW, 1.006);
-    //     }
-    //   }
-    // }
+    const [x, y, z] = chunk.coordsOf(hoverVoxel);
+    const id = chunk.idx3(x, y, z);
+    if (chunk.isSolid(id)) drawVoxelWire(hoverVoxel, COLOR_SHOW, 1.006);
 
     // Render group overlays
     for (const [groupName, group] of animSystem.groups.entries()) {
@@ -1136,15 +663,8 @@ updateParticleTexture(particles);
     animSystem,
     animationTransforms,
 
-    // State getters/setters
-    // getMode: () => mode,
-    // setMode: (val) => { mode = val; },
-    // getOption: () => option,
-    // setOption: (val) => { option = val; },
     getHoverVoxel: () => hoverVoxel,
-    setHoverVoxel: (val) => { hoverVoxel = val; },
     getHoverFace: () => hoverFace,
-    setHoverFace: (val) => { hoverFace = val; },
     setNeedsPick: (val) => { needsPick = val; },
     getDragging: () => dragging,
     setDragging: (val) => { dragging = val; },
@@ -1152,20 +672,13 @@ updateParticleTexture(particles);
     setLastX: (val) => { lastX = val; },
     getLastY: () => lastY,
     setLastY: (val) => { lastY = val; },
-    getMouseX: () => mouseX,
+
     setMouseX: (val) => { mouseX = val; },
-    getMouseY: () => mouseY,
+
     setMouseY: (val) => { mouseY = val; },
-    getLastTime: () => lastTime,
-    setLastTime: (val) => { lastTime = val; },
-    getRowHoverSurf: () => rowHoverSurf,
-    setRowHoverSurf: (val) => { rowHoverSurf = val; },
-    getRowHoverAdd: () => rowHoverAdd,
-    setRowHoverAdd: (val) => { rowHoverAdd = val; },
-    getPlaneHoverSurf: () => planeHoverSurf,
-    setPlaneHoverSurf: (val) => { planeHoverSurf = val; },
-    getPlaneHoverAdd: () => planeHoverAdd,
-    setPlaneHoverAdd: (val) => { planeHoverAdd = val; },
+
+
+
     getSelectedGroupName: () => selectedGroupName,
     setSelectedGroupName: (val) => { selectedGroupName = val; },
     getGroupOverlaysVisible: () => groupOverlaysVisible,
@@ -1174,34 +687,9 @@ updateParticleTexture(particles);
     // Functions
     buildAllMeshes,
     buildAxisGizmo,
-    updateChunkSizeUI,
-    updateCameraTargetUI,
-    moveCameraTargetX,
-    moveCameraTargetY,
-    moveCameraTargetZ,
-    clearHistory,
-    undo,
-    redo,
-    shiftVoxels,
-    expandChunkX,
-    expandChunkY,
-    expandChunkZ,
-    shrinkChunkX,
-    shrinkChunkY,
-    shrinkChunkZ,
     exportToJSON,
     importFromJSON,
     decodePickAt,
-    getRowSurfaceVoxels,
-    getRowAddTargets,
-    getPlaneSurfaceVoxels,
-    getPlaneAddTargets,
-    beginVoxelAction,
-    recordVoxelChange,
-    commitAction,
-
-    // Constants
-    FACE_DIRS
   };
 
   initializeUI(uiState);
