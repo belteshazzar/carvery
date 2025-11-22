@@ -17,31 +17,39 @@
       </div>
     </div>
 
-    <div class="animation-panel">
+    <div class="animation-panel" data-loaded="false">
 
       <div class="toolbar">
         <div class="toolbar-row">
           <input id="fileInput" type="file" accept="application/json" style="display: none;" />
           <div class="undo-group">
             <button id="btnImport">Import</button>
-            <button id="btnExport">Export</button>
+            <button id="btnExport" class="hide-until-loaded">Export</button>
           </div>
         </div>
       </div>
 
-      <div class="animation-controls">
+      <div class="animation-controls hide-until-loaded">
         <button id="btnPlay">Play Loops</button>
         <button id="btnPause">Pause All</button>
         <button id="btnResetAll">Reset All</button>
       </div>
 
-      <div class="group-list-container">
-        <div id="groupList"></div>
+      <div class="region-list-container hide-until-loaded">
+        <div id="regionList"></div>
       </div>
       
 
-      <div class="animation-list-container">
+      <div class="animation-list-container hide-until-loaded">
         <div id="animationList"></div>
+      </div>
+
+      <div class="emitter-list-container hide-until-loaded">
+        <div id="emitterList"></div>
+      </div>
+
+      <div class="sequence-list-container hide-until-loaded">
+        <div id="sequenceList"></div>
       </div>
     
     </div>

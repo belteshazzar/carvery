@@ -1,7 +1,7 @@
 
 const FACE_DIRS = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1],[0,0,0]]; // last is for ground plane
 
-class Group {
+class Region {
 
   constructor(chunk, min, max) {
     this._chunk = chunk;
@@ -30,16 +30,16 @@ export class VoxelChunk {
 
     this._isSolid = new Array(size * size * size).fill(true);
     this._material = new Uint8Array(size * size * size);
-    this._groups = new Map();
+    this._regions = new Map();
   }
 
-  clearGroups() {
-    this._groups.clear();
+  clearRegions() {
+    this._regions.clear();
   }
 
-  addGroup(name,min,max) {
-    const group = new Group(this, min, max);
-    this._groups.set(name, group);
+  addRegion(name,min,max) {
+    const region = new Region(this, min, max);
+    this._regions.set(name, region);
   }
 
   fill(value) {
@@ -127,8 +127,8 @@ export class VoxelChunk {
       }
     }
 
-    // Clear groups as they would need to be recalculated
-    this._groups.clear();
+    // Clear regions as they would need to be recalculated
+    this._regions.clear();
   }
 
   /**
@@ -142,7 +142,7 @@ export class VoxelChunk {
     this._sizeZ = undefined;
     this._isSolid = new Array(defaultSize * defaultSize * defaultSize).fill(true);
     this._material = new Uint8Array(defaultSize * defaultSize * defaultSize);
-    this._groups.clear();
+    this._regions.clear();
   }
 
   get sizeX() { return this._sizeX || this._size; }
@@ -174,8 +174,8 @@ export class VoxelChunk {
   buildGreedyRenderMeshMain(gl, renderProg, vao) {
     const isSolid = (idx) => {
       if (!this.isSolid(idx)) return false;
-      for (const group of this._groups.values()) {
-        if (group.contains(idx)) {
+      for (const region of this._regions.values()) {
+        if (region.contains(idx)) {
           return false;
         }
       }
@@ -185,11 +185,11 @@ export class VoxelChunk {
     return this._buildGreedyRenderMesh(gl, renderProg, vao, isSolid);
   }
 
-  buildGreedyRenderMeshGroup(gl, renderProg, vao, groupName) {
-    const group = this._groups.get(groupName);
+  buildGreedyRenderMeshGroup(gl, renderProg, vao, regionName) {
+    const region = this._regions.get(regionName);
     const isSolid = (idx) => {
       if (!this.isSolid(idx)) return false;
-      if (group && group.contains(idx)) {
+      if (region && region.contains(idx)) {
         return true;
       }
       return false;

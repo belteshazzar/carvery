@@ -3,17 +3,239 @@
  */
 
 import { Animation } from './Animation.js';
-import { AnimationGroup } from './AnimationGroup.js';
+import { AnimationRegion } from './AnimationRegion.js';
 import { Emitter } from './Emitter.js';
-import { AnimationSequence } from './AnimationSequence.js';
+import { AnimationGroup } from './AnimationGroup.js';
 import { Mat4 } from './math.js';
 
 export class AnimationSystem {
   constructor() {
-    this.groups = new Map(); // groupName -> AnimationGroup
+    this.regions = new Map(); // regionName -> AnimationRegion
     this.animations = new Map(); // animName -> Animation
     this.emitters = new Map(); // emitterName -> Emitter
-    this.sequences = new Map(); // sequenceName -> AnimationSequence
+    this.sequences = new Map(); // sequenceName -> AnimationGroup
+  }
+
+  /**
+   * Add a new region programmatically
+   */
+  addRegion(name, min = [0, 0, 0], max = [1, 1, 1]) {
+    if (this.regions.has(name)) {
+      throw new Error(`Region "${name}" already exists`);
+    }
+    const region = new AnimationRegion(name);
+    region.min = [...min];
+    region.max = [...max];
+    region.state = 'default';
+    region.initialState = 'default';
+    this.regions.set(name, region);
+    return region;
+  }
+
+  /**
+   * Remove a region and any animations that reference it
+   */
+  removeRegion(name) {
+    if (!this.regions.has(name)) {
+      return false;
+    }
+    
+    // Remove the region
+    this.regions.delete(name);
+    
+    // Remove any animations that reference this region
+    for (const [animName, anim] of this.animations.entries()) {
+      if (anim.regionName === name) {
+        this.animations.delete(animName);
+      }
+    }
+    
+    return true;
+  }
+
+  /**
+   * Rename a region and update all references
+   */
+  renameRegion(oldName, newName) {
+    if (!this.regions.has(oldName)) {
+      throw new Error(`Region "${oldName}" does not exist`);
+    }
+    
+    if (this.regions.has(newName)) {
+      throw new Error(`Region "${newName}" already exists`);
+    }
+    
+    if (oldName === newName) {
+      return; // No change needed
+    }
+    
+    // Get the region and update its name
+    const region = this.regions.get(oldName);
+    region.name = newName;
+    
+    // Update the regions Map
+    this.regions.delete(oldName);
+    this.regions.set(newName, region);
+    
+    // Update all animations that reference this group
+    for (const anim of this.animations.values()) {
+      if (anim.regionName === oldName) {
+        anim.regionName = newName;
+        anim.region = region;
+      }
+    }
+    
+    return true;
+  }
+
+  /**
+   * Generate a unique region name
+   */
+  generateUniqueRegionName(baseName = 'region') {
+    let counter = 1;
+    let name = baseName;
+    while (this.regions.has(name)) {
+      name = `${baseName}${counter}`;
+      counter++;
+    }
+    return name;
+  }
+
+  /**
+   * Generate a unique animation name
+   */
+  generateUniqueAnimationName(baseName = 'anim') {
+    let counter = 1;
+    let name = baseName;
+    while (this.animations.has(name)) {
+      name = `${baseName}${counter}`;
+      counter++;
+    }
+    return name;
+  }
+
+  /**
+   * Generate a unique emitter name
+   */
+  generateUniqueEmitterName(baseName = 'emitter') {
+    let counter = 1;
+    let name = baseName;
+    while (this.emitters.has(name)) {
+      name = `${baseName}${counter}`;
+      counter++;
+    }
+    return name;
+  }
+
+  /**
+   * Generate a unique sequence name
+   */
+  generateUniqueSequenceName(baseName = 'sequence') {
+    let counter = 1;
+    let name = baseName;
+    while (this.sequences.has(name)) {
+      name = `${baseName}${counter}`;
+      counter++;
+    }
+    return name;
+  }
+
+  /**
+   * Add a new animation programmatically
+   */
+  addAnimation(name, regionName = null) {
+    if (this.animations.has(name)) {
+      throw new Error(`Animation "${name}" already exists`);
+    }
+    const anim = new Animation(name);
+    anim.regionName = regionName;
+    if (regionName && this.regions.has(regionName)) {
+      anim.region = this.regions.get(regionName);
+    }
+    this.animations.set(name, anim);
+    return anim;
+  }
+
+  /**
+   * Remove an animation
+   */
+  removeAnimation(name) {
+    if (!this.animations.has(name)) {
+      return false;
+    }
+    
+    // Remove the animation
+    this.animations.delete(name);
+    
+    // // Remove from any sequences that reference it
+    // for (const sequence of this.sequences.values()) {
+    //   const index = sequence.animationNames.indexOf(name);
+    //   if (index !== -1) {
+    //     sequence.animationNames.splice(index, 1);
+    //   }
+    // }
+    
+    return true;
+  }
+
+  /**
+   * Add a new emitter programmatically
+   */
+  addEmitter(name) {
+    if (this.emitters.has(name)) {
+      throw new Error(`Emitter "${name}" already exists`);
+    }
+    const emitter = new Emitter(name);
+    this.emitters.set(name, emitter);
+    return emitter;
+  }
+
+  /**
+   * Remove an emitter
+   */
+  removeEmitter(name) {
+    if (!this.emitters.has(name)) {
+      return false;
+    }
+    
+    // Remove the emitter
+    this.emitters.delete(name);
+    
+    // Remove from any sequences that reference it
+    for (const sequence of this.sequences.values()) {
+      const index = sequence.emitterNames.indexOf(name);
+      if (index !== -1) {
+        sequence.emitterNames.splice(index, 1);
+      }
+    }
+    
+    return true;
+  }
+
+  /**
+   * Add a new sequence programmatically
+   */
+  addSequence(name) {
+    if (this.sequences.has(name)) {
+      throw new Error(`Sequence "${name}" already exists`);
+    }
+    const sequence = new AnimationSequence(name);
+    this.sequences.set(name, sequence);
+    return sequence;
+  }
+
+  /**
+   * Remove a sequence
+   */
+  removeSequence(name) {
+    if (!this.sequences.has(name)) {
+      return false;
+    }
+    
+    // Remove the sequence
+    this.sequences.delete(name);
+    
+    return true;
   }
 
   parse(dsl) {
@@ -31,11 +253,11 @@ export class AnimationSystem {
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       
-      // Check if this is a group definition
+      // Check if this is a region definition
       // only allowed outside of an animation
-      if (currentAnim == null && currentGroup == null && currentEmitter == null && currentSequence == null && line.startsWith('group ') && line.endsWith('{')) {
-        const groupName = line.slice(6, -1).trim();
-        currentGroup = new AnimationGroup(groupName);
+      if (currentAnim == null && currentGroup == null && currentEmitter == null && currentSequence == null && line.startsWith('region ') && line.endsWith('{')) {
+        const groupName = line.slice(7, -1).trim();
+        currentGroup = new AnimationRegion(groupName);
         this.groups.set(groupName, currentGroup);
         continue;
       }
@@ -115,10 +337,11 @@ export class AnimationSystem {
             console.log(`Set end state for animation ${currentAnim.name} to ${currentAnim.endState}`);
             break;
 
+          case 'region':
           case 'group':
-            // Set the group for this animation
+            // Set the region for this animation (support both 'region' and legacy 'group')
             currentAnim.groupName = tokens[1];
-            console.log(`Set group for animation ${currentAnim.name} to ${currentAnim.groupName}`);
+            console.log(`Set region for animation ${currentAnim.name} to ${currentAnim.groupName}`);
             break;
 
           case 'rotate': {
@@ -285,17 +508,17 @@ export class AnimationSystem {
       }
     }
 
-    // Link animations to groups after parsing
-    this.linkAnimationsToGroups();
+    // Link animations to regions after parsing
+    this.linkAnimationsToRegions();
 
     console.log('Parsed Animation System:', this);
   }
 
-  linkAnimationsToGroups() {
+  linkAnimationsToRegions() {
     for (const anim of this.animations.values()) {
-      if (anim.groupName && this.groups.has(anim.groupName)) {
-        anim.group = this.groups.get(anim.groupName);
-        console.log(`Linked animation ${anim.name} to group ${anim.groupName}`);
+      if (anim.regionName && this.regions.has(anim.regionName)) {
+        anim.region = this.regions.get(anim.regionName);
+        console.log(`Linked animation ${anim.name} to region ${anim.regionName}`);
       }
     }
   }
@@ -309,15 +532,15 @@ export class AnimationSystem {
   }
 
   fromJSON(data) {
-    this.groups.clear();
+    this.regions.clear();
     this.animations.clear();
     this.emitters.clear();
     this.sequences.clear();
     
-    if (data.groups && typeof data.groups === 'object') {
-      for (const [name, groupData] of Object.entries(data.groups)) {
-        const group = AnimationGroup.fromJSON(name, groupData);
-        this.groups.set(name, group);
+    if (data.regions && typeof data.regions === 'object') {
+      for (const [name, regionData] of Object.entries(data.regions)) {
+        const region = AnimationRegion.fromJSON(name, regionData);
+        this.regions.set(name, region);
       }
     }
     
@@ -343,16 +566,16 @@ export class AnimationSystem {
     }
 
     // Link animations to groups
-    this.linkAnimationsToGroups();
+    this.linkAnimationsToRegions();
 
 
     console.log('Loaded Animation System from JSON:', this);
   }
 
   toJSON() {
-    const groups = {};
-    for (const [name, group] of this.groups.entries()) {
-      groups[name] = group.toJSON();
+    const regions = {};
+    for (const [name, region] of this.regions.entries()) {
+      regions[name] = region.toJSON();
     }
     
     const animations = {};
@@ -370,24 +593,24 @@ export class AnimationSystem {
       sequences[name] = sequence.toJSON();
     }
     
-    return { groups, animations, emitters, sequences };
+    return { regions, animations, emitters, sequences };
   }
 
-  assignVoxelsToGroups(chunk) {
-    for (const group of this.groups.values()) {
-      group.voxels.clear();
+  assignVoxelsToRegions(chunk) {
+    for (const region of this.regions.values()) {
+      region.voxels.clear();
     }
 
-    for (const group of this.groups.values()) {
-      const [minX, minY, minZ] = group.min;
-      const [maxX, maxY, maxZ] = group.max;
+    for (const region of this.regions.values()) {
+      const [minX, minY, minZ] = region.min;
+      const [maxX, maxY, maxZ] = region.max;
 
       for(let z = minZ; z <= maxZ; z++) {
         for(let y = minY; y <= maxY; y++) {
           for(let x = minX; x <= maxX; x++) {
             const idx = chunk.idx3(x, y, z);
             if (chunk.isSolid(idx)) {
-              group.voxels.add(idx);
+              region.voxels.add(idx);
             }
           }
         }
@@ -539,16 +762,16 @@ export class AnimationSystem {
     return allParticles;
   }
 
-  getGroupTransform(groupName) {
-    const group = this.groups.get(groupName);
-    if (!group) return Mat4.identity();
+  getRegionTransform(regionName) {
+    const region = this.regions.get(regionName);
+    if (!region) return Mat4.identity();
     
-    // Return the group's transform, or identity if not set
-    return group.transform || Mat4.identity();
+    // Return the region's transform, or identity if not set
+    return region.transform || Mat4.identity();
   }
 
-  getAnimationsForGroup(groupName) {
+  getAnimationsForRegion(regionName) {
     return Array.from(this.animations.values())
-      .filter(anim => anim.groupName === groupName);
+      .filter(anim => anim.regionName === regionName);
   }
 }

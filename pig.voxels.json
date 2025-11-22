@@ -642,8 +642,7 @@
     "48d4",
     "49d4"
   ],
-  "groups": {
-    "groups": {
+    "regions": {
       "door": {
         "min": [
           -5,
@@ -744,6 +743,5 @@
       }
     },
     "emitters": {},
-    "sequences": {}
-  }
+    "groups": {}
 }

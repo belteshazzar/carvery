@@ -4,8 +4,8 @@ import { applyEasing } from './easing.js';
 export class Animation {
   constructor(name) {
     this.name = name;
-    this.groupName = null;
-    this.group = null; // Reference to the AnimationGroup
+    this.regionName = null;
+    this.region = null; // Reference to the AnimationRegion
     this.keyframes = [];
     this.loop = false;
     this.time = 0;
@@ -18,12 +18,12 @@ export class Animation {
     // If no guard is specified, animation can always play
     if (this.guard === null) return true;
     
-    // Check if group's current state matches the required guard
-    return this.group && this.group.state === this.guard;
+    // Check if region's current state matches the required guard
+    return this.region && this.region.state === this.guard;
   }
 
-  _updateGroupTransform() {
-    if (!this.group) return;
+  _updateRegionTransform() {
+    if (!this.region) return;
 
     let matrix = Mat4.identity();
     let totalTime = 0;
@@ -77,8 +77,8 @@ export class Animation {
       }
     }
 
-    // Update the group's transform
-    this.group.transform = matrix;
+    // Update the region's transform
+    this.region.transform = matrix;
   }
 
   update(dt) {
@@ -92,15 +92,15 @@ export class Animation {
     } else if (!this.loop && duration > 0 && this.time >= duration) {
       // Clamp to exactly the duration, don't reset
       this.time = duration;
-      if (this.endState && this.group) {
-        this.group.state = this.endState;
-        console.log(`Animation ${this.name} ended, setting group ${this.group.name} state to ${this.endState}`);
+      if (this.endState && this.region) {
+        this.region.state = this.endState;
+        console.log(`Animation ${this.name} ended, setting region ${this.region.name} state to ${this.endState}`);
       }
       this.playing = false;
     }
 
-    // Update the group's transform
-    this._updateGroupTransform();
+    // Update the region's transform
+    this._updateRegionTransform();
   }
 
   play() {
@@ -126,7 +126,7 @@ export class Animation {
 
   toJSON() {
     return {
-      groupName: this.groupName,
+      regionName: this.regionName,
       loop: this.loop,
       guard: this.guard,
       endState: this.endState,
@@ -136,7 +136,7 @@ export class Animation {
 
   static fromJSON(name, json) {
     const anim = new Animation(name);
-    anim.groupName = json.groupName;
+    anim.regionName = json.regionName;
     anim.loop = json.loop || false;
     anim.guard = json.guard;
     anim.endState = json.endState;

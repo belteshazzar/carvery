@@ -37,7 +37,7 @@ function main() {
   // Programs
   const renderProg = createProgram(gl, lambertVert, lambertFrag);
   renderProg.meta.visible = true;
-  renderProg.meta.groups = {};
+  renderProg.meta.regions = {};
   const pickProg = createProgram(gl, pickVert, pickFrag);
   const wireProg = createProgram(gl, wireframeVert, wireframeFrag);
   const axisProg = createProgram(gl, axisVert, axisFrag);
@@ -121,9 +121,9 @@ function main() {
   let animationTransforms = new Map();
   let lastTime = 0;
 
-  // Group visualization state
-  let selectedGroupName = null;  // Currently selected group for visualization
-  let groupOverlaysVisible = new Map(); // groupName -> boolean (whether overlay is visible)
+  // Region visualization state
+  let selectedRegionName = null;  // Currently selected region for visualization
+  let regionOverlaysVisible = new Map(); // regionName -> boolean (whether overlay is visible)
 
   /*** ---- World State ---- ***/
   let N = 16;
@@ -426,15 +426,15 @@ function main() {
       }
     }
 
-    chunk.clearGroups();
+    chunk.clearRegions();
 
-    console.log(obj.groups);
-    if (obj.groups) {
-      animSystem.fromJSON(obj.groups);
-      animSystem.assignVoxelsToGroups(chunk);
+    console.log(obj);
+    if (obj.regions) {
+      animSystem.fromJSON(obj);
+      animSystem.assignVoxelsToRegions(chunk);
 
-      animSystem.groups.forEach((group,name) => {
-        chunk.addGroup(name, group.min, group.max);
+      animSystem.regions.forEach((region,name) => {
+        chunk.addRegion(name, region.min, region.max);
       });
 
     }
@@ -473,16 +473,15 @@ function main() {
   function buildAllMeshes() {
 
     renderProg.meta.renderIndexCount = chunk.buildGreedyRenderMeshMain(gl, renderProg, renderProg.vao);
-    // TODO: build pick for groups and when animated
+    // TODO: build pick for regions and when animated
     chunk.buildPickFaces(gl, pickProg);
 
-    renderProg.meta.groups = {};
-    for (const [name, group] of animSystem.groups.entries()) {
-
-      renderProg.meta.groups[name] = {};
-      renderProg.meta.groups[name].vao = gl.createVertexArray();
-      renderProg.meta.groups[name].visible = true;
-      renderProg.meta.groups[name].indexCount = chunk.buildGreedyRenderMeshGroup(gl, renderProg, renderProg.meta.groups[name].vao, name);
+    renderProg.meta.regions = {};
+    for (const [name, region] of animSystem.regions.entries()) {
+      renderProg.meta.regions[name] = {};
+      renderProg.meta.regions[name].vao = gl.createVertexArray();
+      renderProg.meta.regions[name].visible = true;
+      renderProg.meta.regions[name].indexCount = chunk.buildGreedyRenderMeshGroup(gl, renderProg, renderProg.meta.regions[name].vao, name);
     }
   }
 
@@ -572,18 +571,18 @@ function main() {
       gl.bindVertexArray(null);
     }
 
-    // Render each animated group with its transform
-    Object.keys(renderProg.meta.groups).forEach(name => {
-      const group = renderProg.meta.groups[name];
-      if (!group.visible) return;
+    // Render each animated region with its transform
+    Object.keys(renderProg.meta.regions).forEach(name => {
+      const region = renderProg.meta.regions[name];
+      if (!region.visible) return;
       
-      // Get animation transform for this group
-      const animTransform = animSystem.getGroupTransform(name);
-      const groupModel = Mat4.multiply(model, animTransform);
+      // Get animation transform for this region
+      const animTransform = animSystem.getRegionTransform(name);
+      const regionModel = Mat4.multiply(model, animTransform);
       
-      renderProg.uModel.set(groupModel);
-      gl.bindVertexArray(group.vao);
-      gl.drawElements(gl.TRIANGLES, group.indexCount, gl.UNSIGNED_INT, 0);
+      renderProg.uModel.set(regionModel);
+      gl.bindVertexArray(region.vao);
+      gl.drawElements(gl.TRIANGLES, region.indexCount, gl.UNSIGNED_INT, 0);
       gl.bindVertexArray(null);
     });
 
@@ -637,12 +636,12 @@ function main() {
     const id = chunk.idx3(x, y, z);
     if (chunk.isSolid(id)) drawVoxelWire(hoverVoxel, COLOR_SHOW, 1.006);
 
-    // Render group overlays
-    for (const [groupName, group] of animSystem.groups.entries()) {
-      if (groupOverlaysVisible.get(groupName)) {
-        const [minX, minY, minZ] = group.min;
-        const [maxX, maxY, maxZ] = group.max;
-        const color = selectedGroupName === groupName ? [0.2, 0.6, 1.0] : [0.6, 0.8, 0.3];
+    // Render region overlays
+    for (const [regionName, region] of animSystem.regions.entries()) {
+      if (regionOverlaysVisible.get(regionName)) {
+        const [minX, minY, minZ] = region.min;
+        const [maxX, maxY, maxZ] = region.max;
+        const color = selectedRegionName === regionName ? [0.2, 0.6, 1.0] : [0.6, 0.8, 0.3];
         drawWireAABB(minX, minY, minZ, maxX, maxY, maxZ, color, 1.01);
       }
     }
@@ -679,10 +678,10 @@ function main() {
 
 
 
-    getSelectedGroupName: () => selectedGroupName,
-    setSelectedGroupName: (val) => { selectedGroupName = val; },
-    getGroupOverlaysVisible: () => groupOverlaysVisible,
-    setGroupOverlaysVisible: (val) => { groupOverlaysVisible = val; },
+    getSelectedRegionName: () => selectedRegionName,
+    setSelectedRegionName: (val) => { selectedRegionName = val; },
+    getRegionOverlaysVisible: () => regionOverlaysVisible,
+    setRegionOverlaysVisible: (val) => { regionOverlaysVisible = val; },
 
     // Functions
     buildAllMeshes,

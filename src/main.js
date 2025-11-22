@@ -921,13 +921,13 @@ function main() {
     // TODO: build pick for groups and when animated
     chunk.buildPickFaces(gl, pickProg);
 
-    renderProg.meta.groups = {};
-    for (const [name, group] of animSystem.groups.entries()) {
+    renderProg.meta.regions = {};
+    for (const [name, region] of animSystem.regions.entries()) {
 
-      renderProg.meta.groups[name] = {};
-      renderProg.meta.groups[name].vao = gl.createVertexArray();
-      renderProg.meta.groups[name].visible = true;
-      renderProg.meta.groups[name].indexCount = chunk.buildGreedyRenderMeshGroup(gl, renderProg, renderProg.meta.groups[name].vao, name);
+      renderProg.meta.regions[name] = {};
+      renderProg.meta.regions[name].vao = gl.createVertexArray();
+      renderProg.meta.regions[name].visible = true;
+      renderProg.meta.regions[name].indexCount = chunk.buildGreedyRenderMeshGroup(gl, renderProg, renderProg.meta.regions[name].vao, name);
     }
   }
 
@@ -1123,11 +1123,11 @@ updateParticleTexture(particles);
     }
 
     // Render group overlays
-    for (const [groupName, group] of animSystem.groups.entries()) {
-      if (groupOverlaysVisible.get(groupName)) {
-        const [minX, minY, minZ] = group.min;
-        const [maxX, maxY, maxZ] = group.max;
-        const color = selectedGroupName === groupName ? [0.2, 0.6, 1.0] : [0.6, 0.8, 0.3];
+    for (const [regionName, region] of animSystem.regions.entries()) {
+      if (groupOverlaysVisible.get(regionName)) {
+        const [minX, minY, minZ] = region.min;
+        const [maxX, maxY, maxZ] = region.max;
+        const color = selectedRegionName === regionName ? [0.2, 0.6, 1.0] : [0.6, 0.8, 0.3];
         drawWireAABB(minX, minY, minZ, maxX, maxY, maxZ, color, 1.01);
       }
     }
