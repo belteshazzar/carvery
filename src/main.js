@@ -859,12 +859,52 @@ function main() {
   let dragging = false, lastX = 0, lastY = 0;
   let mouseX = 0, mouseY = 0, needsPick = true, buttons = 0;
   let hoverVoxel = -1, hoverFace = -1;
+  let continuousMode = false; // true when shift + mouse button held
+  let lastAppliedVoxel = -1; // track last voxel we applied tool to
 
   // Hover sets
   let rowHoverSurf = [], rowHoverAdd = [], planeHoverSurf = [], planeHoverAdd = [];
 
   // Will be set by initializeUI
   let updateHoverUI = () => { };
+
+  // Apply current tool to picked voxel/face
+  function applyToolAt(voxel, face) {
+    if (voxel < 0 || face < 0) return;
+    
+    const currentMode = mode;
+    const currentOption = option;
+    
+    if (currentMode === 'paint') {
+      if (currentOption === 'voxel' && chunk.isSolid(voxel)) {
+        const act = beginVoxelAction('Paint voxel');
+        recordVoxelChange(act, voxel, true, palette.getBrush());
+        commitAction(act);
+      }
+    } else if (currentMode === 'add') {
+      if (currentOption === 'voxel') {
+        const [x, y, z] = chunk.coordsOf(voxel);
+        const d = FACE_DIRS[face];
+        const nx = x + d[0];
+        const ny = y + d[1];
+        const nz = z + d[2];
+        if (chunk.within(nx, ny, nz)) {
+          const id = chunk.idx3(nx, ny, nz);
+          if (!chunk.isSolid(id)) {
+            const act = beginVoxelAction('Add voxel');
+            recordVoxelChange(act, id, true, palette.getBrush());
+            commitAction(act);
+          }
+        }
+      }
+    } else if (currentMode === 'carve') {
+      if (currentOption === 'voxel' && chunk.isSolid(voxel)) {
+        const act = beginVoxelAction('Remove voxel');
+        recordVoxelChange(act, voxel, false, chunk.material(voxel));
+        commitAction(act);
+      }
+    }
+  }
 
   function updateHover() {
     if (!needsPick) return;
@@ -1181,9 +1221,14 @@ updateParticleTexture(particles);
     setSelectedRegionName: (val) => { selectedRegionName = val; },
     getRegionOverlaysVisible: () => regionOverlaysVisible,
     setRegionOverlaysVisible: (val) => { regionOverlaysVisible = val; },
+    getContinuousMode: () => continuousMode,
+    setContinuousMode: (val) => { continuousMode = val; },
+    getLastAppliedVoxel: () => lastAppliedVoxel,
+    setLastAppliedVoxel: (val) => { lastAppliedVoxel = val; },
 
     // Functions
     buildAllMeshes,
+    applyToolAt,
     buildAxisGizmo,
     updateChunkSizeUI,
     updateCameraTargetUI,

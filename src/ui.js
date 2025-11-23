@@ -52,9 +52,14 @@ export function initializeUI(state) {
     setPlaneHoverSurf,
     getPlaneHoverAdd,
     setPlaneHoverAdd,
+    getContinuousMode,
+    setContinuousMode,
+    getLastAppliedVoxel,
+    setLastAppliedVoxel,
     
     // Functions
     buildAllMeshes,
+    applyToolAt,
     updateChunkSizeUI,
     updateCameraTargetUI,
     moveCameraTargetX,
@@ -311,20 +316,20 @@ export function initializeUI(state) {
 
     // Mode shortcuts
     if (k === 'q') {
-      document.getElementById('modePaint').checked = true;
-      setMode('paint');
-      return;
-    }
-    
-    if (k === 'w') {
       document.getElementById('modeCarve').checked = true;
       setMode('carve');
       return;
     }
     
-    if (k === 's') {
+    if (k === 'w') {
       document.getElementById('modeAdd').checked = true;
       setMode('add');
+      return;
+    }
+    
+    if (k === 's') {
+      document.getElementById('modePaint').checked = true;
+      setMode('paint');
       return;
     }
 
@@ -386,6 +391,14 @@ export function initializeUI(state) {
         setLastX(e.clientX);
         setLastY(e.clientY);
       }
+      return;
+    }
+
+    // Check if shift is held for continuous mode (only for voxel option)
+    if (e.shiftKey && option === 'voxel' && e.button === 0) {
+      setContinuousMode(true);
+      setLastAppliedVoxel(pick.voxel);
+      applyToolAt(pick.voxel, pick.face);
       return;
     }
 
@@ -471,16 +484,30 @@ export function initializeUI(state) {
 
   window.addEventListener('mouseup', () => { 
     setDragging(false);
+    setContinuousMode(false);
+    setLastAppliedVoxel(-1);
   });
 
   window.addEventListener('mousemove', (e) => {
     const dragging = getDragging();
+    const continuousMode = getContinuousMode();
     
-    if (!dragging) { 
+    if (!dragging && !continuousMode) { 
       setMouseX(e.clientX);
       setMouseY(e.clientY);
       setNeedsPick(true); 
     }
+    
+    // Continuous tool application when shift is held
+    if (continuousMode) {
+      const pick = decodePickAt(e.clientX, e.clientY);
+      if (pick.voxel >= 0 && pick.face >= 0 && pick.voxel !== getLastAppliedVoxel()) {
+        setLastAppliedVoxel(pick.voxel);
+        applyToolAt(pick.voxel, pick.face);
+        setNeedsPick(true);
+      }
+    }
+    
     if (dragging) { 
       const lastX = getLastX();
       const lastY = getLastY();
