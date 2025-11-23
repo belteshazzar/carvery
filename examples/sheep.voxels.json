@@ -719,106 +719,352 @@
     "47e0",
     "48e0"
   ],
-    "regions": {
-      "door": {
-        "min": [
-          -5,
-          1,
-          1
-        ],
-        "max": [
-          -3,
-          5,
-          2
-        ]
-      },
-      "platform": {
-        "min": [
-          -1,
-          1,
-          5
-        ],
-        "max": [
-          3,
-          2,
-          9
-        ]
-      }
+  "regions": {
+    "leg-fr": {
+      "min": [
+        5,
+        0,
+        4
+      ],
+      "max": [
+        6,
+        4,
+        5
+      ]
     },
-    "animations": {
-      "door_open": {
-        "regionName": "door",
-        "loop": false,
-        "guard": "closed",
-        "endState": "open",
-        "keyframes": [
-          {
-            "type": "rotate",
-            "from": 0,
-            "to": 90,
-            "duration": 2,
-            "pivot": [
-              -5,
-              1,
-              1
-            ],
-            "axis": [
-              0,
-              1,
-              0
-            ]
-          }
-        ]
-      },
-      "door_close": {
-        "regionName": "door",
-        "loop": false,
-        "guard": "open",
-        "endState": "closed",
-        "keyframes": [
-          {
-            "type": "rotate",
-            "from": 90,
-            "to": 0,
-            "duration": 2,
-            "pivot": [
-              -5,
-              1,
-              1
-            ],
-            "axis": [
-              0,
-              1,
-              0
-            ]
-          }
-        ]
-      },
-      "updown": {
-        "regionName": "platform",
-        "loop": true,
-        "guard": null,
-        "endState": null,
-        "keyframes": [
-          {
-            "type": "move",
-            "axis": "y",
-            "delta": 4,
-            "duration": 1
-          },
-          {
-            "type": "wait",
-            "duration": 0.5
-          },
-          {
-            "type": "move",
-            "axis": "y",
-            "delta": -4,
-            "duration": 1
-          }
-        ]
-      }
+    "leg-fl": {
+      "min": [
+        2,
+        0,
+        4
+      ],
+      "max": [
+        3,
+        4,
+        5
+      ]
     },
-    "emitters": {},
-    "groups": {}
+    "leg-rl": {
+      "min": [
+        2,
+        0,
+        10
+      ],
+      "max": [
+        3,
+        4,
+        11
+      ]
+    },
+    "leg-rr": {
+      "min": [
+        5,
+        0,
+        10
+      ],
+      "max": [
+        6,
+        4,
+        11
+      ]
+    },
+    "head": {
+      "min": [
+        0,
+        4,
+        0
+      ],
+      "max": [
+        8,
+        10,
+        3
+      ]
+    }
+  },
+  "animations": {
+    "anim": {
+      "regionName": "leg-fr",
+      "loop": true,
+      "keyframes": [
+        {
+          "type": "rotate",
+          "from": 0,
+          "to": 20,
+          "duration": 0.3,
+          "pivot": [
+            3,
+            4,
+            5
+          ],
+          "axis": [
+            1,
+            0,
+            0
+          ]
+        },
+        {
+          "type": "rotate",
+          "from": 0,
+          "to": -40,
+          "duration": 0.6,
+          "pivot": [
+            3,
+            4,
+            5
+          ],
+          "axis": [
+            1,
+            0,
+            0
+          ]
+        },
+        {
+          "type": "rotate",
+          "from": 0,
+          "to": 20,
+          "duration": 0.3,
+          "pivot": [
+            3,
+            4,
+            5
+          ],
+          "axis": [
+            1,
+            0,
+            0
+          ]
+        }
+      ]
+    },
+    "anim1": {
+      "regionName": "leg-fl",
+      "loop": true,
+      "keyframes": [
+        {
+          "type": "rotate",
+          "from": 0,
+          "to": -20,
+          "duration": 0.3,
+          "pivot": [
+            3,
+            4,
+            5
+          ],
+          "axis": [
+            1,
+            0,
+            0
+          ]
+        },
+        {
+          "type": "rotate",
+          "from": 0,
+          "to": 40,
+          "duration": 0.6,
+          "pivot": [
+            3,
+            4,
+            5
+          ],
+          "axis": [
+            1,
+            0,
+            0
+          ]
+        },
+        {
+          "type": "rotate",
+          "from": 0,
+          "to": -20,
+          "duration": 0.3,
+          "pivot": [
+            3,
+            4,
+            5
+          ],
+          "axis": [
+            1,
+            0,
+            0
+          ]
+        }
+      ]
+    },
+    "anim11": {
+      "regionName": "leg-rl",
+      "loop": true,
+      "keyframes": [
+        {
+          "type": "rotate",
+          "from": 0,
+          "to": 20,
+          "duration": 0.3,
+          "pivot": [
+            3,
+            4,
+            11
+          ],
+          "axis": [
+            1,
+            0,
+            0
+          ]
+        },
+        {
+          "type": "rotate",
+          "from": 0,
+          "to": -40,
+          "duration": 0.6,
+          "pivot": [
+            3,
+            4,
+            11
+          ],
+          "axis": [
+            1,
+            0,
+            0
+          ]
+        },
+        {
+          "type": "rotate",
+          "from": 0,
+          "to": 20,
+          "duration": 0.3,
+          "pivot": [
+            3,
+            4,
+            11
+          ],
+          "axis": [
+            1,
+            0,
+            0
+          ]
+        }
+      ]
+    },
+    "anim111": {
+      "regionName": "leg-rr",
+      "loop": true,
+      "keyframes": [
+        {
+          "type": "rotate",
+          "from": 0,
+          "to": -20,
+          "duration": 0.3,
+          "pivot": [
+            3,
+            4,
+            11
+          ],
+          "axis": [
+            1,
+            0,
+            0
+          ]
+        },
+        {
+          "type": "rotate",
+          "from": 0,
+          "to": 40,
+          "duration": 0.6,
+          "pivot": [
+            3,
+            4,
+            11
+          ],
+          "axis": [
+            1,
+            0,
+            0
+          ]
+        },
+        {
+          "type": "rotate",
+          "from": 0,
+          "to": -20,
+          "duration": 0.3,
+          "pivot": [
+            3,
+            4,
+            11
+          ],
+          "axis": [
+            1,
+            0,
+            0
+          ]
+        }
+      ]
+    },
+    "anim2": {
+      "regionName": "head",
+      "loop": true,
+      "keyframes": [
+        {
+          "type": "rotate",
+          "from": 0,
+          "to": 5,
+          "duration": 0.3,
+          "pivot": [
+            5,
+            9,
+            5
+          ],
+          "axis": [
+            0,
+            0,
+            1
+          ]
+        },
+        {
+          "type": "rotate",
+          "from": 0,
+          "to": -10,
+          "duration": 0.6,
+          "pivot": [
+            5,
+            9,
+            5
+          ],
+          "axis": [
+            0,
+            0,
+            1
+          ]
+        },
+        {
+          "type": "rotate",
+          "from": 0,
+          "to": 5,
+          "duration": 0.3,
+          "pivot": [
+            5,
+            9,
+            5
+          ],
+          "axis": [
+            0,
+            0,
+            1
+          ]
+        }
+      ]
+    }
+  },
+  "emitters": {},
+  "groups": {
+    "group": {
+      "animations": [
+        "anim",
+        "anim1",
+        "anim11",
+        "anim111"
+      ],
+      "emitters": [],
+      "guard": null,
+      "endState": null
+    }
+  }
 }

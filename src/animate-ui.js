@@ -249,6 +249,18 @@ export function initializeUI(state) {
       emptyMsg.style.margin = '8px 0';
       emptyMsg.textContent = 'No animations, emitters, or groups defined';
       container.appendChild(emptyMsg);
+      
+      // Add "Add Animation" button even when empty
+      const addAnimBtn = document.createElement('button');
+      addAnimBtn.textContent = '+ Add Animation';
+      addAnimBtn.className = 'add-animation-btn';
+      addAnimBtn.addEventListener('click', () => {
+        const newName = state.animSystem.generateUniqueAnimationName('anim');
+        // Create animation without a region initially
+        state.animSystem.addAnimation(newName, null);
+        updateAnimationList();
+      });
+      container.appendChild(addAnimBtn);
       return;
     }
     
@@ -801,17 +813,19 @@ export function initializeUI(state) {
       container.appendChild(item);
     }
     
-    // Add "Add Animation" button at the bottom
-    const addAnimBtn = document.createElement('button');
-    addAnimBtn.textContent = '+ Add Animation';
-    addAnimBtn.className = 'add-animation-btn';
-    addAnimBtn.addEventListener('click', () => {
-      const newName = state.animSystem.generateUniqueAnimationName('anim');
-      // Create animation without a region initially
-      state.animSystem.addAnimation(newName, null);
-      updateAnimationList();
-    });
-    container.appendChild(addAnimBtn);
+    // Add "Add Animation" button at the end of animations section
+    if (state.animSystem.animations.size > 0) {
+      const addAnimBtn = document.createElement('button');
+      addAnimBtn.textContent = '+ Add Animation';
+      addAnimBtn.className = 'add-animation-btn';
+      addAnimBtn.addEventListener('click', () => {
+        const newName = state.animSystem.generateUniqueAnimationName('anim');
+        // Create animation without a region initially
+        state.animSystem.addAnimation(newName, null);
+        updateAnimationList();
+      });
+      container.appendChild(addAnimBtn);
+    }
     
     // Emitters and groups are now in separate sections
   }
