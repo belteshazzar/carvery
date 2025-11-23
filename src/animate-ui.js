@@ -50,6 +50,61 @@ export function initializeUI(state) {
   const zEl = document.getElementById('z');
   const fileInput = document.getElementById('fileInput');
 
+  /**
+   * Helper function to create a shift-button-group web component
+   * @param {number} value - Initial value
+   * @param {Function} onChange - Callback when value changes, receives new value
+   * @param {Object} options - Configuration options
+   * @param {string} options.axis - Axis label (x, y, z) or custom
+   * @param {number} options.step - Step size (default: 1)
+   * @param {number} options.min - Minimum value
+   * @param {number} options.max - Maximum value
+   * @returns {HTMLElement} The shift-button-group element
+   */
+  function createShiftButtonGroup(value, onChange, options = {}) {
+    const group = document.createElement('shift-button-group');
+    group.setAttribute('value', value);
+    
+    if (options.axis) group.setAttribute('axis', options.axis);
+    if (options.step !== undefined) group.setAttribute('step', options.step);
+    if (options.min !== undefined) group.setAttribute('min', options.min);
+    if (options.max !== undefined) group.setAttribute('max', options.max);
+    if (options.label) group.setAttribute('label', options.label);
+    
+    group.addEventListener('change', (e) => {
+      onChange(e.detail.value);
+    });
+    
+    return group;
+  }
+
+  /**
+   * Helper function to create an xyz-control web component
+   * @param {Array<number>} values - [x, y, z] initial values
+   * @param {Function} onChange - Callback when values change, receives [x, y, z] array
+   * @param {Object} options - Configuration options
+   * @param {number} options.step - Step size (default: 1)
+   * @param {number} options.min - Minimum value
+   * @param {number} options.max - Maximum value
+   * @returns {HTMLElement} The xyz-control element
+   */
+  function createXYZControl(values, onChange, options = {}) {
+    const control = document.createElement('xyz-control');
+    control.setAttribute('x', values[0]);
+    control.setAttribute('y', values[1]);
+    control.setAttribute('z', values[2]);
+    
+    if (options.step !== undefined) control.setAttribute('step', options.step);
+    if (options.min !== undefined) control.setAttribute('min', options.min);
+    if (options.max !== undefined) control.setAttribute('max', options.max);
+    
+    control.addEventListener('change', (e) => {
+      onChange(e.detail.values);
+    });
+    
+    return control;
+  }
+
   // Add side panel (menu) toggle handlers
   const sidePanel = document.querySelector('.side-panel');
 
@@ -525,43 +580,14 @@ export function initializeUI(state) {
         durationLabel.textContent = 'Duration:';
         durationLabel.className = 'form-label';
         
-        const durationControl = document.createElement('div');
-        durationControl.className = 'shift-button-group';
-        
         // Ensure duration exists
         if (kf.duration === undefined || kf.duration === null) {
           kf.duration = 1;
         }
         
-        const durationMinusBtn = document.createElement('button');
-        durationMinusBtn.className = 'shift-btn shift-minus';
-        durationMinusBtn.textContent = '−';
-        durationMinusBtn.title = 'Decrease duration by 0.1';
-        durationMinusBtn.addEventListener('click', () => {
-          kf.duration = Math.max(0, Math.round((kf.duration - 0.1) * 10) / 10);
-          updateAnimationList();
-        });
-        
-        const durationLabelSpan = document.createElement('span');
-        durationLabelSpan.className = 'shift-label';
-        
-        const durationValueSpan = document.createElement('span');
-        durationValueSpan.className = 'shift-value';
-        durationValueSpan.textContent = kf.duration.toFixed(1);
-        durationLabelSpan.appendChild(durationValueSpan);
-        
-        const durationPlusBtn = document.createElement('button');
-        durationPlusBtn.className = 'shift-btn shift-plus';
-        durationPlusBtn.textContent = '+';
-        durationPlusBtn.title = 'Increase duration by 0.1';
-        durationPlusBtn.addEventListener('click', () => {
-          kf.duration = Math.round((kf.duration + 0.1) * 10) / 10;
-          updateAnimationList();
-        });
-        
-        durationControl.appendChild(durationMinusBtn);
-        durationControl.appendChild(durationLabelSpan);
-        durationControl.appendChild(durationPlusBtn);
+        const durationControl = createShiftButtonGroup(kf.duration, (value) => {
+          kf.duration = value;
+        }, { step: 0.1, min: 0 });
         
         durationRow.appendChild(durationLabel);
         durationRow.appendChild(durationControl);
@@ -577,43 +603,14 @@ export function initializeUI(state) {
           fromLabel.textContent = 'From:';
           fromLabel.className = 'form-label';
           
-          const fromControl = document.createElement('div');
-          fromControl.className = 'shift-button-group';
-          
           // Ensure from exists
           if (kf.from === undefined || kf.from === null) {
             kf.from = 0;
           }
           
-          const fromMinusBtn = document.createElement('button');
-          fromMinusBtn.className = 'shift-btn shift-minus';
-          fromMinusBtn.textContent = '−';
-          fromMinusBtn.title = 'Decrease from angle';
-          fromMinusBtn.addEventListener('click', () => {
-            kf.from--;
-            updateAnimationList();
-          });
-          
-          const fromLabelSpan = document.createElement('span');
-          fromLabelSpan.className = 'shift-label';
-          
-          const fromValueSpan = document.createElement('span');
-          fromValueSpan.className = 'shift-value';
-          fromValueSpan.textContent = kf.from;
-          fromLabelSpan.appendChild(fromValueSpan);
-          
-          const fromPlusBtn = document.createElement('button');
-          fromPlusBtn.className = 'shift-btn shift-plus';
-          fromPlusBtn.textContent = '+';
-          fromPlusBtn.title = 'Increase from angle';
-          fromPlusBtn.addEventListener('click', () => {
-            kf.from++;
-            updateAnimationList();
-          });
-          
-          fromControl.appendChild(fromMinusBtn);
-          fromControl.appendChild(fromLabelSpan);
-          fromControl.appendChild(fromPlusBtn);
+          const fromControl = createShiftButtonGroup(kf.from, (value) => {
+            kf.from = value;
+          }, { step: 1 });
           
           fromRow.appendChild(fromLabel);
           fromRow.appendChild(fromControl);
@@ -627,43 +624,14 @@ export function initializeUI(state) {
           toLabel.textContent = 'To:';
           toLabel.className = 'form-label';
           
-          const toControl = document.createElement('div');
-          toControl.className = 'shift-button-group';
-          
           // Ensure to exists
           if (kf.to === undefined || kf.to === null) {
             kf.to = 0;
           }
           
-          const toMinusBtn = document.createElement('button');
-          toMinusBtn.className = 'shift-btn shift-minus';
-          toMinusBtn.textContent = '−';
-          toMinusBtn.title = 'Decrease to angle';
-          toMinusBtn.addEventListener('click', () => {
-            kf.to--;
-            updateAnimationList();
-          });
-          
-          const toLabelSpan = document.createElement('span');
-          toLabelSpan.className = 'shift-label';
-          
-          const toValueSpan = document.createElement('span');
-          toValueSpan.className = 'shift-value';
-          toValueSpan.textContent = kf.to;
-          toLabelSpan.appendChild(toValueSpan);
-          
-          const toPlusBtn = document.createElement('button');
-          toPlusBtn.className = 'shift-btn shift-plus';
-          toPlusBtn.textContent = '+';
-          toPlusBtn.title = 'Increase to angle';
-          toPlusBtn.addEventListener('click', () => {
-            kf.to++;
-            updateAnimationList();
-          });
-          
-          toControl.appendChild(toMinusBtn);
-          toControl.appendChild(toLabelSpan);
-          toControl.appendChild(toPlusBtn);
+          const toControl = createShiftButtonGroup(kf.to, (value) => {
+            kf.to = value;
+          }, { step: 1 });
           
           toRow.appendChild(toLabel);
           toRow.appendChild(toControl);
@@ -677,54 +645,17 @@ export function initializeUI(state) {
           pivotLabel.textContent = 'Pivot:';
           pivotLabel.className = 'form-label';
           
-          const pivotRowContent = document.createElement('div');
-          pivotRowContent.style.display = 'flex';
-          pivotRowContent.style.gap = '8px';
-          
           // Ensure pivot exists and is an array
           if (!kf.pivot || !Array.isArray(kf.pivot)) {
             kf.pivot = [0, 0, 0];
           }
           
-          ['x', 'y', 'z'].forEach((axis, idx) => {
-            const pivotControl = document.createElement('div');
-            pivotControl.className = 'shift-button-group';
-            
-            const pivotMinusBtn = document.createElement('button');
-            pivotMinusBtn.className = 'shift-btn shift-minus';
-            pivotMinusBtn.textContent = '−';
-            pivotMinusBtn.title = `Decrease pivot ${axis.toUpperCase()}`;
-            pivotMinusBtn.addEventListener('click', () => {
-              kf.pivot[idx]--;
-              updateAnimationList();
-            });
-            
-            const pivotLabel = document.createElement('span');
-            pivotLabel.className = `shift-label shift-${axis}`;
-            
-            const pivotValueSpan = document.createElement('span');
-            pivotValueSpan.className = 'shift-value';
-            pivotValueSpan.textContent = kf.pivot[idx];
-            pivotLabel.appendChild(pivotValueSpan);
-            
-            const pivotPlusBtn = document.createElement('button');
-            pivotPlusBtn.className = 'shift-btn shift-plus';
-            pivotPlusBtn.textContent = '+';
-            pivotPlusBtn.title = `Increase pivot ${axis.toUpperCase()}`;
-            pivotPlusBtn.addEventListener('click', () => {
-              kf.pivot[idx]++;
-              updateAnimationList();
-            });
-            
-            pivotControl.appendChild(pivotMinusBtn);
-            pivotControl.appendChild(pivotLabel);
-            pivotControl.appendChild(pivotPlusBtn);
-            
-            pivotRowContent.appendChild(pivotControl);
-          });
+          const pivotControl = createXYZControl(kf.pivot, (values) => {
+            kf.pivot = values;
+          }, { step: 1 });
           
           pivotRow.appendChild(pivotLabel);
-          pivotRow.appendChild(pivotRowContent);
+          pivotRow.appendChild(pivotControl);
           kfForm.appendChild(pivotRow);
           
           // Axis
@@ -735,54 +666,17 @@ export function initializeUI(state) {
           axisLabel.textContent = 'Axis:';
           axisLabel.className = 'form-label';
           
-          const axisRowContent = document.createElement('div');
-          axisRowContent.style.display = 'flex';
-          axisRowContent.style.gap = '8px';
-          
           // Ensure axis exists and is an array
           if (!kf.axis || !Array.isArray(kf.axis)) {
             kf.axis = [0, 1, 0];
           }
           
-          ['x', 'y', 'z'].forEach((axisName, idx) => {
-            const axisControl = document.createElement('div');
-            axisControl.className = 'shift-button-group';
-            
-            const axisMinusBtn = document.createElement('button');
-            axisMinusBtn.className = 'shift-btn shift-minus';
-            axisMinusBtn.textContent = '−';
-            axisMinusBtn.title = `Decrease axis ${axisName.toUpperCase()}`;
-            axisMinusBtn.addEventListener('click', () => {
-              kf.axis[idx]--;
-              updateAnimationList();
-            });
-            
-            const axisLabelSpan = document.createElement('span');
-            axisLabelSpan.className = `shift-label shift-${axisName}`;
-            
-            const axisValueSpan = document.createElement('span');
-            axisValueSpan.className = 'shift-value';
-            axisValueSpan.textContent = kf.axis[idx];
-            axisLabelSpan.appendChild(axisValueSpan);
-            
-            const axisPlusBtn = document.createElement('button');
-            axisPlusBtn.className = 'shift-btn shift-plus';
-            axisPlusBtn.textContent = '+';
-            axisPlusBtn.title = `Increase axis ${axisName.toUpperCase()}`;
-            axisPlusBtn.addEventListener('click', () => {
-              kf.axis[idx]++;
-              updateAnimationList();
-            });
-            
-            axisControl.appendChild(axisMinusBtn);
-            axisControl.appendChild(axisLabelSpan);
-            axisControl.appendChild(axisPlusBtn);
-            
-            axisRowContent.appendChild(axisControl);
-          });
+          const axisControl = createXYZControl(kf.axis, (values) => {
+            kf.axis = values;
+          }, { step: 1 });
           
           axisRow.appendChild(axisLabel);
-          axisRow.appendChild(axisRowContent);
+          axisRow.appendChild(axisControl);
           kfForm.appendChild(axisRow);
           
         } else if (kf.type === 'move') {
@@ -1855,55 +1749,13 @@ export function initializeUI(state) {
       minRowLabel.textContent = 'Min:';
       minRow.appendChild(minRowLabel);
       
-      const minRowContent = document.createElement('div');
-      minRowContent.style.display = 'flex';
-      minRowContent.style.gap = '8px';
+      const minControl = createXYZControl(region.min, (values) => {
+        region.min = values;
+        updateRegionBounds();
+        updateRegionPanel();
+      }, { step: 1, min: 0, max: 255 });
       
-      ['x', 'y', 'z'].forEach((axis, idx) => {
-        const minControl = document.createElement('div');
-        minControl.className = 'shift-button-group';
-        
-        const minMinusBtn = document.createElement('button');
-        minMinusBtn.className = 'shift-btn shift-minus';
-        minMinusBtn.textContent = '−';
-        minMinusBtn.title = `Decrease min ${axis.toUpperCase()}`;
-        minMinusBtn.addEventListener('click', () => {
-          if (region.min[idx] > 0) {
-            region.min[idx]--;
-            updateRegionBounds();
-            updateRegionPanel();
-          }
-        });
-        
-        const minLabel = document.createElement('span');
-        minLabel.className = `shift-label shift-${axis}`;
-//        minLabel.textContent = axis.toUpperCase();
-        
-        const minValueSpan = document.createElement('span');
-        minValueSpan.className = 'shift-value';
-        minValueSpan.textContent = region.min[idx];
-        minLabel.appendChild(minValueSpan);
-        
-        const minPlusBtn = document.createElement('button');
-        minPlusBtn.className = 'shift-btn shift-plus';
-        minPlusBtn.textContent = '+';
-        minPlusBtn.title = `Increase min ${axis.toUpperCase()}`;
-        minPlusBtn.addEventListener('click', () => {
-          if (region.min[idx] < 255) {
-            region.min[idx]++;
-            updateRegionBounds();
-            updateRegionPanel();
-          }
-        });
-        
-        minControl.appendChild(minMinusBtn);
-        minControl.appendChild(minLabel);
-        minControl.appendChild(minPlusBtn);
-        
-        minRowContent.appendChild(minControl);
-      });
-      
-      minRow.appendChild(minRowContent);
+      minRow.appendChild(minControl);
       boundsContainer.appendChild(minRow);
       
       // Max row with x, y, z controls
@@ -1915,55 +1767,13 @@ export function initializeUI(state) {
       maxRowLabel.textContent = 'Max:';
       maxRow.appendChild(maxRowLabel);
       
-      const maxRowContent = document.createElement('div');
-      maxRowContent.style.display = 'flex';
-      maxRowContent.style.gap = '8px';
+      const maxControl = createXYZControl(region.max, (values) => {
+        region.max = values;
+        updateRegionBounds();
+        updateRegionPanel();
+      }, { step: 1, min: 0, max: 255 });
       
-      ['x', 'y', 'z'].forEach((axis, idx) => {
-        const maxControl = document.createElement('div');
-        maxControl.className = 'shift-button-group';
-        
-        const maxMinusBtn = document.createElement('button');
-        maxMinusBtn.className = 'shift-btn shift-minus';
-        maxMinusBtn.textContent = '−';
-        maxMinusBtn.title = `Decrease max ${axis.toUpperCase()}`;
-        maxMinusBtn.addEventListener('click', () => {
-          if (region.max[idx] > 0) {
-            region.max[idx]--;
-            updateRegionBounds();
-            updateRegionPanel();
-          }
-        });
-        
-       const maxLabel = document.createElement('span');
-       maxLabel.className = `shift-label shift-${axis}`;
-//        maxLabel.textContent = axis.toUpperCase();
-        
-        const maxValueSpan = document.createElement('span');
-        maxValueSpan.className = 'shift-value';
-        maxValueSpan.textContent = region.max[idx];
-        maxLabel.appendChild(maxValueSpan);
-        
-        const maxPlusBtn = document.createElement('button');
-        maxPlusBtn.className = 'shift-btn shift-plus';
-        maxPlusBtn.textContent = '+';
-        maxPlusBtn.title = `Increase max ${axis.toUpperCase()}`;
-        maxPlusBtn.addEventListener('click', () => {
-          if (region.max[idx] < 255) {
-            region.max[idx]++;
-            updateRegionBounds();
-            updateRegionPanel();
-          }
-        });
-        
-        maxControl.appendChild(maxMinusBtn);
-        maxControl.appendChild(maxLabel);
-        maxControl.appendChild(maxPlusBtn);
-        
-        maxRowContent.appendChild(maxControl);
-      });
-      
-      maxRow.appendChild(maxRowContent);
+      maxRow.appendChild(maxControl);
       boundsContainer.appendChild(maxRow);
       
       item.appendChild(header);
