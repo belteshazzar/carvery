@@ -13,7 +13,7 @@ export class AnimationSystem {
     this.regions = new Map(); // regionName -> AnimationRegion
     this.animations = new Map(); // animName -> Animation
     this.emitters = new Map(); // emitterName -> Emitter
-    this.sequences = new Map(); // sequenceName -> AnimationGroup
+    this.groups = new Map(); // groupName -> AnimationGroup
   }
 
   /**
@@ -128,12 +128,12 @@ export class AnimationSystem {
   }
 
   /**
-   * Generate a unique sequence name
+   * Generate a unique group name
    */
-  generateUniqueSequenceName(baseName = 'sequence') {
+  generateUniqueGroupName(baseName = 'group') {
     let counter = 1;
     let name = baseName;
-    while (this.sequences.has(name)) {
+    while (this.groups.has(name)) {
       name = `${baseName}${counter}`;
       counter++;
     }
@@ -167,11 +167,11 @@ export class AnimationSystem {
     // Remove the animation
     this.animations.delete(name);
     
-    // // Remove from any sequences that reference it
-    // for (const sequence of this.sequences.values()) {
-    //   const index = sequence.animationNames.indexOf(name);
+    // // Remove from any groups that reference it
+    // for (const group of this.groups.values()) {
+    //   const index = group.animationNames.indexOf(name);
     //   if (index !== -1) {
-    //     sequence.animationNames.splice(index, 1);
+    //     group.animationNames.splice(index, 1);
     //   }
     // }
     
@@ -201,11 +201,11 @@ export class AnimationSystem {
     // Remove the emitter
     this.emitters.delete(name);
     
-    // Remove from any sequences that reference it
-    for (const sequence of this.sequences.values()) {
-      const index = sequence.emitterNames.indexOf(name);
+    // Remove from any groups that reference it
+    for (const group of this.groups.values()) {
+      const index = group.emitterNames.indexOf(name);
       if (index !== -1) {
-        sequence.emitterNames.splice(index, 1);
+        group.emitterNames.splice(index, 1);
       }
     }
     
@@ -213,27 +213,27 @@ export class AnimationSystem {
   }
 
   /**
-   * Add a new sequence programmatically
+   * Add a new group programmatically
    */
-  addSequence(name) {
-    if (this.sequences.has(name)) {
-      throw new Error(`Sequence "${name}" already exists`);
+  addGroup(name) {
+    if (this.groups.has(name)) {
+      throw new Error(`Group "${name}" already exists`);
     }
-    const sequence = new AnimationSequence(name);
-    this.sequences.set(name, sequence);
-    return sequence;
+    const group = new AnimationGroup(name);
+    this.groups.set(name, group);
+    return group;
   }
 
   /**
-   * Remove a sequence
+   * Remove a group
    */
-  removeSequence(name) {
-    if (!this.sequences.has(name)) {
+  removeGroup(name) {
+    if (!this.groups.has(name)) {
       return false;
     }
     
-    // Remove the sequence
-    this.sequences.delete(name);
+    // Remove the group
+    this.groups.delete(name);
     
     return true;
   }
@@ -259,7 +259,7 @@ export class AnimationSystem {
     this.regions.clear();
     this.animations.clear();
     this.emitters.clear();
-    this.sequences.clear();
+    this.groups.clear();
     
     if (data.regions && typeof data.regions === 'object') {
       for (const [name, regionData] of Object.entries(data.regions)) {
@@ -282,10 +282,10 @@ export class AnimationSystem {
       }
     }
 
-    if (data.sequences && typeof data.sequences === 'object') {
-      for (const [name, sequenceData] of Object.entries(data.sequences)) {
-        const sequence = AnimationSequence.fromJSON(name, sequenceData);
-        this.sequences.set(name, sequence);
+    if (data.groups && typeof data.groups === 'object') {
+      for (const [name, groupData] of Object.entries(data.groups)) {
+        const group = AnimationGroup.fromJSON(name, groupData);
+        this.groups.set(name, group);
       }
     }
 
@@ -312,12 +312,12 @@ export class AnimationSystem {
       emitters[name] = emitter.toJSON();
     }
     
-    const sequences = {};
-    for (const [name, sequence] of this.sequences.entries()) {
-      sequences[name] = sequence.toJSON();
+    const groups = {};
+    for (const [name, group] of this.groups.entries()) {
+      groups[name] = group.toJSON();
     }
     
-    return { regions, animations, emitters, sequences };
+    return { regions, animations, emitters, groups };
   }
 
   assignVoxelsToRegions(chunk) {
@@ -424,56 +424,56 @@ export class AnimationSystem {
     }
   }
 
-  playSequence(sequenceName) {
-    const sequence = this.sequences.get(sequenceName);
-    if (!sequence) {
-      console.warn('Sequence not found:', sequenceName);
+  playGroup(groupName) {
+    const group = this.groups.get(groupName);
+    if (!group) {
+      console.warn('Group not found:', groupName);
       return;
     }
 
-    // Play all animations in the sequence
-    for (const animName of sequence.animationNames) {
+    // Play all animations in the group
+    for (const animName of group.animationNames) {
       this.playAnimation(animName);
     }
 
-    // Start all emitters in the sequence
-    for (const emitterName of sequence.emitterNames) {
+    // Start all emitters in the group
+    for (const emitterName of group.emitterNames) {
       this.startEmitter(emitterName);
     }
   }
 
-  stopSequence(sequenceName) {
-    const sequence = this.sequences.get(sequenceName);
-    if (!sequence) {
-      console.warn('Sequence not found:', sequenceName);
+  stopGroup(groupName) {
+    const group = this.groups.get(groupName);
+    if (!group) {
+      console.warn('Group not found:', groupName);
       return;
     }
 
-    // Stop all animations in the sequence
-    for (const animName of sequence.animationNames) {
+    // Stop all animations in the group
+    for (const animName of group.animationNames) {
       this.stopAnimation(animName);
     }
 
-    // Stop all emitters in the sequence
-    for (const emitterName of sequence.emitterNames) {
+    // Stop all emitters in the group
+    for (const emitterName of group.emitterNames) {
       this.stopEmitter(emitterName);
     }
   }
 
-  resetSequence(sequenceName) {
-    const sequence = this.sequences.get(sequenceName);
-    if (!sequence) {
-      console.warn('Sequence not found:', sequenceName);
+  resetGroup(groupName) {
+    const group = this.groups.get(groupName);
+    if (!group) {
+      console.warn('Group not found:', groupName);
       return;
     }
 
-    // Reset all animations in the sequence
-    for (const animName of sequence.animationNames) {
+    // Reset all animations in the group
+    for (const animName of group.animationNames) {
       this.resetAnimation(animName);
     }
 
-    // Clear all emitters in the sequence
-    for (const emitterName of sequence.emitterNames) {
+    // Clear all emitters in the group
+    for (const emitterName of group.emitterNames) {
       this.clearEmitter(emitterName);
     }
   }

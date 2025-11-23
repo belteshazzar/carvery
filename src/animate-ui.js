@@ -90,7 +90,7 @@ export function initializeUI(state) {
         importFromJSON(obj);
         updateAnimationList();
         updateEmitterList();
-        updateSequenceList();
+        updateGroupList();
         updateRegionPanel();
         
         // Show all controls now that file is loaded
@@ -199,12 +199,12 @@ export function initializeUI(state) {
     container.appendChild(addAnimBtn);
     
     // Animations section
-    if (state.animSystem.animations.size === 0 && state.animSystem.emitters.size === 0 && state.animSystem.sequences.size === 0) {
+    if (state.animSystem.animations.size === 0 && state.animSystem.emitters.size === 0 && state.animSystem.groups.size === 0) {
       const emptyMsg = document.createElement('p');
       emptyMsg.style.color = '#888';
       emptyMsg.style.fontSize = '12px';
       emptyMsg.style.margin = '8px 0';
-      emptyMsg.textContent = 'No animations, emitters, or sequences defined';
+      emptyMsg.textContent = 'No animations, emitters, or groups defined';
       container.appendChild(emptyMsg);
       return;
     }
@@ -805,7 +805,7 @@ export function initializeUI(state) {
       container.appendChild(item);
     }
     
-    // Emitters and sequences are now in separate sections
+    // Emitters and groups are now in separate sections
   }
 
   // Update the emitter list UI
@@ -1162,40 +1162,40 @@ export function initializeUI(state) {
     }
   }
 
-  // Update the sequence list UI
-  function updateSequenceList() {
-    const container = document.getElementById('sequenceList');
+  // Update the group list UI
+  function updateGroupList() {
+    const container = document.getElementById('groupList');
     if (!container) return;
     
     container.innerHTML = '';
     
-    // Add "Add Sequence" button at the top
-    const addSequenceBtn = document.createElement('button');
-    addSequenceBtn.textContent = '+ Add Sequence';
-    addSequenceBtn.className = 'add-animation-btn';
-    addSequenceBtn.addEventListener('click', () => {
-      const newName = state.animSystem.generateUniqueSequenceName('sequence');
-      state.animSystem.addSequence(newName);
-      updateSequenceList();
+    // Add "Add Group" button at the top
+    const addGroupBtn = document.createElement('button');
+    addGroupBtn.textContent = '+ Add Group';
+    addGroupBtn.className = 'add-animation-btn';
+    addGroupBtn.addEventListener('click', () => {
+      const newName = state.animSystem.generateUniqueGroupName('group');
+      state.animSystem.addGroup(newName);
+      updateGroupList();
     });
-    container.appendChild(addSequenceBtn);
+    container.appendChild(addGroupBtn);
     
-    if (state.animSystem.sequences.size === 0) {
+    if (state.animSystem.groups.size === 0) {
       const emptyMsg = document.createElement('p');
       emptyMsg.style.color = '#888';
       emptyMsg.style.fontSize = '12px';
       emptyMsg.style.margin = '8px 0';
-      emptyMsg.textContent = 'No sequences defined';
+      emptyMsg.textContent = 'No groups defined';
       container.appendChild(emptyMsg);
       return;
     }
     
-    const sequenceHeader = document.createElement('h5');
-    sequenceHeader.textContent = 'Sequences';
-    sequenceHeader.style.margin = '8px 0 4px 0';
-    container.appendChild(sequenceHeader);
+    const groupHeader = document.createElement('h5');
+    groupHeader.textContent = 'Groups';
+    groupHeader.style.margin = '8px 0 4px 0';
+    container.appendChild(groupHeader);
     
-    for (const [name, sequence] of state.animSystem.sequences.entries()) {
+    for (const [name, group] of state.animSystem.groups.entries()) {
       const item = document.createElement('div');
       item.className = 'animation-item expanded';
       
@@ -1213,7 +1213,7 @@ export function initializeUI(state) {
       
       const countBadge = document.createElement('span');
       countBadge.className = 'animation-badge';
-      const totalCount = sequence.animationNames.length + sequence.emitterNames.length;
+      const totalCount = group.animationNames.length + group.emitterNames.length;
       countBadge.textContent = `${totalCount} items`;
       headerLeft.appendChild(countBadge);
       
@@ -1225,51 +1225,51 @@ export function initializeUI(state) {
       
       const playBtn = document.createElement('button');
       playBtn.textContent = '▶';
-      playBtn.title = 'Play sequence';
+      playBtn.title = 'Play group';
       playBtn.className = 'animation-btn';
       playBtn.addEventListener('click', () => {
-        state.animSystem.playSequence(name);
+        state.animSystem.playGroup(name);
       });
       
       const stopBtn = document.createElement('button');
       stopBtn.textContent = '⏹';
-      stopBtn.title = 'Stop sequence';
+      stopBtn.title = 'Stop group';
       stopBtn.className = 'animation-btn';
       stopBtn.addEventListener('click', () => {
-        state.animSystem.stopSequence(name);
+        state.animSystem.stopGroup(name);
       });
       
       const resetBtn = document.createElement('button');
       resetBtn.textContent = '↺';
-      resetBtn.title = 'Reset sequence';
+      resetBtn.title = 'Reset group';
       resetBtn.className = 'animation-btn';
       resetBtn.addEventListener('click', () => {
-        state.animSystem.resetSequence(name);
+        state.animSystem.resetGroup(name);
       });
       
       const duplicateBtn = document.createElement('button');
       duplicateBtn.textContent = '⎘';
-      duplicateBtn.title = 'Duplicate sequence';
+      duplicateBtn.title = 'Duplicate group';
       duplicateBtn.className = 'animation-btn keyframe-duplicate-btn';
       duplicateBtn.addEventListener('click', () => {
-        const newName = state.animSystem.generateUniqueSequenceName(name);
-        const newSequence = state.animSystem.addSequence(newName);
+        const newName = state.animSystem.generateUniqueGroupName(name);
+        const newGroup = state.animSystem.addGroup(newName);
         
         // Copy all animation and emitter names
-        newSequence.animationNames = [...sequence.animationNames];
-        newSequence.emitterNames = [...sequence.emitterNames];
+        newGroup.animationNames = [...group.animationNames];
+        newGroup.emitterNames = [...group.emitterNames];
         
-        updateSequenceList();
+        updateGroupList();
       });
       
       const deleteBtn = document.createElement('button');
       deleteBtn.textContent = '×';
-      deleteBtn.title = 'Delete sequence';
+      deleteBtn.title = 'Delete group';
       deleteBtn.className = 'animation-btn delete-animation-btn';
       deleteBtn.addEventListener('click', () => {
-        if (confirm(`Delete sequence "${name}"?`)) {
-          state.animSystem.removeSequence(name);
-          updateSequenceList();
+        if (confirm(`Delete group "${name}"?`)) {
+          state.animSystem.removeGroup(name);
+          updateGroupList();
         }
       });
       
@@ -1289,10 +1289,10 @@ export function initializeUI(state) {
       
       // Animations section
       const animSection = document.createElement('div');
-      animSection.className = 'sequence-section';
+      animSection.className = 'group-section';
       
       const animSectionHeader = document.createElement('div');
-      animSectionHeader.className = 'sequence-section-header';
+      animSectionHeader.className = 'group-section-header';
       
       const animTitle = document.createElement('h6');
       animTitle.textContent = 'Animations';
@@ -1304,12 +1304,12 @@ export function initializeUI(state) {
       
       const addAnimToSeqBtn = document.createElement('button');
       addAnimToSeqBtn.textContent = '+';
-      addAnimToSeqBtn.className = 'sequence-add-btn';
-      addAnimToSeqBtn.title = 'Add animation to sequence';
+      addAnimToSeqBtn.className = 'group-add-btn';
+      addAnimToSeqBtn.title = 'Add animation to group';
       addAnimToSeqBtn.addEventListener('click', () => {
         // Create a dropdown with available animations
         const availableAnims = Array.from(state.animSystem.animations.keys())
-          .filter(aName => !sequence.animationNames.includes(aName));
+          .filter(aName => !group.animationNames.includes(aName));
         
         if (availableAnims.length === 0) {
           alert('No animations available to add');
@@ -1317,8 +1317,8 @@ export function initializeUI(state) {
         }
         
         // Add first available animation (could be enhanced with a modal selector)
-        sequence.addAnimation(availableAnims[0]);
-        updateSequenceList();
+        group.addAnimation(availableAnims[0]);
+        updateGroupList();
       });
       
       animSectionHeader.appendChild(animTitle);
@@ -1326,9 +1326,9 @@ export function initializeUI(state) {
       animSection.appendChild(animSectionHeader);
       
       const animList = document.createElement('div');
-      animList.className = 'sequence-item-list';
+      animList.className = 'group-item-list';
       
-      if (sequence.animationNames.length === 0) {
+      if (group.animationNames.length === 0) {
         const emptyMsg = document.createElement('p');
         emptyMsg.style.color = '#666';
         emptyMsg.style.fontSize = '11px';
@@ -1337,9 +1337,9 @@ export function initializeUI(state) {
         emptyMsg.textContent = 'No animations';
         animList.appendChild(emptyMsg);
       } else {
-        sequence.animationNames.forEach((animName, idx) => {
+        group.animationNames.forEach((animName, idx) => {
           const animItem = document.createElement('div');
-          animItem.className = 'sequence-item';
+          animItem.className = 'group-item';
           
           const animNameSpan = document.createElement('span');
           animNameSpan.textContent = animName;
@@ -1347,7 +1347,7 @@ export function initializeUI(state) {
           animNameSpan.style.color = '#cfd3dc';
           
           const animItemBtns = document.createElement('div');
-          animItemBtns.className = 'sequence-item-buttons';
+          animItemBtns.className = 'group-item-buttons';
           
           // Move up button
           if (idx > 0) {
@@ -1356,34 +1356,34 @@ export function initializeUI(state) {
             moveUpBtn.className = 'keyframe-move-btn';
             moveUpBtn.title = 'Move up';
             moveUpBtn.addEventListener('click', () => {
-              [sequence.animationNames[idx - 1], sequence.animationNames[idx]] = 
-                [sequence.animationNames[idx], sequence.animationNames[idx - 1]];
-              updateSequenceList();
+              [group.animationNames[idx - 1], group.animationNames[idx]] = 
+                [group.animationNames[idx], group.animationNames[idx - 1]];
+              updateGroupList();
             });
             animItemBtns.appendChild(moveUpBtn);
           }
           
           // Move down button
-          if (idx < sequence.animationNames.length - 1) {
+          if (idx < group.animationNames.length - 1) {
             const moveDownBtn = document.createElement('button');
             moveDownBtn.textContent = '↓';
             moveDownBtn.className = 'keyframe-move-btn';
             moveDownBtn.title = 'Move down';
             moveDownBtn.addEventListener('click', () => {
-              [sequence.animationNames[idx], sequence.animationNames[idx + 1]] = 
-                [sequence.animationNames[idx + 1], sequence.animationNames[idx]];
-              updateSequenceList();
+              [group.animationNames[idx], group.animationNames[idx + 1]] = 
+                [group.animationNames[idx + 1], group.animationNames[idx]];
+              updateGroupList();
             });
             animItemBtns.appendChild(moveDownBtn);
           }
           
           const removeBtn = document.createElement('button');
           removeBtn.textContent = '×';
-          removeBtn.className = 'sequence-remove-btn';
-          removeBtn.title = 'Remove from sequence';
+          removeBtn.className = 'group-remove-btn';
+          removeBtn.title = 'Remove from group';
           removeBtn.addEventListener('click', () => {
-            sequence.animationNames.splice(idx, 1);
-            updateSequenceList();
+            group.animationNames.splice(idx, 1);
+            updateGroupList();
           });
           animItemBtns.appendChild(removeBtn);
           
@@ -1398,10 +1398,10 @@ export function initializeUI(state) {
       
       // Emitters section
       const emitterSection = document.createElement('div');
-      emitterSection.className = 'sequence-section';
+      emitterSection.className = 'group-section';
       
       const emitterSectionHeader = document.createElement('div');
-      emitterSectionHeader.className = 'sequence-section-header';
+      emitterSectionHeader.className = 'group-section-header';
       
       const emitterTitle = document.createElement('h6');
       emitterTitle.textContent = 'Emitters';
@@ -1413,12 +1413,12 @@ export function initializeUI(state) {
       
       const addEmitterToSeqBtn = document.createElement('button');
       addEmitterToSeqBtn.textContent = '+';
-      addEmitterToSeqBtn.className = 'sequence-add-btn';
-      addEmitterToSeqBtn.title = 'Add emitter to sequence';
+      addEmitterToSeqBtn.className = 'group-add-btn';
+      addEmitterToSeqBtn.title = 'Add emitter to group';
       addEmitterToSeqBtn.addEventListener('click', () => {
         // Create a dropdown with available emitters
         const availableEmitters = Array.from(state.animSystem.emitters.keys())
-          .filter(eName => !sequence.emitterNames.includes(eName));
+          .filter(eName => !group.emitterNames.includes(eName));
         
         if (availableEmitters.length === 0) {
           alert('No emitters available to add');
@@ -1426,8 +1426,8 @@ export function initializeUI(state) {
         }
         
         // Add first available emitter (could be enhanced with a modal selector)
-        sequence.addEmitter(availableEmitters[0]);
-        updateSequenceList();
+        group.addEmitter(availableEmitters[0]);
+        updateGroupList();
       });
       
       emitterSectionHeader.appendChild(emitterTitle);
@@ -1435,9 +1435,9 @@ export function initializeUI(state) {
       emitterSection.appendChild(emitterSectionHeader);
       
       const emitterList = document.createElement('div');
-      emitterList.className = 'sequence-item-list';
+      emitterList.className = 'group-item-list';
       
-      if (sequence.emitterNames.length === 0) {
+      if (group.emitterNames.length === 0) {
         const emptyMsg = document.createElement('p');
         emptyMsg.style.color = '#666';
         emptyMsg.style.fontSize = '11px';
@@ -1446,9 +1446,9 @@ export function initializeUI(state) {
         emptyMsg.textContent = 'No emitters';
         emitterList.appendChild(emptyMsg);
       } else {
-        sequence.emitterNames.forEach((emitterName, idx) => {
+        group.emitterNames.forEach((emitterName, idx) => {
           const emitterItem = document.createElement('div');
-          emitterItem.className = 'sequence-item';
+          emitterItem.className = 'group-item';
           
           const emitterNameSpan = document.createElement('span');
           emitterNameSpan.textContent = emitterName;
@@ -1456,7 +1456,7 @@ export function initializeUI(state) {
           emitterNameSpan.style.color = '#cfd3dc';
           
           const emitterItemBtns = document.createElement('div');
-          emitterItemBtns.className = 'sequence-item-buttons';
+          emitterItemBtns.className = 'group-item-buttons';
           
           // Move up button
           if (idx > 0) {
@@ -1465,34 +1465,34 @@ export function initializeUI(state) {
             moveUpBtn.className = 'keyframe-move-btn';
             moveUpBtn.title = 'Move up';
             moveUpBtn.addEventListener('click', () => {
-              [sequence.emitterNames[idx - 1], sequence.emitterNames[idx]] = 
-                [sequence.emitterNames[idx], sequence.emitterNames[idx - 1]];
-              updateSequenceList();
+              [group.emitterNames[idx - 1], group.emitterNames[idx]] = 
+                [group.emitterNames[idx], group.emitterNames[idx - 1]];
+              updateGroupList();
             });
             emitterItemBtns.appendChild(moveUpBtn);
           }
           
           // Move down button
-          if (idx < sequence.emitterNames.length - 1) {
+          if (idx < group.emitterNames.length - 1) {
             const moveDownBtn = document.createElement('button');
             moveDownBtn.textContent = '↓';
             moveDownBtn.className = 'keyframe-move-btn';
             moveDownBtn.title = 'Move down';
             moveDownBtn.addEventListener('click', () => {
-              [sequence.emitterNames[idx], sequence.emitterNames[idx + 1]] = 
-                [sequence.emitterNames[idx + 1], sequence.emitterNames[idx]];
-              updateSequenceList();
+              [group.emitterNames[idx], group.emitterNames[idx + 1]] = 
+                [group.emitterNames[idx + 1], group.emitterNames[idx]];
+              updateGroupList();
             });
             emitterItemBtns.appendChild(moveDownBtn);
           }
           
           const removeBtn = document.createElement('button');
           removeBtn.textContent = '×';
-          removeBtn.className = 'sequence-remove-btn';
-          removeBtn.title = 'Remove from sequence';
+          removeBtn.className = 'group-remove-btn';
+          removeBtn.title = 'Remove from group';
           removeBtn.addEventListener('click', () => {
-            sequence.emitterNames.splice(idx, 1);
-            updateSequenceList();
+            group.emitterNames.splice(idx, 1);
+            updateGroupList();
           });
           emitterItemBtns.appendChild(removeBtn);
           
@@ -1838,7 +1838,7 @@ export function initializeUI(state) {
     }
   });
 
-  // Reset all animations, emitters, and sequences
+  // Reset all animations, emitters, and groups
   document.getElementById('btnResetAll')?.addEventListener('click', () => {
     state.animSystem.resetAll();
   });
