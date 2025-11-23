@@ -10,16 +10,6 @@ export class Animation {
     this.loop = false;
     this.time = 0;
     this.playing = false;
-    this.guard = null; // Required state to run this animation
-    this.endState = null; // State to set when animation completes
-  }
-
-  _canPlay() {
-    // If no guard is specified, animation can always play
-    if (this.guard === null) return true;
-    
-    // Check if region's current state matches the required guard
-    return this.region && this.region.state === this.guard;
   }
 
   _updateRegionTransform() {
@@ -92,10 +82,6 @@ export class Animation {
     } else if (!this.loop && duration > 0 && this.time >= duration) {
       // Clamp to exactly the duration, don't reset
       this.time = duration;
-      if (this.endState && this.region) {
-        this.region.state = this.endState;
-        console.log(`Animation ${this.name} ended, setting region ${this.region.name} state to ${this.endState}`);
-      }
       this.playing = false;
     }
 
@@ -104,10 +90,6 @@ export class Animation {
   }
 
   play() {
-    if (!this._canPlay()) {
-      console.log(`Animation ${this.name} cannot play, guard state not met.`);
-      return;
-    }
     this.playing = true;
   }
 
@@ -128,8 +110,6 @@ export class Animation {
     return {
       regionName: this.regionName,
       loop: this.loop,
-      guard: this.guard,
-      endState: this.endState,
       keyframes: this.keyframes.map(kf => ({...kf}))
     };
   }
@@ -138,8 +118,6 @@ export class Animation {
     const anim = new Animation(name);
     anim.regionName = json.regionName;
     anim.loop = json.loop || false;
-    anim.guard = json.guard;
-    anim.endState = json.endState;
     anim.keyframes = json.keyframes.map(kf => ({...kf}));
     return anim;
   }

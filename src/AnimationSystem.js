@@ -349,6 +349,33 @@ export class AnimationSystem {
     for (const emitter of this.emitters.values()) {
       emitter.update(dt);
     }
+    
+    // Check for group completion and set endState
+    for (const group of this.groups.values()) {
+      if (group.playing && group.endState !== null) {
+        // Check if all animations in the group have finished
+        let allComplete = true;
+        for (const animName of group.animationNames) {
+          const anim = this.animations.get(animName);
+          if (anim && anim.playing) {
+            allComplete = false;
+            break;
+          }
+        }
+        
+        if (allComplete) {
+          // Set the endState on all regions used by animations in this group
+          for (const animName of group.animationNames) {
+            const anim = this.animations.get(animName);
+            if (anim && anim.region) {
+              anim.region.state = group.endState;
+              console.log(`Group ${group.name} completed, setting region ${anim.region.name} state to ${group.endState}`);
+            }
+          }
+          group.playing = false;
+        }
+      }
+    }
   }
 
   playAnimation(animName) {
@@ -431,6 +458,28 @@ export class AnimationSystem {
       return;
     }
 
+    // Check guard condition
+    if (group.guard !== null) {
+      // Need to check if any of the animations' regions match the guard state
+      let guardMet = false;
+      for (const animName of group.animationNames) {
+        const anim = this.animations.get(animName);
+        if (anim && anim.region && anim.region.state === group.guard) {
+          guardMet = true;
+          break;
+        }
+      }
+      
+      if (!guardMet) {
+        console.log(`Group ${groupName} cannot play, guard state "${group.guard}" not met.`);
+        return;
+      }
+    }
+
+    // Mark group as playing for state tracking
+    group.playing = true;
+    group.startTime = performance.now();
+
     // Play all animations in the group
     for (const animName of group.animationNames) {
       this.playAnimation(animName);
@@ -449,6 +498,8 @@ export class AnimationSystem {
       return;
     }
 
+    group.playing = false;
+
     // Stop all animations in the group
     for (const animName of group.animationNames) {
       this.stopAnimation(animName);
@@ -466,6 +517,8 @@ export class AnimationSystem {
       console.warn('Group not found:', groupName);
       return;
     }
+
+    group.playing = false;
 
     // Reset all animations in the group
     for (const animName of group.animationNames) {

@@ -186,18 +186,6 @@ export function initializeUI(state) {
     
     container.innerHTML = '';
     
-    // Add "Add Animation" button at the top
-    const addAnimBtn = document.createElement('button');
-    addAnimBtn.textContent = '+ Add Animation';
-    addAnimBtn.className = 'add-animation-btn';
-    addAnimBtn.addEventListener('click', () => {
-      const newName = state.animSystem.generateUniqueAnimationName('anim');
-      // Create animation without a region initially
-      state.animSystem.addAnimation(newName, null);
-      updateAnimationList();
-    });
-    container.appendChild(addAnimBtn);
-    
     // Animations section
     if (state.animSystem.animations.size === 0 && state.animSystem.emitters.size === 0 && state.animSystem.groups.size === 0) {
       const emptyMsg = document.createElement('p');
@@ -279,8 +267,6 @@ export function initializeUI(state) {
         
         // Copy all properties
         newAnim.loop = anim.loop;
-        newAnim.guard = anim.guard;
-        newAnim.endState = anim.endState;
         
         // Deep copy all keyframes
         newAnim.keyframes = JSON.parse(JSON.stringify(anim.keyframes));
@@ -371,50 +357,8 @@ export function initializeUI(state) {
       loopRow.appendChild(loopCheckbox);
       loopRow.appendChild(loopLabel);
       
-      // Guard state
-      const guardRow = document.createElement('div');
-      guardRow.className = 'form-row';
-      
-      const guardLabel = document.createElement('label');
-      guardLabel.textContent = 'Guard:';
-      guardLabel.className = 'form-label';
-      
-      const guardInput = document.createElement('input');
-      guardInput.type = 'text';
-      guardInput.className = 'form-input';
-      guardInput.placeholder = '(none)';
-      guardInput.value = anim.guard || '';
-      guardInput.addEventListener('change', (e) => {
-        anim.guard = e.target.value || null;
-      });
-      
-      guardRow.appendChild(guardLabel);
-      guardRow.appendChild(guardInput);
-      
-      // End state
-      const endStateRow = document.createElement('div');
-      endStateRow.className = 'form-row';
-      
-      const endStateLabel = document.createElement('label');
-      endStateLabel.textContent = 'End State:';
-      endStateLabel.className = 'form-label';
-      
-      const endStateInput = document.createElement('input');
-      endStateInput.type = 'text';
-      endStateInput.className = 'form-input';
-      endStateInput.placeholder = '(none)';
-      endStateInput.value = anim.endState || '';
-      endStateInput.addEventListener('change', (e) => {
-        anim.endState = e.target.value || null;
-      });
-      
-      endStateRow.appendChild(endStateLabel);
-      endStateRow.appendChild(endStateInput);
-      
       form.appendChild(regionRow);
       form.appendChild(loopRow);
-      form.appendChild(guardRow);
-      form.appendChild(endStateRow);
       
       // Keyframes section
       const keyframesSection = document.createElement('div');
@@ -804,6 +748,18 @@ export function initializeUI(state) {
       item.appendChild(form);
       container.appendChild(item);
     }
+    
+    // Add "Add Animation" button at the bottom
+    const addAnimBtn = document.createElement('button');
+    addAnimBtn.textContent = '+ Add Animation';
+    addAnimBtn.className = 'add-animation-btn';
+    addAnimBtn.addEventListener('click', () => {
+      const newName = state.animSystem.generateUniqueAnimationName('anim');
+      // Create animation without a region initially
+      state.animSystem.addAnimation(newName, null);
+      updateAnimationList();
+    });
+    container.appendChild(addAnimBtn);
     
     // Emitters and groups are now in separate sections
   }
@@ -1287,6 +1243,48 @@ export function initializeUI(state) {
       const form = document.createElement('div');
       form.className = 'animation-form';
       
+      // Guard state
+      const guardRow = document.createElement('div');
+      guardRow.className = 'form-row';
+      
+      const guardLabel = document.createElement('label');
+      guardLabel.textContent = 'Guard State:';
+      guardLabel.className = 'form-label';
+      
+      const guardInput = document.createElement('input');
+      guardInput.type = 'text';
+      guardInput.className = 'form-input';
+      guardInput.placeholder = '(none)';
+      guardInput.value = group.guard || '';
+      guardInput.addEventListener('change', (e) => {
+        group.guard = e.target.value || null;
+      });
+      
+      guardRow.appendChild(guardLabel);
+      guardRow.appendChild(guardInput);
+      form.appendChild(guardRow);
+      
+      // End state
+      const endStateRow = document.createElement('div');
+      endStateRow.className = 'form-row';
+      
+      const endStateLabel = document.createElement('label');
+      endStateLabel.textContent = 'End State:';
+      endStateLabel.className = 'form-label';
+      
+      const endStateInput = document.createElement('input');
+      endStateInput.type = 'text';
+      endStateInput.className = 'form-input';
+      endStateInput.placeholder = '(none)';
+      endStateInput.value = group.endState || '';
+      endStateInput.addEventListener('change', (e) => {
+        group.endState = e.target.value || null;
+      });
+      
+      endStateRow.appendChild(endStateLabel);
+      endStateRow.appendChild(endStateInput);
+      form.appendChild(endStateRow);
+      
       // Animations section
       const animSection = document.createElement('div');
       animSection.className = 'group-section';
@@ -1690,14 +1688,22 @@ export function initializeUI(state) {
         state.buildAllMeshes();
       };
       
-      // Create min/max controls for each axis on the same row
+      // Min row with x, y, z controls
+      const minRow = document.createElement('div');
+      minRow.className = 'form-row';
+      
+      const minRowLabel = document.createElement('label');
+      minRowLabel.className = 'form-label';
+      minRowLabel.textContent = 'Min:';
+      minRow.appendChild(minRowLabel);
+      
+      const minRowContent = document.createElement('div');
+      minRowContent.style.display = 'flex';
+      minRowContent.style.gap = '8px';
+      
       ['x', 'y', 'z'].forEach((axis, idx) => {
-        const axisRow = document.createElement('div');
-        axisRow.className = 'bounds-axis-row';
-        
-        // Min control
-        const minRegion = document.createElement('div');
-        minRegion.className = 'shift-button-region';
+        const minControl = document.createElement('div');
+        minControl.className = 'shift-button-group';
         
         const minMinusBtn = document.createElement('button');
         minMinusBtn.className = 'shift-btn shift-minus';
@@ -1713,7 +1719,7 @@ export function initializeUI(state) {
         
         const minLabel = document.createElement('span');
         minLabel.className = `shift-label shift-${axis}`;
-        minLabel.textContent = axis.toUpperCase();
+//        minLabel.textContent = axis.toUpperCase();
         
         const minValueSpan = document.createElement('span');
         minValueSpan.className = 'shift-value';
@@ -1732,18 +1738,32 @@ export function initializeUI(state) {
           }
         });
         
-        minRegion.appendChild(minMinusBtn);
-        minRegion.appendChild(minLabel);
-        minRegion.appendChild(minPlusBtn);
+        minControl.appendChild(minMinusBtn);
+        minControl.appendChild(minLabel);
+        minControl.appendChild(minPlusBtn);
         
-        // Separator
-        const separator = document.createElement('span');
-        separator.className = 'bounds-separator';
-        separator.textContent = '—';
-        
-        // Max control
-        const maxRegion = document.createElement('div');
-        maxRegion.className = 'shift-button-group';
+        minRowContent.appendChild(minControl);
+      });
+      
+      minRow.appendChild(minRowContent);
+      boundsContainer.appendChild(minRow);
+      
+      // Max row with x, y, z controls
+      const maxRow = document.createElement('div');
+      maxRow.className = 'form-row';
+      
+      const maxRowLabel = document.createElement('label');
+      maxRowLabel.className = 'form-label';
+      maxRowLabel.textContent = 'Max:';
+      maxRow.appendChild(maxRowLabel);
+      
+      const maxRowContent = document.createElement('div');
+      maxRowContent.style.display = 'flex';
+      maxRowContent.style.gap = '8px';
+      
+      ['x', 'y', 'z'].forEach((axis, idx) => {
+        const maxControl = document.createElement('div');
+        maxControl.className = 'shift-button-group';
         
         const maxMinusBtn = document.createElement('button');
         maxMinusBtn.className = 'shift-btn shift-minus';
@@ -1757,9 +1777,9 @@ export function initializeUI(state) {
           }
         });
         
-        const maxLabel = document.createElement('span');
-        maxLabel.className = `shift-label shift-${axis}`;
-        maxLabel.textContent = axis.toUpperCase();
+       const maxLabel = document.createElement('span');
+       maxLabel.className = `shift-label shift-${axis}`;
+//        maxLabel.textContent = axis.toUpperCase();
         
         const maxValueSpan = document.createElement('span');
         maxValueSpan.className = 'shift-value';
@@ -1778,15 +1798,15 @@ export function initializeUI(state) {
           }
         });
         
-        maxRegion.appendChild(maxMinusBtn);
-        maxRegion.appendChild(maxLabel);
-        maxRegion.appendChild(maxPlusBtn);
+        maxControl.appendChild(maxMinusBtn);
+        maxControl.appendChild(maxLabel);
+        maxControl.appendChild(maxPlusBtn);
         
-        axisRow.appendChild(minRegion);
-        axisRow.appendChild(separator);
-        axisRow.appendChild(maxRegion);
-        boundsContainer.appendChild(axisRow);
+        maxRowContent.appendChild(maxControl);
       });
+      
+      maxRow.appendChild(maxRowContent);
+      boundsContainer.appendChild(maxRow);
       
       item.appendChild(header);
       item.appendChild(boundsContainer);

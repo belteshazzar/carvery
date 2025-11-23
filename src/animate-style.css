@@ -1195,6 +1195,21 @@ input[type="checkbox"] {
   margin-top: 8px;
 }
 
+.bounds-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.bounds-row-label {
+  font-size: 11px;
+  color: #888;
+  font-weight: 600;
+  min-width: 32px;
+  user-select: none;
+}
+
 .bounds-axis-row {
   display: flex;
   align-items: center;
@@ -1235,7 +1250,7 @@ input[type="checkbox"] {
   right: auto;
   top: auto;
   bottom: auto;
-  width: 400px;
+  width: 600px;
   flex-shrink: 0;
   transition: none;
 }
