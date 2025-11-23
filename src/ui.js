@@ -138,8 +138,8 @@ export function initializeUI(state) {
   //     animSystem.parse(dsl);
 
   //     chunk.clearGroups();
-  //     animSystem.groups.forEach((group,name) => {
-  //       chunk.addGroup(name, group.min, group.max);
+  //     animSystem.regions.forEach((region,name) => {
+  //       chunk.addGroup(name, region.min, region.max);
   //     });
   //     buildAllMeshes();
   //     updateTriggerSelect();
@@ -149,7 +149,7 @@ export function initializeUI(state) {
   //   }
   // });
 
-  // // Update the trigger select dropdown to show animations instead of groups
+  // // Update the trigger select dropdown to show animations instead of regions
   // function updateTriggerSelect() {
   //   const select = document.getElementById('triggerSelect');
   //   select.innerHTML = '<option value="">Trigger animation...</option>';
@@ -157,7 +157,7 @@ export function initializeUI(state) {
   //   for (const [name, anim] of animSystem.animations.entries()) {
   //     const option = document.createElement('option');
   //     option.value = name;
-  //     option.textContent = `${name} (${anim.groupName || 'no group'})`;
+  //     option.textContent = `${name} (${anim.regionName || 'no region'})`;
   //     select.appendChild(option);
   //   }
   // }
@@ -533,9 +533,9 @@ export function initializeUI(state) {
       nameLabel.className = 'animation-name';
       nameLabel.textContent = name;
       
-      const groupLabel = document.createElement('span');
-      groupLabel.className = 'animation-group';
-      groupLabel.textContent = anim.groupName || 'no group';
+      const regionLabel = document.createElement('span');
+      regionLabel.className = 'animation-group';
+      regionLabel.textContent = anim.regionName || 'no region';
       
       if (anim.loop) {
         const loopBadge = document.createElement('span');
@@ -545,7 +545,7 @@ export function initializeUI(state) {
       }
       
       info.appendChild(nameLabel);
-      info.appendChild(groupLabel);
+      info.appendChild(regionLabel);
       
       const controls = document.createElement('div');
       controls.className = 'animation-controls-inline';
@@ -602,7 +602,7 @@ export function initializeUI(state) {
         nameLabel.textContent = name;
         
         const statusLabel = document.createElement('span');
-        statusLabel.className = 'animation-group';
+        statusLabel.className = 'animation-region';
         statusLabel.textContent = emitter.enabled ? 'active' : 'stopped';
         
         const particleCount = document.createElement('span');
@@ -726,45 +726,45 @@ export function initializeUI(state) {
     }
   }
 
-  // Update the group list UI
+  // Update the region list UI
   function updateGroupPanel() {
-    const container = document.getElementById('groupList');
+    const container = document.getElementById('regionList');
     if (!container) return;
     
     container.innerHTML = '';
     
-    if (state.animSystem.groups.size === 0) {
-      container.innerHTML = '<p style="color: #888; font-size: 12px; margin: 8px 0;">No groups defined</p>';
+    if (state.animSystem.regions.size === 0) {
+      container.innerHTML = '<p style="color: #888; font-size: 12px; margin: 8px 0;">No regions defined</p>';
       return;
     }
     
-    const groupOverlays = state.getGroupOverlaysVisible();
+    const regionOverlays = state.getGroupOverlaysVisible();
     const selectedGroup = state.getSelectedGroupName();
     
-    for (const [name, group] of state.animSystem.groups.entries()) {
+    for (const [name, region] of state.animSystem.regions.entries()) {
       const item = document.createElement('div');
-      item.className = 'group-item';
+      item.className = 'region-item';
       if (selectedGroup === name) {
         item.classList.add('selected');
       }
       
       // Header with name and toggle
       const header = document.createElement('div');
-      header.className = 'group-header';
+      header.className = 'region-header';
       
       const nameLabel = document.createElement('span');
-      nameLabel.className = 'group-name';
+      nameLabel.className = 'region-name';
       nameLabel.textContent = name;
       
       const toggle = document.createElement('div');
-      toggle.className = 'group-toggle';
+      toggle.className = 'region-toggle';
       
       const checkbox = document.createElement('input');
       checkbox.type = 'checkbox';
-      checkbox.id = `group-vis-${name}`;
-      checkbox.checked = groupOverlays.get(name) || false;
+      checkbox.id = `region-vis-${name}`;
+      checkbox.checked = regionOverlays.get(name) || false;
       checkbox.addEventListener('change', (e) => {
-        groupOverlays.set(name, e.target.checked);
+        regionOverlays.set(name, e.target.checked);
         if (e.target.checked) {
           state.setSelectedGroupName(name);
           updateGroupPanel();
@@ -772,7 +772,7 @@ export function initializeUI(state) {
       });
       
       const checkboxLabel = document.createElement('label');
-      checkboxLabel.htmlFor = `group-vis-${name}`;
+      checkboxLabel.htmlFor = `region-vis-${name}`;
       checkboxLabel.textContent = 'Show';
       
       toggle.appendChild(checkbox);
@@ -783,7 +783,7 @@ export function initializeUI(state) {
       
       // Bounds inputs
       const boundsContainer = document.createElement('div');
-      boundsContainer.className = 'group-bounds';
+      boundsContainer.className = 'region-bounds';
       
       // Min column
       const minCol = document.createElement('div');
@@ -805,15 +805,15 @@ export function initializeUI(state) {
         input.type = 'number';
         input.min = '0';
         input.max = '15';
-        input.value = group.min[idx];
+        input.value = region.min[idx];
         input.addEventListener('change', (e) => {
           const val = Math.max(0, Math.min(15, parseInt(e.target.value) || 0));
-          group.min[idx] = val;
+          region.min[idx] = val;
           e.target.value = val;
           
-          // Update chunk groups and rebuild meshes
+          // Update chunk regions and rebuild meshes
           state.chunk.clearGroups();
-          state.animSystem.groups.forEach((g, n) => {
+          state.animSystem.regions.forEach((g, n) => {
             state.chunk.addGroup(n, g.min, g.max);
           });
           state.animSystem.assignVoxelsToGroups(state.chunk);
@@ -845,15 +845,15 @@ export function initializeUI(state) {
         input.type = 'number';
         input.min = '0';
         input.max = '15';
-        input.value = group.max[idx];
+        input.value = region.max[idx];
         input.addEventListener('change', (e) => {
           const val = Math.max(0, Math.min(15, parseInt(e.target.value) || 0));
-          group.max[idx] = val;
+          region.max[idx] = val;
           e.target.value = val;
           
-          // Update chunk groups and rebuild meshes
+          // Update chunk regions and rebuild meshes
           state.chunk.clearGroups();
-          state.animSystem.groups.forEach((g, n) => {
+          state.animSystem.regions.forEach((g, n) => {
             state.chunk.addGroup(n, g.min, g.max);
           });
           state.animSystem.assignVoxelsToGroups(state.chunk);
@@ -882,8 +882,8 @@ export function initializeUI(state) {
       state.animSystem.assignVoxelsToGroups(state.chunk);
 
       state.chunk.clearGroups();
-      state.animSystem.groups.forEach((group,name) => {
-        state.chunk.addGroup(name, group.min, group.max);
+      state.animSystem.regions.forEach((region,name) => {
+        state.chunk.addGroup(name, region.min, region.max);
       });
       state.buildAllMeshes();
 

@@ -596,7 +596,7 @@ input[type="color"] {
   min-width: 150px;
 }
 
-/* Group panel inline (inside animation panel) */
+/* Region panel inline (inside animation panel) */
 .group-panel-inline {
   background: rgba(0, 0, 0, 0.3);
   border: 1px solid rgba(255, 255, 255, 0.15);

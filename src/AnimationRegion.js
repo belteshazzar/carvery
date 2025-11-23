@@ -10,8 +10,8 @@ export class AnimationRegion {
     this.min = [0, 0, 0];
     this.max = [0, 0, 0];
     this.voxels = new Set();
-    this.transform = null; // Current transform matrix for this group
-    this.state = null; // Current state of the group
+    this.transform = null; // Current transform matrix for this region
+    this.state = null; // Current state of the region
     this.initialState = null; // Initial state to reset to
   }
 

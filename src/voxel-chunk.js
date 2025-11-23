@@ -185,7 +185,7 @@ export class VoxelChunk {
     return this._buildGreedyRenderMesh(gl, renderProg, vao, isSolid);
   }
 
-  buildGreedyRenderMeshGroup(gl, renderProg, vao, regionName) {
+  buildGreedyRenderMeshRegion(gl, renderProg, vao, regionName) {
     const region = this._regions.get(regionName);
     const isSolid = (idx) => {
       if (!this.isSolid(idx)) return false;

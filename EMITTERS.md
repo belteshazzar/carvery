@@ -142,9 +142,9 @@ Particles are rendered as small cubes using instanced rendering for performance.
 
 ## Integration with Animations
 
-Emitters work alongside voxel animations (groups, rotations, movements). They can be:
+Emitters work alongside voxel animations (regions, rotations, movements). They can be:
 - Started/stopped independently
-- Combined with animated voxel groups for complex effects
+- Combined with animated voxel regions for complex effects
 - Saved and loaded with your voxel scenes (via Export/Import)
 
 ## DSL Comments

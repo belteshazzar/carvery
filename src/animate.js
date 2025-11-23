@@ -312,13 +312,12 @@ function main() {
       }
     }
 
-    return { 
+    return Object.assign({ 
       version: 1, 
       size: [chunk.sizeX, chunk.sizeY, chunk.sizeZ], 
       palette: palHex, 
-      voxels, 
-      groups: animSystem.toJSON() 
-    };
+      voxels
+    }, animSystem.toJSON());
   }
 
   function hexCharToInt(hex) {
@@ -468,7 +467,7 @@ function main() {
   }
 
   const COLOR_SHOW = [0.0, 0.0, 0.0];
-  /*** ======= Grouping Meshes ======= ***/
+  /*** ======= Regioning Meshes ======= ***/
 
   function buildAllMeshes() {
 
@@ -481,7 +480,7 @@ function main() {
       renderProg.meta.regions[name] = {};
       renderProg.meta.regions[name].vao = gl.createVertexArray();
       renderProg.meta.regions[name].visible = true;
-      renderProg.meta.regions[name].indexCount = chunk.buildGreedyRenderMeshGroup(gl, renderProg, renderProg.meta.regions[name].vao, name);
+      renderProg.meta.regions[name].indexCount = chunk.buildGreedyRenderMeshRegion(gl, renderProg, renderProg.meta.regions[name].vao, name);
     }
   }
 

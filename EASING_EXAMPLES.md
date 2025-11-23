@@ -15,13 +15,13 @@ move <axis> <delta> for <duration> easing <type>
 Constant speed throughout - no acceleration or deceleration.
 
 ```dsl
-group box {
+region box {
   min [0, 0, 0]
   max [2, 2, 2]
 }
 
 anim linear-rotate {
-  group box
+  region box
   rotate 0 to 360 for 2 pivot [1, 1, 1] axis [0, 1, 0] easing linear
 }
 ```
@@ -31,7 +31,7 @@ Smooth start and end, similar to CSS ease.
 
 ```dsl
 anim ease-rotate {
-  group box
+  region box
   rotate 0 to 180 for 2 pivot [1, 1, 1] axis [0, 1, 0] easing ease
 }
 ```
@@ -41,7 +41,7 @@ Slow start, then accelerates.
 
 ```dsl
 anim ease-in-move {
-  group box
+  region box
   move y 8 for 2 easing ease-in
 }
 ```
@@ -51,7 +51,7 @@ Fast start, then decelerates.
 
 ```dsl
 anim ease-out-move {
-  group box
+  region box
   move y 8 for 2 easing ease-out
 }
 ```
@@ -61,7 +61,7 @@ Slow start and end, fast in the middle.
 
 ```dsl
 anim ease-in-out-rotate {
-  group box
+  region box
   rotate 0 to 90 for 2 pivot [1, 1, 1] axis [0, 1, 0] easing ease-in-out
 }
 ```
@@ -71,7 +71,7 @@ Anticipation - pulls back before moving forward.
 
 ```dsl
 anim ease-in-back-jump {
-  group box
+  region box
   move y 4 for 1 easing ease-in-back
 }
 ```
@@ -81,7 +81,7 @@ Overshoot - goes past the target then settles back.
 
 ```dsl
 anim ease-out-back-rotate {
-  group box
+  region box
   rotate 0 to 90 for 1.5 pivot [1, 1, 1] axis [0, 1, 0] easing ease-out-back
 }
 ```
@@ -91,7 +91,7 @@ Anticipation at start, overshoot at end.
 
 ```dsl
 anim ease-in-out-back-move {
-  group box
+  region box
   move x 6 for 2 easing ease-in-out-back
 }
 ```
@@ -101,7 +101,7 @@ Bouncing effect at the start.
 
 ```dsl
 anim ease-in-bounce-drop {
-  group box
+  region box
   move y -8 for 2 easing ease-in-bounce
 }
 ```
@@ -111,7 +111,7 @@ Bouncing effect at the end (like a ball dropping).
 
 ```dsl
 anim ease-out-bounce-land {
-  group box
+  region box
   move y -8 for 2 easing ease-out-bounce
 }
 ```
@@ -121,7 +121,7 @@ Bouncing effect at both start and end.
 
 ```dsl
 anim ease-in-out-bounce-hop {
-  group box
+  region box
   move y 4 for 2 easing ease-in-out-bounce
 }
 ```
@@ -131,7 +131,7 @@ Elastic/spring effect at the start.
 
 ```dsl
 anim ease-in-elastic-spin {
-  group box
+  region box
   rotate 0 to 360 for 2 pivot [1, 1, 1] axis [0, 1, 0] easing ease-in-elastic
 }
 ```
@@ -141,7 +141,7 @@ Elastic/spring effect at the end (oscillates around target).
 
 ```dsl
 anim ease-out-elastic-stretch {
-  group box
+  region box
   move z 6 for 2 easing ease-out-elastic
 }
 ```
@@ -151,7 +151,7 @@ Elastic/spring effect at both start and end.
 
 ```dsl
 anim ease-in-out-elastic-wave {
-  group box
+  region box
   rotate 0 to 180 for 2 pivot [1, 1, 1] axis [1, 0, 0] easing ease-in-out-elastic
 }
 ```
@@ -162,13 +162,13 @@ Discrete steps instead of smooth interpolation. Optional step count (default 10)
 ```dsl
 // Default steps (10)
 anim steps-default {
-  group box
+  region box
   rotate 0 to 90 for 2 pivot [1, 1, 1] axis [0, 1, 0] easing steps
 }
 
 // Custom step count (4 steps)
 anim steps-4 {
-  group box
+  region box
   rotate 0 to 360 for 4 pivot [1, 1, 1] axis [0, 1, 0] easing steps 4
 }
 ```
@@ -178,7 +178,7 @@ Sinusoidal easing (quarter sine wave).
 
 ```dsl
 anim sine-sway {
-  group box
+  region box
   rotate 0 to 45 for 2 pivot [1, 1, 1] axis [0, 0, 1] easing sine
 }
 ```
@@ -188,7 +188,7 @@ Exponential easing.
 
 ```dsl
 anim expo-accelerate {
-  group box
+  region box
   move x 10 for 2 easing expo
 }
 ```
@@ -198,7 +198,7 @@ Circular easing.
 
 ```dsl
 anim circ-curve {
-  group box
+  region box
   rotate 0 to 90 for 2 pivot [1, 1, 1] axis [0, 1, 0] easing circ
 }
 ```
@@ -206,21 +206,21 @@ anim circ-curve {
 ## Complex Example: Door with Multiple Easings
 
 ```dsl
-group door {
+region door {
   min [0, 0, 0]
   max [2, 5, 0]
   state closed
 }
 
 anim door_open {
-  group door
+  region door
   guard closed
   rotate 0 to 90 for 1.5 pivot [0, 0, 0] axis [0, 1, 0] easing ease-out-back
   state open
 }
 
 anim door_close {
-  group door
+  region door
   guard open
   rotate 0 to -90 for 1.5 pivot [0, 0, 0] axis [0, 1, 0] easing ease-in-back
   state closed
@@ -230,13 +230,13 @@ anim door_close {
 ## Flying Bird with Natural Movement
 
 ```dsl
-group bird {
+region bird {
   min [0, 0, 0]
   max [4, 2, 4]
 }
 
 anim bird_fly {
-  group bird
+  region bird
   loop
   // Wings flap with ease-in-out for smooth motion
   rotate 0 to -30 for 0.15 pivot [2, 1, 2] axis [0, 0, 1] easing ease-in-out
@@ -252,13 +252,13 @@ anim bird_fly {
 ## Robot Arm with Precise Control
 
 ```dsl
-group robot_arm {
+region robot_arm {
   min [0, 0, 0]
   max [1, 6, 1]
 }
 
 anim robot_wave {
-  group robot_arm
+  region robot_arm
   loop
   // Mechanical movement with steps
   rotate 0 to 90 for 1 pivot [0, 0, 0] axis [1, 0, 0] easing steps 5

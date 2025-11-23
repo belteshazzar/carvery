@@ -131,13 +131,13 @@ rotate 0 to 90 for 2 easing circ
 
 ### Example 1: Wing Flap with Bounce
 ```
-group left-wing {
+region left-wing {
   min [0, 2, 0]
   max [0, 3, 6]
 }
 
 anim flap-left {
-  group left-wing
+  region left-wing
   loop
   rotate 0 to -60 for 0.3 pivot [1, 4, 0] axis [0, 0, 1] easing ease-out-bounce
   rotate 0 to 60 for 0.3 pivot [1, 4, 0] axis [0, 0, 1] easing ease-out-bounce
@@ -146,14 +146,14 @@ anim flap-left {
 
 ### Example 2: Door Opening with Back Easing
 ```
-group door {
+region door {
   min [0, 0, 0]
   max [2, 4, 1]
   state closed
 }
 
 anim door_open {
-  group door
+  region door
   guard closed
   rotate 0 to 90 for 2 pivot [0, 0, 0] axis [0, 1, 0] easing ease-out-back
   state open
@@ -162,26 +162,26 @@ anim door_open {
 
 ### Example 3: Elevator with Elastic
 ```
-group elevator {
+region elevator {
   min [0, 0, 0]
   max [3, 1, 3]
 }
 
 anim elevator_up {
-  group elevator
+  region elevator
   move y 8 for 2 easing ease-out-elastic
 }
 ```
 
 ### Example 4: Stepped Animation (Robot Movement)
 ```
-group robot-arm {
+region robot-arm {
   min [0, 0, 0]
   max [1, 4, 1]
 }
 
 anim robot-wave {
-  group robot-arm
+  region robot-arm
   loop
   rotate 0 to 90 for 1 pivot [0, 0, 0] axis [1, 0, 0] easing steps 4
   rotate 0 to -90 for 1 pivot [0, 0, 0] axis [1, 0, 0] easing steps 4

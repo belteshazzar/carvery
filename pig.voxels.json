@@ -670,7 +670,7 @@
     },
     "animations": {
       "door_open": {
-        "groupName": "door",
+        "regionName": "door",
         "loop": false,
         "guard": "closed",
         "endState": "open",
@@ -694,7 +694,7 @@
         ]
       },
       "door_close": {
-        "groupName": "door",
+        "regionName": "door",
         "loop": false,
         "guard": "open",
         "endState": "closed",
@@ -718,7 +718,7 @@
         ]
       },
       "updown": {
-        "groupName": "platform",
+        "regionName": "platform",
         "loop": true,
         "guard": null,
         "endState": null,

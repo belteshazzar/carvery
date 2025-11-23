@@ -77,7 +77,7 @@ export class AnimationSystem {
     this.regions.delete(oldName);
     this.regions.set(newName, region);
     
-    // Update all animations that reference this group
+    // Update all animations that reference this region
     for (const anim of this.animations.values()) {
       if (anim.regionName === oldName) {
         anim.regionName = newName;
@@ -238,282 +238,6 @@ export class AnimationSystem {
     return true;
   }
 
-  parse(dsl) {
-    this.groups.clear();
-    this.animations.clear();
-    this.emitters.clear();
-    this.sequences.clear();
-    
-    const lines = dsl.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('//'));
-    let currentGroup = null;
-    let currentAnim = null;
-    let currentEmitter = null;
-    let currentSequence = null;
-
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      
-      // Check if this is a region definition
-      // only allowed outside of an animation
-      if (currentAnim == null && currentGroup == null && currentEmitter == null && currentSequence == null && line.startsWith('region ') && line.endsWith('{')) {
-        const groupName = line.slice(7, -1).trim();
-        currentGroup = new AnimationRegion(groupName);
-        this.groups.set(groupName, currentGroup);
-        continue;
-      }
-
-      // Check if this is an animation declaration (ends with {)
-      if (currentAnim == null && currentGroup == null && currentEmitter == null && currentSequence == null && line.startsWith('anim ') && line.endsWith('{')) {
-        const animName = line.slice(5, -1).trim();
-        currentAnim = new Animation(animName);
-        this.animations.set(animName, currentAnim);
-        continue;
-      }
-
-      // Check if this is an emitter declaration (ends with {)
-      if (currentAnim == null && currentGroup == null && currentEmitter == null && currentSequence == null && line.startsWith('emitter ') && line.endsWith('{')) {
-        const emitterName = line.slice(8, -1).trim();
-        currentEmitter = new Emitter(emitterName);
-        this.emitters.set(emitterName, currentEmitter);
-        continue;
-      }
-
-      // Check if this is a sequence declaration (ends with {)
-      if (currentAnim == null && currentGroup == null && currentEmitter == null && currentSequence == null && line.startsWith('anims ') && line.endsWith('{')) {
-        const sequenceName = line.slice(6, -1).trim();
-        currentSequence = new AnimationSequence(sequenceName);
-        this.sequences.set(sequenceName, currentSequence);
-        continue;
-      }
-
-      // Check if this is the end of a block
-      if (line === '}') {
-        if (currentGroup) currentGroup = null;
-        if (currentAnim) currentAnim = null;
-        if (currentEmitter) currentEmitter = null;
-        if (currentSequence) currentSequence = null;
-        continue;
-      }
-
-      const tokens = line.split(/\s+/);
-      const cmd = tokens[0];
-
-      // Handle group-level commands
-      if (currentGroup && !currentAnim) {
-        switch(cmd) {
-          case 'min':
-            currentGroup.min = this.parseArray(line);
-            break;
-
-          case 'max':
-            currentGroup.max = this.parseArray(line);
-            break;
-
-          case 'state':
-            const state = tokens[1];
-            currentGroup.state = state;
-            currentGroup.initialState = state;
-            break;
-        }
-        continue;
-      }
-
-      // Handle animation-level commands
-      if (! currentGroup && currentAnim && !currentEmitter) {
-        switch(cmd) {
-          case 'loop':
-            currentAnim.loop = true;
-            break;
-
-          case 'guard':
-            // Set the guard state for this animation
-            currentAnim.guard = tokens[1];
-            console.log(`Set guard for animation ${currentAnim.name} to ${currentAnim.guard}`);
-            break;
-
-          case 'state':
-            // Set the end state for this animation
-            currentAnim.endState = tokens[1];
-            console.log(`Set end state for animation ${currentAnim.name} to ${currentAnim.endState}`);
-            break;
-
-          case 'region':
-          case 'group':
-            // Set the region for this animation (support both 'region' and legacy 'group')
-            currentAnim.groupName = tokens[1];
-            console.log(`Set region for animation ${currentAnim.name} to ${currentAnim.groupName}`);
-            break;
-
-          case 'rotate': {
-            // rotate 0 to 90 for 2 pivot [0, 0, 0] axis [0, 1, 0] easing ease-in-out
-            const toIdx = tokens.indexOf('to');
-            const forIdx = tokens.indexOf('for');
-            
-            if (toIdx < 0 || forIdx < 0) {
-              console.warn('Invalid rotate syntax, expected: rotate <from> to <to> for <duration>');
-              break;
-            }
-            
-            const fromAngle = parseFloat(tokens[1]);
-            const toAngle = parseFloat(tokens[toIdx + 1]);
-            const duration = parseFloat(tokens[forIdx + 1]);
-            
-            const kf = {
-              type: 'rotate',
-              from: fromAngle,
-              to: toAngle,
-              duration: duration
-            };
-
-            // Parse optional pivot
-            const pivotIdx = tokens.indexOf('pivot');
-            if (pivotIdx > 0) {
-              const pivotStart = line.indexOf('[', line.indexOf('pivot'));
-              const pivotEnd = line.indexOf(']', pivotStart);
-              if (pivotStart >= 0 && pivotEnd > pivotStart) {
-                const pivotStr = line.substring(pivotStart + 1, pivotEnd);
-                kf.pivot = pivotStr.split(',').map(s => parseFloat(s.trim()));
-              }
-            }
-
-            // Parse optional axis
-            const axisIdx = tokens.indexOf('axis');
-            if (axisIdx > 0) {
-              const axisStart = line.indexOf('[', line.indexOf('axis'));
-              const axisEnd = line.indexOf(']', axisStart);
-              if (axisStart >= 0 && axisEnd > axisStart) {
-                const axisStr = line.substring(axisStart + 1, axisEnd);
-                kf.axis = axisStr.split(',').map(s => parseFloat(s.trim()));
-              }
-            }
-
-            // Parse optional easing
-            const easingIdx = tokens.indexOf('easing');
-            if (easingIdx > 0 && easingIdx + 1 < tokens.length) {
-              kf.easing = tokens[easingIdx + 1];
-              
-              // Parse optional steps parameter for 'steps' easing
-              if (kf.easing === 'steps' && easingIdx + 2 < tokens.length) {
-                const stepsVal = parseInt(tokens[easingIdx + 2], 10);
-                if (!isNaN(stepsVal)) {
-                  kf.steps = stepsVal;
-                }
-              }
-            }
-
-            currentAnim.keyframes.push(kf);
-            break;
-          }
-
-          case 'move':
-            // move y 4 for 1 easing ease-out
-            const moveAxis = tokens[1];
-            const moveDelta = parseFloat(tokens[2]);
-            const moveDuration = parseFloat(tokens[4]);
-            const moveKf = {
-              type: 'move',
-              axis: moveAxis,
-              delta: moveDelta,
-              duration: moveDuration
-            };
-            
-            // Parse optional easing
-            const moveEasingIdx = tokens.indexOf('easing');
-            if (moveEasingIdx > 0 && moveEasingIdx + 1 < tokens.length) {
-              moveKf.easing = tokens[moveEasingIdx + 1];
-              
-              // Parse optional steps parameter for 'steps' easing
-              if (moveKf.easing === 'steps' && moveEasingIdx + 2 < tokens.length) {
-                const stepsVal = parseInt(tokens[moveEasingIdx + 2], 10);
-                if (!isNaN(stepsVal)) {
-                  moveKf.steps = stepsVal;
-                }
-              }
-            }
-            
-            currentAnim.keyframes.push(moveKf);
-            break;
-
-          case 'wait':
-            // wait 0.5
-            const waitDuration = parseFloat(tokens[1]);
-            currentAnim.keyframes.push({
-              type: 'wait',
-              duration: waitDuration
-            });
-            break;
-        }
-      }
-
-      // Handle emitter-level commands
-      if (!currentGroup && !currentAnim && currentEmitter) {
-        switch(cmd) {
-          case 'position':
-          case 'pos':
-            currentEmitter.position = this.parseArray(line);
-            break;
-
-          case 'rate':
-            currentEmitter.rate = parseFloat(tokens[1]);
-            break;
-
-          case 'lifetime':
-            currentEmitter.particleLifetime = parseFloat(tokens[1]);
-            break;
-
-          case 'size':
-            currentEmitter.particleSize = parseFloat(tokens[1]);
-            break;
-
-          case 'velocity':
-          case 'vel':
-            currentEmitter.velocityBase = this.parseArray(line);
-            break;
-
-          case 'spread':
-            currentEmitter.velocitySpread = this.parseArray(line);
-            break;
-
-          case 'colors':
-          case 'color':
-            // Parse array of color indices: colors [1, 2, 3]
-            currentEmitter.colorIds = this.parseArray(line).map(v => Math.floor(v));
-            break;
-
-          case 'gravity':
-            currentEmitter.gravity = this.parseArray(line);
-            break;
-
-          case 'max':
-            currentEmitter.maxParticles = parseInt(tokens[1]);
-            break;
-        }
-      }
-
-      // Handle sequence-level commands
-      if (!currentGroup && !currentAnim && !currentEmitter && currentSequence) {
-        switch(cmd) {
-          case 'anim':
-            // Add animation to sequence: anim walk-left
-            const animName = tokens[1];
-            currentSequence.addAnimation(animName);
-            break;
-
-          case 'emitter':
-            // Add emitter to sequence: emitter fountain
-            const emitterName = tokens[1];
-            currentSequence.addEmitter(emitterName);
-            break;
-        }
-      }
-    }
-
-    // Link animations to regions after parsing
-    this.linkAnimationsToRegions();
-
-    console.log('Parsed Animation System:', this);
-  }
-
   linkAnimationsToRegions() {
     for (const anim of this.animations.values()) {
       if (anim.regionName && this.regions.has(anim.regionName)) {
@@ -565,7 +289,7 @@ export class AnimationSystem {
       }
     }
 
-    // Link animations to groups
+    // Link animations to regions
     this.linkAnimationsToRegions();
 
 
@@ -630,10 +354,10 @@ export class AnimationSystem {
   playAnimation(animName) {
     const anim = this.animations.get(animName);
     if (anim) {
-      // Stop any other animations on the same group
-      if (anim.groupName) {
+      // Stop any other animations on the same region
+      if (anim.regionName) {
         for (const otherAnim of this.animations.values()) {
-          if (otherAnim !== anim && otherAnim.groupName === anim.groupName && otherAnim.playing) {
+          if (otherAnim !== anim && otherAnim.regionName === anim.regionName && otherAnim.playing) {
             otherAnim.stop();
           }
         }

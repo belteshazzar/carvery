@@ -121,7 +121,7 @@ node test/easing-test.js
 1. User defines animation with `easing <type>` in DSL
 2. `AnimationSystem.parse()` extracts easing parameter
 3. Easing stored in keyframe object
-4. `Animation._updateGroupTransform()` applies easing:
+4. `Animation._updateRegionTransform()` applies easing:
    ```javascript
    let t = localTime / duration;
    if (kf.easing) {

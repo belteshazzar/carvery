@@ -37,7 +37,7 @@ function main() {
   // Programs
   const renderProg = createProgram(gl, lambertVert, lambertFrag);
   renderProg.meta.visible = true;
-  renderProg.meta.groups = {};
+  renderProg.meta.regions = {};
   const pickProg = createProgram(gl, pickVert, pickFrag);
   const wireProg = createProgram(gl, wireframeVert, wireframeFrag);
   const axisProg = createProgram(gl, axisVert, axisFrag);
@@ -121,9 +121,9 @@ function main() {
   let animationTransforms = new Map();
   let lastTime = 0;
 
-  // Group visualization state
-  let selectedGroupName = null;  // Currently selected group for visualization
-  let groupOverlaysVisible = new Map(); // groupName -> boolean (whether overlay is visible)
+  // Region visualization state
+  let selectedRegionName = null;  // Currently selected region for visualization
+  let regionOverlaysVisible = new Map(); // regionName -> boolean (whether overlay is visible)
 
   /*** ---- World State ---- ***/
   let N = 16;
@@ -324,13 +324,12 @@ function main() {
       }
     }
 
-    return { 
+    return Object.assign({ 
       version: 1, 
       size: [chunk.sizeX, chunk.sizeY, chunk.sizeZ], 
       palette: palHex, 
-      voxels, 
-      groups: animSystem.toJSON() 
-    };
+      voxels
+    }, animSystem.toJSON());
   }
 
   function hexCharToInt(hex) {
@@ -441,7 +440,7 @@ function main() {
     updateChunkSizeUI();
     updateCameraTargetUI();
 
-    if (obj.groups) animSystem.fromJSON(obj.groups);
+    if (obj.regions) animSystem.fromJSON(obj);
     clearHistory(); // imported scene becomes baseline
   }
 
@@ -831,15 +830,15 @@ function main() {
       }
     }
     
-    // Shift animation group bounding boxes
-    for (const group of animSystem.groups.values()) {
-      group.min[0] += dx;
-      group.min[1] += dy;
-      group.min[2] += dz;
+    // Shift animation region bounding boxes
+    for (const region of animSystem.regions.values()) {
+      region.min[0] += dx;
+      region.min[1] += dy;
+      region.min[2] += dz;
       
-      group.max[0] += dx;
-      group.max[1] += dy;
-      group.max[2] += dz;
+      region.max[0] += dx;
+      region.max[1] += dy;
+      region.max[2] += dz;
     }
     
     // Shift animation keyframe pivot points
@@ -913,12 +912,12 @@ function main() {
   const COLOR_CARVE = [1.0, 0.32, 0.32];
   const COLOR_ADD = [0.27, 0.95, 0.42];
 
-  /*** ======= Grouping Meshes ======= ***/
+  /*** ======= Regioning Meshes ======= ***/
 
   function buildAllMeshes() {
 
     renderProg.meta.renderIndexCount = chunk.buildGreedyRenderMeshMain(gl, renderProg, renderProg.vao);
-    // TODO: build pick for groups and when animated
+    // TODO: build pick for regions and when animated
     chunk.buildPickFaces(gl, pickProg);
 
     renderProg.meta.regions = {};
@@ -927,7 +926,7 @@ function main() {
       renderProg.meta.regions[name] = {};
       renderProg.meta.regions[name].vao = gl.createVertexArray();
       renderProg.meta.regions[name].visible = true;
-      renderProg.meta.regions[name].indexCount = chunk.buildGreedyRenderMeshGroup(gl, renderProg, renderProg.meta.regions[name].vao, name);
+      renderProg.meta.regions[name].indexCount = chunk.buildGreedyRenderMeshRegion(gl, renderProg, renderProg.meta.regions[name].vao, name);
     }
   }
 
@@ -1017,18 +1016,18 @@ function main() {
       gl.bindVertexArray(null);
     }
 
-    // Render each animated group with its transform
-    Object.keys(renderProg.meta.groups).forEach(name => {
-      const group = renderProg.meta.groups[name];
-      if (!group.visible) return;
+    // Render each animated region with its transform
+    Object.keys(renderProg.meta.regions).forEach(name => {
+      const region = renderProg.meta.regions[name];
+      if (!region.visible) return;
       
-      // Get animation transform for this group
-      const animTransform = animSystem.getGroupTransform(name);
-      const groupModel = Mat4.multiply(model, animTransform);
+      // Get animation transform for this region
+      const animTransform = animSystem.getRegionTransform(name);
+      const regionModel = Mat4.multiply(model, animTransform);
       
-      renderProg.uModel.set(groupModel);
-      gl.bindVertexArray(group.vao);
-      gl.drawElements(gl.TRIANGLES, group.indexCount, gl.UNSIGNED_INT, 0);
+      renderProg.uModel.set(regionModel);
+      gl.bindVertexArray(region.vao);
+      gl.drawElements(gl.TRIANGLES, region.indexCount, gl.UNSIGNED_INT, 0);
       gl.bindVertexArray(null);
     });
 
@@ -1122,9 +1121,9 @@ updateParticleTexture(particles);
       }
     }
 
-    // Render group overlays
+    // Render region overlays
     for (const [regionName, region] of animSystem.regions.entries()) {
-      if (groupOverlaysVisible.get(regionName)) {
+      if (regionOverlaysVisible.get(regionName)) {
         const [minX, minY, minZ] = region.min;
         const [maxX, maxY, maxZ] = region.max;
         const color = selectedRegionName === regionName ? [0.2, 0.6, 1.0] : [0.6, 0.8, 0.3];
@@ -1178,10 +1177,10 @@ updateParticleTexture(particles);
     setPlaneHoverSurf: (val) => { planeHoverSurf = val; },
     getPlaneHoverAdd: () => planeHoverAdd,
     setPlaneHoverAdd: (val) => { planeHoverAdd = val; },
-    getSelectedGroupName: () => selectedGroupName,
-    setSelectedGroupName: (val) => { selectedGroupName = val; },
-    getGroupOverlaysVisible: () => groupOverlaysVisible,
-    setGroupOverlaysVisible: (val) => { groupOverlaysVisible = val; },
+    getSelectedRegionName: () => selectedRegionName,
+    setSelectedRegionName: (val) => { selectedRegionName = val; },
+    getRegionOverlaysVisible: () => regionOverlaysVisible,
+    setRegionOverlaysVisible: (val) => { regionOverlaysVisible = val; },
 
     // Functions
     buildAllMeshes,

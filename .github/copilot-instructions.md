@@ -1,7 +1,7 @@
 # Carvery - Voxel Editor Instructions
 
 ## Project Overview
-Carvery is a **WebGL2-based voxel editor** with animation capabilities. It's a single-page application built with vanilla JavaScript and Vite, featuring a custom DSL for defining animated voxel groups.
+Carvery is a **WebGL2-based voxel editor** with animation capabilities. It's a single-page application built with vanilla JavaScript and Vite, featuring a custom DSL for defining animated voxel regions.
 
 **Core architecture**: Standalone modules with explicit state passing (no frameworks).
 
@@ -47,7 +47,7 @@ initializeUI(uiState);  // Pass state to UI module
 ### 2. Voxel Data Structure (VoxelChunk)
 - **Fixed 16×16×16 grid** stored in flat arrays
 - Dual representation: `_isSolid` (boolean array) + `_material` (Uint8Array, 0-15 palette indices)
-- **Groups**: Optional named AABB masks for animations (`_groups` Map)
+- **Regions**: Optional named AABB masks for animations (`_regions` Map)
 - **Coordinate system**: `idx3(x,y,z) = x + 16*(y + 16*z)` (X-major order)
 
 ```javascript
@@ -72,13 +72,13 @@ if (chunk.isSolid(id)) {
 **Convention**: Use the `.set()` helper for uniforms, never raw `gl.uniformXxx`.
 
 ### 4. Greedy Meshing
-`VoxelChunk.buildGreedyRenderMeshMain/Group()` generates optimized geometry:
+`VoxelChunk.buildGreedyRenderMeshMain/Region()` generates optimized geometry:
 - Per-axis sweep merging coplanar quads
-- **Two meshes**: Main (non-grouped voxels) + per-group VAOs
+- **Two meshes**: Main (non-regioned voxels) + per-region VAOs
 - Stores material ID per-vertex for palette lookup in shaders
-- Outputs to `renderProg.meta.renderIndexCount` and `renderProg.meta.groups[name].indexCount`
+- Outputs to `renderProg.meta.renderIndexCount` and `renderProg.meta.regions[name].indexCount`
 
-**Critical**: Rebuild all meshes after group changes via `buildAllMeshes()`.
+**Critical**: Rebuild all meshes after region changes via `buildAllMeshes()`.
 
 ### 5. Mouse Picking System
 - **Offscreen render** to `pickFBO` with voxel ID + face encoded in RGB
@@ -90,44 +90,44 @@ if (chunk.isSolid(id)) {
 **Three-layer structure**:
 ```
 AnimationSystem
-├── groups: Map<name, AnimationGroup>  // AABB bounds + state machine
+├── regions: Map<name, AnimationRegion>  // AABB bounds + state machine
 └── animations: Map<name, Animation>    // Keyframes + guard conditions
 ```
 
 **DSL Example** (in `index.html` textarea):
 ```
-group door {
+region door {
   min [0, 0, 0]
   max [2, 4, 1]
   state closed
 }
 
 anim door_open {
-  group door
-  guard closed          # Only runs if group.state === "closed"
+  region door
+  guard closed          # Only runs if region.state === "closed"
   rotate 0 to 90 for 2 pivot [0, 0, 0] axis [0, 1, 0]
-  state open            # Sets group.state on completion
+  state open            # Sets region.state on completion
 }
 ```
 **Keyframe types**: `rotate`, `move [x|y|z]`, `wait`
 
 **Critical flow**:
 1. Parse DSL → `animSystem.parse(dsl)`
-2. Assign voxels → `animSystem.assignVoxelsToGroups(chunk)`
-3. Register groups → `chunk.addGroup(name, min, max)`
-4. Rebuild meshes → `buildAllMeshes()` (creates separate VAOs per group)
+2. Assign voxels → `animSystem.assignVoxelsToRegions(chunk)`
+3. Register regions → `chunk.addRegion(name, min, max)`
+4. Rebuild meshes → `buildAllMeshes()` (creates separate VAOs per region)
 
 ### 7. Multi-Mesh Rendering
-In render loop, render main mesh + per-group meshes with transforms:
+In render loop, render main mesh + per-region meshes with transforms:
 ```javascript
 renderProg.uModel.set(model);  // Identity for main mesh
 gl.drawElements(gl.TRIANGLES, renderProg.meta.renderIndexCount, ...);
 
-Object.keys(renderProg.meta.groups).forEach(name => {
-  const transform = animSystem.getGroupTransform(name);
-  const groupModel = Mat4.multiply(model, transform);
-  renderProg.uModel.set(groupModel);
-  gl.drawElements(..., group.indexCount, ...);
+Object.keys(renderProg.meta.regions).forEach(name => {
+  const transform = animSystem.getRegionTransform(name);
+  const regionModel = Mat4.multiply(model, transform);
+  renderProg.uModel.set(regionModel);
+  gl.drawElements(..., region.indexCount, ...);
 });
 ```
 
@@ -162,7 +162,7 @@ commitAction(act, rebuild=true);  // Adds to undoStack, clears redoStack
 ### Adding Animation Keyframe Type
 1. Add DSL parsing in `AnimationSystem.parse()` (switch on `cmd`)
 2. Store keyframe: `currentAnim.keyframes.push({ type: 'mytype', ... })`
-3. Implement in `Animation._updateGroupTransform()` (switch on `kf.type`)
+3. Implement in `Animation._updateRegionTransform()` (switch on `kf.type`)
 4. Update `toJSON/fromJSON` if needed
 
 ### Extending UI
@@ -174,7 +174,7 @@ commitAction(act, rebuild=true);  // Adds to undoStack, clears redoStack
 ### Performance Notes
 - **Greedy meshing** reduces draw calls ~100x vs naïve cubes
 - Picking uses lazy FBO updates (only on mouse move)
-- Animation transforms recompute every frame (acceptable for ~10 groups)
+- Animation transforms recompute every frame (acceptable for ~10 regions)
 
 ## File Organization
 ```
@@ -184,7 +184,7 @@ src/
   voxel-chunk.js       # VoxelChunk class (data + meshing)
   AnimationSystem.js   # DSL parser, animation registry
   Animation.js         # Per-animation logic, transform calculation
-  AnimationGroup.js    # Group bounds, state, voxel membership
+  AnimationRegion.js    # Region bounds, state, voxel membership
   webgl.js             # Program wrapper with introspection
   3d.js                # OrbitCamera, wireframe helpers
   math.js              # Mat4, Vec3 utilities
@@ -195,7 +195,7 @@ src/
 
 ## Gotchas
 - **Coordinate order matters**: `idx3(x,y,z)` but loops often go `z→y→x`
-- **Groups exclude voxels from main mesh**: Check `buildGreedyRenderMeshMain`'s `isSolid` predicate
+- **Regions exclude voxels from main mesh**: Check `buildGreedyRenderMeshMain`'s `isSolid` predicate
 - **Ground plane is face 6**: Special case in picking (not voxel-backed)
-- **Animation guards are strings**: Check `group.state === anim.guard` (case-sensitive)
+- **Animation guards are strings**: Check `region.state === anim.guard` (case-sensitive)
 - **Palette is shared Float32Array**: Upload via `renderProg.uPalette.set(palette.colors)`
