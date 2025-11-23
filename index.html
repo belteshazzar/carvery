@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Carvery - Editor</title>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <script type="module" crossorigin src="/assets/index-BmNcpPJx.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/voxel-chunk-C2aVMRXz.js">
+  <link rel="stylesheet" crossorigin href="/assets/index-DbhcRr6O.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- Menu button (top-right) -->
+  <button id="btnToggleMenu" class="menu-btn" title="Toggle menu">☰</button>
+
+  <div id="glwrap">
+    <canvas id="gl" tabindex="0"></canvas>
+    <div class="hud">
+      <div><span id="x">-</span>,<span id="y">-</span>,<span id="z">-</span></div>
+    </div>
+  </div>
+  <!-- Main toolbar with all controls in one row -->
+  <div class="toolbar">
+    <div class="toolbar-row">
+    <!-- Mode selection -->
+    <div class="radio-toolbar">
+      <input type="radio" id="modePaint" name="modeSelect" value="paint" checked>
+      <label for="modePaint">Paint (q)</label>
+      <input type="radio" id="modeCarve" name="modeSelect" value="carve">
+      <label for="modeCarve">Carve (w)</label>
+      <input type="radio" id="modeAdd" name="modeSelect" value="add">
+      <label for="modeAdd">Add (s)</label>
+    </div>
+
+    <!-- Option selection -->
+    <div class="radio-toolbar">
+      <input type="radio" id="optionVoxel" name="optionSelect" value="voxel" checked>
+      <label for="optionVoxel">Voxel (v)</label>
+      <input type="radio" id="optionRow" name="optionSelect" value="row">
+      <label for="optionRow">Row (r)</label>
+      <input type="radio" id="optionPlane" name="optionSelect" value="plane">
+      <label for="optionPlane">Plane (p)</label>
+    </div>
+  </div>
+</div>
+
+<!-- Palette panel (left side) -->
+<div class="palette-container">
+  <div id="palette"></div>
+</div>
+
+<!-- Side panel -->
+<div class="side-panel">
+  <div class="side-panel-header">
+    <h3>&nbsp;</h3>
+    <button id="btnCloseMenu" class="close-btn">&times;</button>
+  </div>
+
+  <div class="side-panel-content">
+    <!-- Undo/Redo -->
+    <div class="panel-section">
+      <div class="panel-buttons">
+        <button id="btnUndo" class="panel-btn" title="Undo (Ctrl+Z / ⌘Z)" disabled>Undo</button>
+        <button id="btnRedo" class="panel-btn" title="Redo (Ctrl+Y / Ctrl+Shift+Z / ⌘Shift+Z)" disabled>Redo</button>
+      </div>
+    </div>
+
+    <!-- Shift controls -->
+    <div class="panel-section">
+      <h4>Move Voxels</h4>
+      <div class="shift-controls">
+        <div class="shift-button-group">
+          <button id="btnShiftXNeg" class="shift-btn shift-minus" title="Shift all voxels -1 in X axis">−</button>
+          <span class="shift-label shift-x">X</span>
+          <button id="btnShiftXPos" class="shift-btn shift-plus" title="Shift all voxels +1 in X axis">+</button>
+        </div>
+        <div class="shift-button-group">
+          <button id="btnShiftYNeg" class="shift-btn shift-minus" title="Shift all voxels -1 in Y axis">−</button>
+          <span class="shift-label shift-y">Y</span>
+          <button id="btnShiftYPos" class="shift-btn shift-plus" title="Shift all voxels +1 in Y axis">+</button>
+        </div>
+        <div class="shift-button-group">
+          <button id="btnShiftZNeg" class="shift-btn shift-minus" title="Shift all voxels -1 in Z axis">−</button>
+          <span class="shift-label shift-z">Z</span>
+          <button id="btnShiftZPos" class="shift-btn shift-plus" title="Shift all voxels +1 in Z axis">+</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Resize chunk controls -->
+    <div class="panel-section">
+      <h4>Chunk Size</h4>
+      <div class="shift-controls">
+        <div class="shift-button-group">
+          <button id="btnShrinkX" class="shift-btn shift-minus" title="Shrink chunk size in X axis by 1 (min 1)">−</button>
+          <span id="sizeX" class="shift-label shift-size shift-x" title="Current X dimension">16</span>
+          <button id="btnExpandX" class="shift-btn shift-plus" title="Expand chunk size in X axis by 1">+</button>
+        </div>
+        <div class="shift-button-group">
+          <button id="btnShrinkY" class="shift-btn shift-minus" title="Shrink chunk size in Y axis by 1 (min 1)">−</button>
+          <span id="sizeY" class="shift-label shift-size shift-y" title="Current Y dimension">16</span>
+          <button id="btnExpandY" class="shift-btn shift-plus" title="Expand chunk size in Y axis by 1">+</button>
+        </div>
+        <div class="shift-button-group">
+          <button id="btnShrinkZ" class="shift-btn shift-minus" title="Shrink chunk size in Z axis by 1 (min 1)">−</button>
+          <span id="sizeZ" class="shift-label shift-size shift-z" title="Current Z dimension">16</span>
+          <button id="btnExpandZ" class="shift-btn shift-plus" title="Expand chunk size in Z axis by 1">+</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Camera target controls -->
+    <div class="panel-section">
+      <h4>Camera Target</h4>
+      <div class="shift-controls">
+        <div class="shift-button-group">
+          <button id="btnCameraXMinus" class="shift-btn shift-minus" title="Move camera target -1 in X axis">−</button>
+          <span id="cameraX" class="shift-label shift-size shift-x" title="Camera target X position">8</span>
+          <button id="btnCameraXPlus" class="shift-btn shift-plus" title="Move camera target +1 in X axis">+</button>
+        </div>
+        <div class="shift-button-group">
+          <button id="btnCameraYMinus" class="shift-btn shift-minus" title="Move camera target -1 in Y axis">−</button>
+          <span id="cameraY" class="shift-label shift-size shift-y" title="Camera target Y position">8</span>
+          <button id="btnCameraYPlus" class="shift-btn shift-plus" title="Move camera target +1 in Y axis">+</button>
+        </div>
+        <div class="shift-button-group">
+          <button id="btnCameraZMinus" class="shift-btn shift-minus" title="Move camera target -1 in Z axis">−</button>
+          <span id="cameraZ" class="shift-label shift-size shift-z" title="Camera target Z position">8</span>
+          <button id="btnCameraZPlus" class="shift-btn shift-plus" title="Move camera target +1 in Z axis">+</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Import/Export -->
+    <div class="panel-section">
+      <input id="fileInput" type="file" accept="application/json" style="display: none;" />
+      <div class="panel-buttons">
+        <button id="btnImport" class="panel-btn">Import</button>
+        <button id="btnExport" class="panel-btn">Export</button>
+      </div>
+    </div>
+
+    <!-- Reset -->
+    <div class="panel-section">
+      <button id="resetSolid" class="panel-btn" style="width: 100%;">Reset</button>
+    </div>
+  </div>
+</div>
+
+
+</body>
+</html>

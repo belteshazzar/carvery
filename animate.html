@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <title>Carvery - Animations</title>
+  <script type="module" crossorigin src="/assets/animate-BgLi5702.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/voxel-chunk-C2aVMRXz.js">
+  <link rel="stylesheet" crossorigin href="/assets/animate-sVltqK1y.css">
+</head>
+<body>
+  <div id="animate-layout">
+    <div id="app">
+      <div id="glwrap">
+        <canvas id="gl" tabindex="0"></canvas>
+        <div class="hud">
+          <div><span id="x">-</span>,<span id="y">-</span>,<span id="z">-</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="animation-panel" data-loaded="false">
+
+      <div class="toolbar">
+        <div class="toolbar-row">
+          <input id="fileInput" type="file" accept="application/json" style="display: none;" />
+          <div class="undo-group">
+            <button id="btnImport">Import</button>
+            <button id="btnExport" class="hide-until-loaded">Export</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="animation-controls hide-until-loaded">
+        <button id="btnPlay">Play Loops</button>
+        <button id="btnPause">Pause All</button>
+        <button id="btnResetAll">Reset All</button>
+      </div>
+
+      <div class="region-list-container hide-until-loaded">
+        <div id="regionList"></div>
+      </div>
+      
+
+      <div class="animation-list-container hide-until-loaded">
+        <div id="animationList"></div>
+      </div>
+
+      <div class="emitter-list-container hide-until-loaded">
+        <div id="emitterList"></div>
+      </div>
+
+      <div class="group-list-container hide-until-loaded">
+        <div id="groupList"></div>
+      </div>
+    
+    </div>
+  </div>
+
+
+</body>
+</html>
