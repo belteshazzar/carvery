@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Carvery - Editor</title>
   <link rel="icon" type="image/x-icon" href="./favicon.ico">
-  <script type="module" crossorigin src="./assets/index-BmNcpPJx.js"></script>
+  <script type="module" crossorigin src="./assets/index-mSRnAkKJ.js"></script>
   <link rel="modulepreload" crossorigin href="./assets/voxel-chunk-C2aVMRXz.js">
   <link rel="stylesheet" crossorigin href="./assets/index-DbhcRr6O.css">
 </head>
@@ -26,18 +26,18 @@
     <div class="toolbar-row">
     <!-- Mode selection -->
     <div class="radio-toolbar">
-      <input type="radio" id="modePaint" name="modeSelect" value="paint" checked>
-      <label for="modePaint">Paint (q)</label>
-      <input type="radio" id="modeCarve" name="modeSelect" value="carve">
-      <label for="modeCarve">Carve (w)</label>
+      <input type="radio" id="modeCarve" name="modeSelect" value="carve" checked>
+      <label for="modeCarve">Carve (q)</label>
       <input type="radio" id="modeAdd" name="modeSelect" value="add">
-      <label for="modeAdd">Add (s)</label>
+      <label for="modeAdd">Add (w)</label>
+      <input type="radio" id="modePaint" name="modeSelect" value="paint">
+      <label for="modePaint">Paint (s)</label>
     </div>
 
     <!-- Option selection -->
     <div class="radio-toolbar">
       <input type="radio" id="optionVoxel" name="optionSelect" value="voxel" checked>
-      <label for="optionVoxel">Voxel (v)</label>
+      <label for="optionVoxel" title="Hold Shift + Click and drag to continuously apply tool">Voxel (v)</label>
       <input type="radio" id="optionRow" name="optionSelect" value="row">
       <label for="optionRow">Row (r)</label>
       <input type="radio" id="optionPlane" name="optionSelect" value="plane">
