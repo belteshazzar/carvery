@@ -11,6 +11,7 @@ export default defineConfig({
       input: {
         index: resolve(__dirname, 'index.html'),
         animate: resolve(__dirname, 'animate.html'),
+        render: resolve(__dirname, 'render.html'),
       },
     },
   },

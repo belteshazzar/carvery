@@ -1,6 +1,10 @@
 {
   "version": 1,
-  "size": 16,
+  "size": [
+    16,
+    16,
+    16
+  ],
   "palette": [
     "#ffffff",
     "#ff9300",
@@ -105,317 +109,308 @@
     "2370",
     "2470"
   ],
-
-    "regions": {
-      "left-wing": {
-        "min": [
-          0,
-          2,
-          0
-        ],
-        "max": [
-          0,
-          3,
-          6
-        ]
-      },
-      "right-wing": {
-        "min": [
-          4,
-          2,
-          0
-        ],
-        "max": [
-          4,
-          3,
-          6
-        ]
-      },
-      "left-leg": {
-        "min": [
-          1,
-          0,
-          3
-        ],
-        "max": [
-          1,
-          1,
-          5
-        ]
-      },
-      "right-leg": {
-        "min": [
-          3,
-          0,
-          3
-        ],
-        "max": [
-          3,
-          1,
-          5
-        ]
-      },
-      "head": {
-        "min": [
-          1,
-          4,
-          0
-        ],
-        "max": [
-          3,
-          7,
-          4
-        ]
-      }
+  "regions": {
+    "left-wing": {
+      "min": [
+        0,
+        2,
+        0
+      ],
+      "max": [
+        0,
+        3,
+        6
+      ]
     },
-    "animations": {
-      "flap-left": {
-        "regionName": "left-wing",
-        "loop": true,
-        "guard": null,
-        "endState": null,
-        "keyframes": [
-          {
-            "type": "rotate",
-            "from": 0,
-            "to": -60,
-            "duration": 0.2,
-            "pivot": [
-              1,
-              4,
-              0
-            ],
-            "axis": [
-              0,
-              0,
-              1
-            ]
-          },
-          {
-            "type": "rotate",
-            "from": 0,
-            "to": 60,
-            "duration": 0.2,
-            "pivot": [
-              1,
-              4,
-              0
-            ],
-            "axis": [
-              0,
-              0,
-              1
-            ]
-          }
-        ]
-      },
-      "flap-right": {
-        "regionName": "right-wing",
-        "loop": true,
-        "guard": null,
-        "endState": null,
-        "keyframes": [
-          {
-            "type": "rotate",
-            "from": 0,
-            "to": 60,
-            "duration": 0.2,
-            "pivot": [
-              4,
-              4,
-              0
-            ],
-            "axis": [
-              0,
-              0,
-              1
-            ]
-          },
-          {
-            "type": "rotate",
-            "from": 0,
-            "to": -60,
-            "duration": 0.2,
-            "pivot": [
-              4,
-              4,
-              0
-            ],
-            "axis": [
-              0,
-              0,
-              1
-            ]
-          }
-        ]
-      },
-      "walk-left": {
-        "regionName": "left-leg",
-        "loop": true,
-        "guard": null,
-        "endState": null,
-        "keyframes": [
-          {
-            "type": "rotate",
-            "from": 0,
-            "to": -20,
-            "duration": 0.2,
-            "pivot": [
-              1,
-              2,
-              4.5
-            ],
-            "axis": [
-              1,
-              0,
-              0
-            ]
-          },
-          {
-            "type": "rotate",
-            "from": 0,
-            "to": 40,
-            "duration": 0.4,
-            "pivot": [
-              1,
-              2,
-              4.5
-            ],
-            "axis": [
-              1,
-              0,
-              0
-            ]
-          },
-          {
-            "type": "rotate",
-            "from": 0,
-            "to": -20,
-            "duration": 0.2,
-            "pivot": [
-              1,
-              2,
-              4.5
-            ],
-            "axis": [
-              1,
-              0,
-              0
-            ]
-          }
-        ]
-      },
-      "walk-right": {
-        "regionName": "right-leg",
-        "loop": true,
-        "guard": null,
-        "endState": null,
-        "keyframes": [
-          {
-            "type": "rotate",
-            "from": 0,
-            "to": 20,
-            "duration": 0.2,
-            "pivot": [
-              1,
-              2,
-              4.5
-            ],
-            "axis": [
-              1,
-              0,
-              0
-            ]
-          },
-          {
-            "type": "rotate",
-            "from": 0,
-            "to": -40,
-            "duration": 0.4,
-            "pivot": [
-              1,
-              2,
-              4.5
-            ],
-            "axis": [
-              1,
-              0,
-              0
-            ]
-          },
-          {
-            "type": "rotate",
-            "from": 0,
-            "to": 20,
-            "duration": 0.2,
-            "pivot": [
-              1,
-              2,
-              4.5
-            ],
-            "axis": [
-              1,
-              0,
-              0
-            ]
-          }
-        ]
-      },
-      "turn-head": {
-        "regionName": "head",
-        "loop": true,
-        "guard": null,
-        "endState": null,
-        "keyframes": [
-          {
-            "type": "rotate",
-            "from": 0,
-            "to": 20,
-            "duration": 1,
-            "pivot": [
-              3,
-              0,
-              3
-            ],
-            "axis": [
-              0,
-              1,
-              0
-            ]
-          },
-          {
-            "type": "rotate",
-            "from": 0,
-            "to": -40,
-            "duration": 2,
-            "pivot": [
-              3,
-              0,
-              3
-            ],
-            "axis": [
-              0,
-              1,
-              0
-            ]
-          },
-          {
-            "type": "rotate",
-            "from": 0,
-            "to": 20,
-            "duration": 1,
-            "pivot": [
-              3,
-              0,
-              3
-            ],
-            "axis": [
-              0,
-              1,
-              0
-            ]
-          }
-        ]
-      }
+    "right-wing": {
+      "min": [
+        4,
+        2,
+        0
+      ],
+      "max": [
+        4,
+        3,
+        6
+      ]
+    },
+    "left-leg": {
+      "min": [
+        1,
+        0,
+        3
+      ],
+      "max": [
+        1,
+        1,
+        5
+      ]
+    },
+    "right-leg": {
+      "min": [
+        3,
+        0,
+        3
+      ],
+      "max": [
+        3,
+        1,
+        5
+      ]
+    },
+    "head": {
+      "min": [
+        1,
+        4,
+        0
+      ],
+      "max": [
+        3,
+        7,
+        4
+      ]
     }
+  },
+  "animations": {
+    "flap-left": {
+      "regionName": "left-wing",
+      "loop": true,
+      "keyframes": [
+        {
+          "type": "rotate",
+          "from": 0,
+          "to": -60,
+          "duration": 0.2,
+          "pivot": [
+            1,
+            4,
+            0
+          ],
+          "axis": [
+            0,
+            0,
+            1
+          ]
+        },
+        {
+          "type": "rotate",
+          "from": 0,
+          "to": 60,
+          "duration": 0.2,
+          "pivot": [
+            1,
+            4,
+            0
+          ],
+          "axis": [
+            0,
+            0,
+            1
+          ]
+        }
+      ]
+    },
+    "flap-right": {
+      "regionName": "right-wing",
+      "loop": true,
+      "keyframes": [
+        {
+          "type": "rotate",
+          "from": 0,
+          "to": 60,
+          "duration": 0.2,
+          "pivot": [
+            4,
+            4,
+            0
+          ],
+          "axis": [
+            0,
+            0,
+            1
+          ]
+        },
+        {
+          "type": "rotate",
+          "from": 0,
+          "to": -60,
+          "duration": 0.2,
+          "pivot": [
+            4,
+            4,
+            0
+          ],
+          "axis": [
+            0,
+            0,
+            1
+          ]
+        }
+      ]
+    },
+    "walk-left": {
+      "regionName": "left-leg",
+      "loop": true,
+      "keyframes": [
+        {
+          "type": "rotate",
+          "from": 0,
+          "to": -20,
+          "duration": 0.2,
+          "pivot": [
+            1,
+            2,
+            4.5
+          ],
+          "axis": [
+            1,
+            0,
+            0
+          ]
+        },
+        {
+          "type": "rotate",
+          "from": 0,
+          "to": 40,
+          "duration": 0.4,
+          "pivot": [
+            1,
+            2,
+            4.5
+          ],
+          "axis": [
+            1,
+            0,
+            0
+          ]
+        },
+        {
+          "type": "rotate",
+          "from": 0,
+          "to": -20,
+          "duration": 0.2,
+          "pivot": [
+            1,
+            2,
+            4.5
+          ],
+          "axis": [
+            1,
+            0,
+            0
+          ]
+        }
+      ]
+    },
+    "walk-right": {
+      "regionName": "right-leg",
+      "loop": true,
+      "keyframes": [
+        {
+          "type": "rotate",
+          "from": 0,
+          "to": 20,
+          "duration": 0.2,
+          "pivot": [
+            1,
+            2,
+            4.5
+          ],
+          "axis": [
+            1,
+            0,
+            0
+          ]
+        },
+        {
+          "type": "rotate",
+          "from": 0,
+          "to": -40,
+          "duration": 0.4,
+          "pivot": [
+            1,
+            2,
+            4.5
+          ],
+          "axis": [
+            1,
+            0,
+            0
+          ]
+        },
+        {
+          "type": "rotate",
+          "from": 0,
+          "to": 20,
+          "duration": 0.2,
+          "pivot": [
+            1,
+            2,
+            4.5
+          ],
+          "axis": [
+            1,
+            0,
+            0
+          ]
+        }
+      ]
+    },
+    "turn-head": {
+      "regionName": "head",
+      "loop": true,
+      "keyframes": [
+        {
+          "type": "rotate",
+          "from": 0,
+          "to": 20,
+          "duration": 1,
+          "pivot": [
+            3,
+            0,
+            3
+          ],
+          "axis": [
+            0,
+            1,
+            0
+          ]
+        },
+        {
+          "type": "rotate",
+          "from": 0,
+          "to": -40,
+          "duration": 2,
+          "pivot": [
+            3,
+            0,
+            3
+          ],
+          "axis": [
+            0,
+            1,
+            0
+          ]
+        },
+        {
+          "type": "rotate",
+          "from": 0,
+          "to": 20,
+          "duration": 1,
+          "pivot": [
+            3,
+            0,
+            3
+          ],
+          "axis": [
+            0,
+            1,
+            0
+          ]
+        }
+      ]
+    }
+  },
+  "emitters": {},
+  "groups": {}
 }
