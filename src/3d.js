@@ -232,3 +232,285 @@ export function makeParticleCube() {
   };
 }
 
+// Generate sphere geometry using UV sphere algorithm
+export function createSphere(radius = 0.5, segments = 32, rings = 16) {
+  const positions = [];
+  const normals = [];
+  const indices = [];
+
+  // Generate vertices
+  for (let ring = 0; ring <= rings; ring++) {
+    const phi = (ring / rings) * Math.PI; // 0 to PI
+    const y = Math.cos(phi);
+    const ringRadius = Math.sin(phi);
+
+    for (let seg = 0; seg <= segments; seg++) {
+      const theta = (seg / segments) * Math.PI * 2; // 0 to 2PI
+      const x = ringRadius * Math.cos(theta);
+      const z = ringRadius * Math.sin(theta);
+
+      // Position
+      positions.push(x * radius, y * radius, z * radius);
+
+      // Normal (normalized position for a sphere centered at origin)
+      normals.push(x, y, z);
+    }
+  }
+
+  // Generate indices
+  for (let ring = 0; ring < rings; ring++) {
+    for (let seg = 0; seg < segments; seg++) {
+      const current = ring * (segments + 1) + seg;
+      const next = current + segments + 1;
+
+      // Two triangles per quad
+      indices.push(current, next, current + 1);
+      indices.push(current + 1, next, next + 1);
+    }
+  }
+
+  return {
+    positions: new Float32Array(positions),
+    normals: new Float32Array(normals),
+    indices: new Uint32Array(indices)
+  };
+}
+
+// Generate cone geometry
+export function createCone(radius = 0.5, height = 1.0, segments = 32) {
+  const positions = [];
+  const normals = [];
+  const indices = [];
+
+  const halfHeight = height / 2;
+  
+  // Calculate the slope angle for proper normals
+  const slant = Math.sqrt(radius * radius + height * height);
+  const normalY = radius / slant;
+  const normalXZ = height / slant;
+
+  // Apex (tip) of the cone
+  const apexIndex = 0;
+  positions.push(0, halfHeight, 0);
+  normals.push(0, 1, 0); // Normal will be averaged
+
+  // Generate base ring vertices (for the sides)
+  for (let seg = 0; seg <= segments; seg++) {
+    const theta = (seg / segments) * Math.PI * 2;
+    const x = Math.cos(theta);
+    const z = Math.sin(theta);
+
+    // Position
+    positions.push(x * radius, -halfHeight, z * radius);
+
+    // Normal (points outward from cone surface)
+    normals.push(x * normalXZ, normalY, z * normalXZ);
+  }
+
+  // Generate side triangles (from apex to base ring)
+  for (let seg = 0; seg < segments; seg++) {
+    const current = seg + 1;
+    const next = seg + 2;
+
+    indices.push(apexIndex, next, current);
+  }
+
+  // Generate base cap
+  const baseCenterIndex = positions.length / 3;
+  positions.push(0, -halfHeight, 0);
+  normals.push(0, -1, 0);
+
+  for (let seg = 0; seg <= segments; seg++) {
+    const theta = (seg / segments) * Math.PI * 2;
+    const x = Math.cos(theta);
+    const z = Math.sin(theta);
+
+    positions.push(x * radius, -halfHeight, z * radius);
+    normals.push(0, -1, 0);
+  }
+
+  for (let seg = 0; seg < segments; seg++) {
+    indices.push(baseCenterIndex, baseCenterIndex + seg + 1, baseCenterIndex + seg + 2);
+  }
+
+  return {
+    positions: new Float32Array(positions),
+    normals: new Float32Array(normals),
+    indices: new Uint32Array(indices)
+  };
+}
+
+// Generate cylinder geometry
+export function createCylinder(radius = 0.5, height = 1.0, segments = 32) {
+  const positions = [];
+  const normals = [];
+  const indices = [];
+
+  const halfHeight = height / 2;
+
+  // Generate side vertices (two rings - top and bottom)
+  for (let i = 0; i <= 1; i++) {
+    const y = i === 0 ? -halfHeight : halfHeight;
+    
+    for (let seg = 0; seg <= segments; seg++) {
+      const theta = (seg / segments) * Math.PI * 2;
+      const x = Math.cos(theta);
+      const z = Math.sin(theta);
+
+      // Position
+      positions.push(x * radius, y, z * radius);
+
+      // Normal (perpendicular to cylinder axis, points outward)
+      normals.push(x, 0, z);
+    }
+  }
+
+  // Generate side indices
+  for (let seg = 0; seg < segments; seg++) {
+    const current = seg;
+    const next = seg + 1;
+    const currentTop = seg + (segments + 1);
+    const nextTop = next + (segments + 1);
+
+    // Two triangles per quad
+    indices.push(current, currentTop, next);
+    indices.push(next, currentTop, nextTop);
+  }
+
+  // Generate bottom cap
+  const bottomCenterIndex = positions.length / 3;
+  positions.push(0, -halfHeight, 0);
+  normals.push(0, -1, 0);
+
+  for (let seg = 0; seg <= segments; seg++) {
+    const theta = (seg / segments) * Math.PI * 2;
+    const x = Math.cos(theta);
+    const z = Math.sin(theta);
+
+    positions.push(x * radius, -halfHeight, z * radius);
+    normals.push(0, -1, 0);
+  }
+
+  for (let seg = 0; seg < segments; seg++) {
+    indices.push(bottomCenterIndex, bottomCenterIndex + seg + 1, bottomCenterIndex + seg + 2);
+  }
+
+  // Generate top cap
+  const topCenterIndex = positions.length / 3;
+  positions.push(0, halfHeight, 0);
+  normals.push(0, 1, 0);
+
+  for (let seg = 0; seg <= segments; seg++) {
+    const theta = (seg / segments) * Math.PI * 2;
+    const x = Math.cos(theta);
+    const z = Math.sin(theta);
+
+    positions.push(x * radius, halfHeight, z * radius);
+    normals.push(0, 1, 0);
+  }
+
+  for (let seg = 0; seg < segments; seg++) {
+    indices.push(topCenterIndex, topCenterIndex + seg + 2, topCenterIndex + seg + 1);
+  }
+
+  return {
+    positions: new Float32Array(positions),
+    normals: new Float32Array(normals),
+    indices: new Uint32Array(indices)
+  };
+}
+
+// Generate torus geometry
+export function createTorus(majorRadius = 0.5, minorRadius = 0.2, majorSegments = 32, minorSegments = 16) {
+  const positions = [];
+  const normals = [];
+  const indices = [];
+
+  // Generate vertices
+  for (let i = 0; i <= majorSegments; i++) {
+    const u = (i / majorSegments) * Math.PI * 2; // Major circle angle
+    const cosMajor = Math.cos(u);
+    const sinMajor = Math.sin(u);
+
+    for (let j = 0; j <= minorSegments; j++) {
+      const v = (j / minorSegments) * Math.PI * 2; // Minor circle angle
+      const cosMinor = Math.cos(v);
+      const sinMinor = Math.sin(v);
+
+      // Position on torus surface
+      const x = (majorRadius + minorRadius * cosMinor) * cosMajor;
+      const y = minorRadius * sinMinor;
+      const z = (majorRadius + minorRadius * cosMinor) * sinMajor;
+
+      positions.push(x, y, z);
+
+      // Normal vector (points outward from minor circle center)
+      const nx = cosMinor * cosMajor;
+      const ny = sinMinor;
+      const nz = cosMinor * sinMajor;
+
+      normals.push(nx, ny, nz);
+    }
+  }
+
+  // Generate indices
+  for (let i = 0; i < majorSegments; i++) {
+    for (let j = 0; j < minorSegments; j++) {
+      const current = i * (minorSegments + 1) + j;
+      const next = current + minorSegments + 1;
+
+      // Two triangles per quad
+      indices.push(current, current + 1, next);
+      indices.push(current + 1, next + 1, next);
+    }
+  }
+
+  return {
+    positions: new Float32Array(positions),
+    normals: new Float32Array(normals),
+    indices: new Uint32Array(indices)
+  };
+}
+
+// Generate plane geometry divided into segments
+export function createPlane(width = 1.0, height = 1.0, widthSegments = 1, heightSegments = 1) {
+  const positions = [];
+  const normals = [];
+  const indices = [];
+
+  const halfWidth = width / 2;
+  const halfHeight = height / 2;
+
+  // Generate vertices
+  for (let i = 0; i <= heightSegments; i++) {
+    const y = (i / heightSegments) * height - halfHeight;
+
+    for (let j = 0; j <= widthSegments; j++) {
+      const x = (j / widthSegments) * width - halfWidth;
+
+      // Position (plane in XY, facing +Z)
+      positions.push(x, 0, y);
+
+      // Normal (all pointing in +Z direction)
+      normals.push(0, 0, 1);
+    }
+  }
+
+  // Generate indices
+  for (let i = 0; i < heightSegments; i++) {
+    for (let j = 0; j < widthSegments; j++) {
+      const current = i * (widthSegments + 1) + j;
+      const next = current + widthSegments + 1;
+
+      // Two triangles per quad
+      indices.push(current, next, current + 1);
+      indices.push(current + 1, next, next + 1);
+    }
+  }
+
+  return {
+    positions: new Float32Array(positions),
+    normals: new Float32Array(normals),
+    indices: new Uint32Array(indices)
+  };
+}

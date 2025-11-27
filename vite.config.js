@@ -12,6 +12,7 @@ export default defineConfig({
         index: resolve(__dirname, 'index.html'),
         animate: resolve(__dirname, 'animate.html'),
         render: resolve(__dirname, 'render.html'),
+        cube: resolve(__dirname, 'cube.html'),
       },
     },
   },
