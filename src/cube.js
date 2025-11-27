@@ -1,10 +1,10 @@
 import { Mat4, Vec3, toRadians } from './math.js';
-import { OrbitCamera, createPlane } from './3d.js';
+import { OrbitCamera, makeParticleCube } from './3d.js';
 import { createProgram } from './webgl.js';
-import lambertFrag from './lambert.frag';
-import lambertVert from './lambert.vert';
+import waterFrag from './water.frag';
+import waterVert from './water.vert';
 
-/*** ======= Single Plane Demo ======= ***/
+/*** ======= Single Cube Demo ======= ***/
 
 
 function main() {
@@ -15,19 +15,21 @@ function main() {
     return;
   }
   gl.enable(gl.DEPTH_TEST);
-  gl.enable(gl.CULL_FACE);
-  gl.cullFace(gl.BACK);
+  gl.depthMask(false); // Don't write to depth buffer for transparency
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+  gl.disable(gl.CULL_FACE); // See both sides of faces
 
   // Rendering program
-  const renderProg = createProgram(gl, lambertVert, lambertFrag);
-  const plane = createPlane(1.0, 1.0, 10, 10);
+  const renderProg = createProgram(gl, waterVert, waterFrag);
+  const cube = makeParticleCube();
 
   // Material IDs (all same color - use material 0)
-  const matIds = new Uint8Array(plane.positions.length / 3).fill(0);
+  const matIds = new Uint8Array(cube.positions.length / 3).fill(0);
 
-  // Simple palette with a single color (orange/red)
+  // Simple palette with a single color (water blue-green)
   const palette = new Float32Array([
-    1.0, 0.5, 0.2,  // Material 0: Orange
+    0.1, 0.5, 0.7,  // Material 0: Water blue-green
     0.0, 1.0, 0.0,  // Material 1: Green (unused)
     0.0, 0.0, 1.0,  // Material 2: Blue (unused)
     1.0, 1.0, 0.0,  // Material 3: Yellow (unused)
@@ -51,13 +53,13 @@ function main() {
 
   // Position buffer
   gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
-  gl.bufferData(gl.ARRAY_BUFFER, plane.positions, gl.STATIC_DRAW);
+  gl.bufferData(gl.ARRAY_BUFFER, cube.positions, gl.STATIC_DRAW);
   gl.enableVertexAttribArray(renderProg.aPosition.location);
   gl.vertexAttribPointer(renderProg.aPosition.location, 3, gl.FLOAT, false, 0, 0);
 
   // Normal buffer
   gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
-  gl.bufferData(gl.ARRAY_BUFFER, plane.normals, gl.STATIC_DRAW);
+  gl.bufferData(gl.ARRAY_BUFFER, cube.normals, gl.STATIC_DRAW);
   gl.enableVertexAttribArray(renderProg.aNormal.location);
   gl.vertexAttribPointer(renderProg.aNormal.location, 3, gl.FLOAT, false, 0, 0);
 
@@ -69,7 +71,7 @@ function main() {
 
   // Index buffer
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.createBuffer());
-  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, plane.indices, gl.STATIC_DRAW);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, cube.indices, gl.STATIC_DRAW);
   gl.bindVertexArray(null);
 
   // Camera setup
@@ -162,8 +164,9 @@ function main() {
     renderProg.uPalette.set(palette);
     renderProg.uLightDirWS.set(new Float32Array([0.7 / 1.7, -1.2 / 1.7, 0.9 / 1.7]));
     renderProg.uAmbient.set(0.22);
+    renderProg.uCameraPos.set(camera.getEye());
 
-    gl.drawElements(gl.TRIANGLES, plane.indices.length, gl.UNSIGNED_INT, 0);
+    gl.drawElements(gl.TRIANGLES, cube.indices.length, gl.UNSIGNED_SHORT, 0);
 
     gl.bindVertexArray(null);
   }
