@@ -116,6 +116,10 @@ export function createProgram(gl, vsSrc, fsSrc) {
         res[nameOf(uniformInfo.name)].set = function(value) {
           gl.uniform3fv(location, value);
         };
+      } else if (uniformInfo.type === gl.FLOAT_VEC2) {
+        res[nameOf(uniformInfo.name)].set = function(value) {
+          gl.uniform2fv(location, value);
+        };
       } else if (uniformInfo.type === gl.FLOAT) {
         res[nameOf(uniformInfo.name)].set = function(value) {
           gl.uniform1f(location, value);

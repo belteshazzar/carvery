@@ -514,3 +514,37 @@ export function createPlane(width = 1.0, height = 1.0, widthSegments = 1, height
     indices: new Uint32Array(indices)
   };
 }
+
+/**
+ * Create a grass blade using crossed quads (two perpendicular vertical quads)
+ * @param {number} [height=0.3] - Height of the grass blade
+ * @param {number} [width=0.08] - Width of the grass blade
+ * @returns {{ positions: Float32Array, normals: Float32Array, indices: Uint16Array }}
+ */
+export function createGrassBlade(height = 0.3, width = 0.08) {
+  const h = height;
+  const w = width;
+  
+  const positions = new Float32Array([
+    // First quad (vertical)
+    -w, 0, 0,   w, 0, 0,   w, h, 0,   -w, h, 0,
+    // Second quad (perpendicular)
+    0, 0, -w,   0, 0, w,   0, h, w,   0, h, -w
+  ]);
+  
+  const normals = new Float32Array([
+    // First quad normals (facing +Z)
+    0, 0, 1,   0, 0, 1,   0, 0, 1,   0, 0, 1,
+    // Second quad normals (facing +X)
+    1, 0, 0,   1, 0, 0,   1, 0, 0,   1, 0, 0
+  ]);
+  
+  const indices = new Uint16Array([
+    // First quad
+    0, 1, 2,   0, 2, 3,
+    // Second quad
+    4, 5, 6,   4, 6, 7
+  ]);
+  
+  return { positions, normals, indices };
+}
