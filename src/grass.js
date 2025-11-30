@@ -141,6 +141,15 @@ function main() {
       
       gl.bindTexture(gl.TEXTURE_2D, grassTexture);
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RG8, grassTextureSize, grassTextureSize, 0, gl.RG, gl.UNSIGNED_BYTE, grassTextureData);
+      
+      // Refilter instances when texture is loaded
+      filteredInstances = filterGrassInstances();
+      visibleInstanceCount = filteredInstances.length / 3;
+      console.log(`Grass instances refiltered: ${visibleInstanceCount} / ${gridSize * gridSize}`);
+      
+      // Update instance buffer
+      gl.bindBuffer(gl.ARRAY_BUFFER, instanceBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, filteredInstances, gl.DYNAMIC_DRAW);
     };
     img.src = imageUrl;
   }
@@ -229,28 +238,51 @@ function main() {
   gl.enableVertexAttribArray(grassProg.aMatId.location);
   gl.vertexAttribIPointer(grassProg.aMatId.location, 1, gl.UNSIGNED_BYTE, 0, 0);
 
-  // Instance offset buffer (per-instance positions)
-  const instanceCount = gridSize * gridSize;
-  const instanceOffsets = new Float32Array(instanceCount * 3);
-  let instanceIdx = 0;
-  for (let x = 0; x < gridSize; x++) {
-    for (let z = 0; z < gridSize; z++) {
-      const seed = x * 100 + z;
-      const randomX = ((seed * 12.9898) % 1) * 0.08 - 0.04;
-      const randomZ = ((seed * 78.233) % 1) * 0.08 - 0.04;
-      
-      instanceOffsets[instanceIdx * 3 + 0] = offsetX + x * spacing + randomX;
-      instanceOffsets[instanceIdx * 3 + 1] = 0;
-      instanceOffsets[instanceIdx * 3 + 2] = offsetZ + z * spacing + randomZ;
-      instanceIdx++;
+  // Function to filter grass instances based on texture mask
+  function filterGrassInstances() {
+    const visibleInstances = [];
+    
+    for (let x = 0; x < gridSize; x++) {
+      for (let z = 0; z < gridSize; z++) {
+        const seed = x * 100 + z;
+        const randomX = ((seed * 12.9898) % 1) * 0.08 - 0.04;
+        const randomZ = ((seed * 78.233) % 1) * 0.08 - 0.04;
+        
+        const worldX = offsetX + x * spacing + randomX;
+        const worldZ = offsetZ + z * spacing + randomZ;
+        
+        // Map to texture coordinates
+        const uvX = (worldX - gridMinX) / (gridMaxX - gridMinX);
+        const uvZ = (worldZ - gridMinZ) / (gridMaxZ - gridMinZ);
+        
+        // Sample grass texture at this position
+        const texX = Math.floor(uvX * grassTextureSize);
+        const texZ = Math.floor(uvZ * grassTextureSize);
+        const texIdx = (texZ * grassTextureSize + texX) * 2;
+        
+        // Check if grass exists at this position (R channel > threshold)
+        const grassMask = grassTextureData[texIdx];
+        if (grassMask > 10) { // Threshold ~4% (10/255)
+          visibleInstances.push(worldX, 0, worldZ);
+        }
+      }
     }
+    
+    return new Float32Array(visibleInstances);
   }
   
+  // Initial filtering
+  let filteredInstances = filterGrassInstances();
+  let visibleInstanceCount = filteredInstances.length / 3;
+  
+  console.log(`Grass instances: ${visibleInstanceCount} / ${gridSize * gridSize} (${(visibleInstanceCount / (gridSize * gridSize) * 100).toFixed(1)}% visible)`);
+  
+  // Instance offset buffer (dynamic, filtered positions)
   const instanceBuffer = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, instanceBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, instanceOffsets, gl.STATIC_DRAW);
+  gl.bufferData(gl.ARRAY_BUFFER, filteredInstances, gl.DYNAMIC_DRAW); // DYNAMIC since it may change
   
-  // Add instance offset attribute (location needs to be added to shader)
+  // Add instance offset attribute
   const aInstanceOffset = gl.getAttribLocation(grassProg.program, 'aInstanceOffset');
   if (aInstanceOffset >= 0) {
     gl.enableVertexAttribArray(aInstanceOffset);
@@ -294,6 +326,7 @@ function main() {
   const cubePos = { x: 0, y: 0.15, z: 0 };
   let cubeRotation = 0; // Y-axis rotation in radians
   const cubeSize = 0.3;
+  const cubePivotOffset = -cubeSize / 2; // Pivot point offset for forklift-style steering
   const cubeSpeed = 0.05;
   const rotationSpeed = 0.05; // Radians per frame
 
@@ -431,32 +464,48 @@ function main() {
     const time = (performance.now() - startTime) / 1000.0; // Time in seconds
 
     // Update cube rotation and position based on keyboard input
-    if (keys['ArrowLeft']) {
-      cubeRotation += rotationSpeed;
-    }
-    if (keys['ArrowRight']) {
-      cubeRotation -= rotationSpeed;
+    // For forklift-style steering, rotate around the front pivot point
+    
+    // Check if moving forward or backward
+    const isMoving = keys['ArrowUp'] || keys['w'] || keys['ArrowDown'] || keys['s'];
+    
+    // Only allow turning while moving (like a real vehicle)
+    if (isMoving) {
+      if (keys['ArrowLeft']) {
+        cubeRotation += rotationSpeed;
+      }
+      if (keys['ArrowRight']) {
+        cubeRotation -= rotationSpeed;
+      }
     }
     
     // Forward and backward movement in the direction the cube is facing
+    // Move the front pivot point, not the center
+    let frontPivotX = cubePos.x + Math.sin(cubeRotation) * cubePivotOffset;
+    let frontPivotZ = cubePos.z + Math.cos(cubeRotation) * cubePivotOffset;
+    
     if (keys['ArrowUp'] || keys['w']) {
-      cubePos.x += Math.sin(cubeRotation) * cubeSpeed;
-      cubePos.z += Math.cos(cubeRotation) * cubeSpeed;
+      frontPivotX += Math.sin(cubeRotation) * cubeSpeed;
+      frontPivotZ += Math.cos(cubeRotation) * cubeSpeed;
     }
     if (keys['ArrowDown'] || keys['s']) {
-      cubePos.x -= Math.sin(cubeRotation) * cubeSpeed;
-      cubePos.z -= Math.cos(cubeRotation) * cubeSpeed;
+      frontPivotX -= Math.sin(cubeRotation) * cubeSpeed;
+      frontPivotZ -= Math.cos(cubeRotation) * cubeSpeed;
     }
     
     // Strafe left and right (A/D keys)
     if (keys['a']) {
-      cubePos.x += Math.cos(cubeRotation) * cubeSpeed;
-      cubePos.z -= Math.sin(cubeRotation) * cubeSpeed;
+      frontPivotX += Math.cos(cubeRotation) * cubeSpeed;
+      frontPivotZ -= Math.sin(cubeRotation) * cubeSpeed;
     }
     if (keys['d']) {
-      cubePos.x -= Math.cos(cubeRotation) * cubeSpeed;
-      cubePos.z += Math.sin(cubeRotation) * cubeSpeed;
+      frontPivotX -= Math.cos(cubeRotation) * cubeSpeed;
+      frontPivotZ += Math.sin(cubeRotation) * cubeSpeed;
     }
+    
+    // Update cube center position based on front pivot
+    cubePos.x = frontPivotX - Math.sin(cubeRotation) * cubePivotOffset;
+    cubePos.z = frontPivotZ - Math.cos(cubeRotation) * cubePivotOffset;
     
     // Clamp cube to grid bounds
     cubePos.x = Math.max(gridMinX + cubeSize/2, Math.min(gridMaxX - cubeSize/2, cubePos.x));
@@ -522,8 +571,8 @@ function main() {
     gl.bindVertexArray(grassVao);
     grassProg.uModel.set(Mat4.identity());
     
-    // Single instanced draw call instead of 10,000 individual calls
-    gl.drawElementsInstanced(gl.TRIANGLES, grass.indices.length, gl.UNSIGNED_SHORT, 0, instanceCount);
+    // Single instanced draw call with only visible instances
+    gl.drawElementsInstanced(gl.TRIANGLES, grass.indices.length, gl.UNSIGNED_SHORT, 0, visibleInstanceCount);
 
     // Draw cube
     gl.useProgram(renderProg.program);
@@ -535,10 +584,24 @@ function main() {
     renderProg.uAmbient.set(0.22);
     
     gl.bindVertexArray(cubeVao);
-    // Create cube model matrix with rotation around Y-axis
-    const cubeTranslate = Mat4.translate(cubePos.x, cubePos.y, cubePos.z);
-    const cubeRotate = Mat4.rotationY(cubeRotation);
-    const cubeModel = Mat4.multiply(cubeTranslate, cubeRotate);
+    // Create cube model matrix with rotation around front pivot (forklift-style)
+    // 1. Translate to cube center
+    // 2. Translate forward by pivot offset
+    // 3. Rotate around Y-axis
+    // 4. Translate back by pivot offset
+    const translateToCenter = Mat4.translate(cubePos.x, cubePos.y, cubePos.z);
+    const translateToPivot = Mat4.translate(
+      Math.sin(cubeRotation) * cubePivotOffset,
+      0,
+      Math.cos(cubeRotation) * cubePivotOffset
+    );
+    const rotate = Mat4.rotationY(cubeRotation);
+    const translateBack = Mat4.translate(
+      -Math.sin(cubeRotation) * cubePivotOffset,
+      0,
+      -Math.cos(cubeRotation) * cubePivotOffset
+    );
+    const cubeModel = Mat4.multiply(translateToCenter, translateToPivot, rotate, translateBack);
     renderProg.uModel.set(cubeModel);
     gl.drawElements(gl.TRIANGLES, cube.indices.length, gl.UNSIGNED_SHORT, 0);
 

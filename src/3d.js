@@ -276,6 +276,56 @@ export function createSphere(radius = 0.5, segments = 32, rings = 16) {
   };
 }
 
+/**
+ * Creates a ring/torus geometry (like Saturn's rings or asteroid belt)
+ * 
+ * @param {number} innerRadius - Inner radius of the ring
+ * @param {number} outerRadius - Outer radius of the ring
+ * @param {number} segments - Number of radial segments (around the circle)
+ * @param {number} rings - Number of concentric rings (radial divisions)
+ * @returns {Object} Geometry with positions, normals, and indices
+ */
+export function createRing(innerRadius = 0.5, outerRadius = 1.0, segments = 64, rings = 2) {
+  const positions = [];
+  const normals = [];
+  const indices = [];
+
+  // Generate vertices
+  for (let ring = 0; ring <= rings; ring++) {
+    const radius = innerRadius + (outerRadius - innerRadius) * (ring / rings);
+
+    for (let seg = 0; seg <= segments; seg++) {
+      const theta = (seg / segments) * Math.PI * 2;
+      const x = Math.cos(theta) * radius;
+      const z = Math.sin(theta) * radius;
+
+      // Position (flat ring in XZ plane)
+      positions.push(x, 0, z);
+
+      // Normal (pointing up for a flat ring)
+      normals.push(0, 1, 0);
+    }
+  }
+
+  // Generate indices for top face
+  for (let ring = 0; ring < rings; ring++) {
+    for (let seg = 0; seg < segments; seg++) {
+      const current = ring * (segments + 1) + seg;
+      const next = current + segments + 1;
+
+      // Two triangles per quad
+      indices.push(current, next, current + 1);
+      indices.push(current + 1, next, next + 1);
+    }
+  }
+
+  return {
+    positions: new Float32Array(positions),
+    normals: new Float32Array(normals),
+    indices: new Uint32Array(indices)
+  };
+}
+
 // Generate cone geometry
 export function createCone(radius = 0.5, height = 1.0, segments = 32) {
   const positions = [];

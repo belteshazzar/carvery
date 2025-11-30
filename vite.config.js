@@ -11,8 +11,10 @@ export default defineConfig({
       input: {
         index: resolve(__dirname, 'index.html'),
         animate: resolve(__dirname, 'animate.html'),
+        carve: resolve(__dirname, 'carve.html'),
         render: resolve(__dirname, 'render.html'),
-        cube: resolve(__dirname, 'cube.html'),
+        grass: resolve(__dirname, 'grass.html'),
+        solarSystem: resolve(__dirname, 'solar-system.html'),
       },
     },
   },
