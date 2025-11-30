@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Carvery - World Generator</title>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #1a1a1a;
+      overflow: hidden;
+    }
+
+    #app {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #glwrap {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    .info {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      background: rgba(0, 0, 0, 0.7);
+      padding: 15px;
+      border-radius: 8px;
+      color: white;
+      font-size: 14px;
+      backdrop-filter: blur(10px);
+    }
+
+    .info h2 {
+      margin: 0 0 10px 0;
+      font-size: 16px;
+    }
+
+    .info p {
+      margin: 5px 0;
+      font-size: 12px;
+      color: #aaa;
+    }
+
+    button {
+      margin-top: 10px;
+      padding: 8px 16px;
+      cursor: pointer;
+      background: #667eea;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      font-size: 12px;
+    }
+
+    button:hover {
+      background: #5568d3;
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+  <div id="glwrap">
+    <canvas id="gl" tabindex="0"></canvas>
+    <div class="info">
+      <h2>Procedural Terrain</h2>
+      <p>Mouse Drag: Rotate camera</p>
+      <p>Mouse Wheel: Zoom in/out</p>
+      <button id="btnRegenerate">Regenerate Terrain</button>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="/src/world.js"></script>
+</body>
+</html>
